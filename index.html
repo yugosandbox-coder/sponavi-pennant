@@ -2628,7 +2628,7 @@ const campPts=()=>r1(campBase()+mgrCampBonus(myMgr())+((PEN&&PEN.awake&&PEN.awak
 const COST_K=1;
 // 球団の特色：育ちやすい能力は必要点数が安い
 const TRAIT_JP={T:'パワーが育ちやすい（必要点数20%カット）',G:'オールラウンドに育ちやすい（全能力5%カット）',DB:'ミートが育ちやすい（20%カット）',C:'速度が育ちやすい（20%カット）',S:'コントロールが育ちやすい（20%カット）',D:'守備が育ちやすい（20%カット）',
-  H:'パワーが育ちやすい（10%カット）。入団して1年間は全能力30%カット',L:'球速が育ちやすい（20%カット）',F:'ミートとパワーが少しずつ育ちやすい（各10%カット）',B:'投手がオールラウンドに育ちやすい（投手能力10%カット）',M:'覚醒の確率が5%アップ',E:'新人が20歳まで育ちやすい（20歳まで全能力10%カット）'};
+  H:'パワーが育ちやすい（10%カット）。初めて入団してから2年間は全能力30%カット（出戻りには付かない）',L:'球速が育ちやすい（20%カット）',F:'ミートとパワーが少しずつ育ちやすい（各10%カット）',B:'投手がオールラウンドに育ちやすい（投手能力10%カット）',M:'覚醒の確率が5%アップ',E:'新人が20歳まで育ちやすい（20歳まで全能力10%カット）'};
 function teamMult(k){
   if(!PEN) return 1; const t=PEN.team, isP=['velo','control','stamina','lv'].includes(k); let m=1;
   switch(t){
@@ -2638,7 +2638,7 @@ function teamMult(k){
     case 'C': if(k==='speed') m*=0.8; break;
     case 'S': if(k==='control') m*=0.8; break;
     case 'D': if(k==='def') m*=0.8; break;
-    case 'H': if(k==='power') m*=0.9; if(PEN.year<=(PEN.joinY||1)) m*=0.7; break;
+    case 'H': if(k==='power') m*=0.9; if(PEN.hFirstY==null) PEN.hFirstY=PEN.joinY||1; /* 初めてソフトバンクに入った年（ドラフト・トレード・FA・トライアウトどれでも）を記録 */ if(PEN.year<=PEN.hFirstY+1) m*=0.7; break;   // 初入団から2年間
     case 'L': if(k==='velo') m*=0.8; break;
     case 'F': if(k==='meet'||k==='power') m*=0.9; break;
     case 'B': if(isP) m*=0.9; break;
