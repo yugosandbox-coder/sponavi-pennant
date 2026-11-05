@@ -418,6 +418,9 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .ttl small{color:var(--mute);font-weight:400}
 .ttl tr.won th,.ttl tr.won td{background:#2a2410}
 .up{color:#7fe0a2;font-weight:900}.dn{color:#ff8a7a;font-weight:900}
+.ptn{text-decoration:underline dotted #ffffff80;text-underline-offset:3px;cursor:pointer}
+.ptip{position:fixed;z-index:9999;background:#0f1a14f2;border:1px solid #f5c54288;border-radius:10px;padding:8px 11px;font-size:12.5px;line-height:1.5;color:#eef3ee;box-shadow:0 6px 20px #000a}
+.ptip b{color:#f5c542;font-size:14px;margin-right:6px}.ptip small{color:#9fb3a5}.ptip div{margin-top:3px}
 </style>
 </head>
 <body>
@@ -1058,6 +1061,8 @@ const BREAK={
   'シュート':[2,0],'高速シュート':[1,0],'シンカー':[1,2],'高速シンカー':[1,1],
   'カーブ':[-1,1],'ドロップカーブ':[-1,2],'スローカーブ':[-2,2],'パワーカーブ':[-1,1],'フォーク':[0,2],'SFF':[0,1],
 };
+// 球種名をタップすると説明が出る（render.js の ptipShow）
+const ptn=(t,label)=>PDESC[t]?`<span class="ptn" data-pt="${t}">${label??t}</span>`:(label??t);
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
 const PIT_ADJ={sw:0.03,ct:0.06,q:0.03};   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
@@ -2915,7 +2920,7 @@ function renderCamp(el){
     <span class="cv">${add?`${cur}→<b>${typeof cur==='number'?r1(cur+add):(lvOf(k.slice(3))+add>LV_MAX?'スイーパー':'Lv.'+(lvOf(k.slice(3))+add))}</b>`:cur}<small>${unit}</small></span>
     <button class="cbtn sm" data-ck="${k}" data-d="all" ${!add||L?'disabled':''}>−ALL</button><button class="cbtn" data-ck="${k}" data-d="-1" ${!add||L?'disabled':''}>−</button><button class="cbtn" data-ck="${k}" data-d="1" ${can?'':'disabled'}>＋</button>${isLv?'<span></span>':`<button class="cbtn sm" data-ck="${k}" data-d="5" ${can?'':'disabled'}>+.5</button>`}
     ${isLv?'':(()=>{ const mn=k==='velo'?110:0, pb=((cur-mn)/(cap-mn)*100).toFixed(1), pc=((cur+(add||0)-mn)/(cap-mn)*100).toFixed(1); return `<input type="range" class="cbar" data-cb="${k}" data-base="${cur}" min="${mn}" max="${cap}" step="0.1" value="${r1(cur+(add||0))}" style="background:linear-gradient(90deg,#8d9a90 0 ${pb}%,#f5c542 ${pb}% ${pc}%,#243329 ${pc}% 100%)" ${L?'disabled':''}>`; })()}</div>`; };   // バー＝能力の棒グラフ（0〜100、球速は110〜165）。元の能力より下には戻せない
-  const brk=P.rep.map(t=>{ const add=c.lv[t]||0, nl=lvOf(t)+add; return row('lv:'+t,t==='ストレート'?'ストレート（伸び）':t==='スライダー'&&lvOf(t)>=LV_MAX?'スライダー（＋1点でスイーパーに進化）':t,'Lv.'+lvOf(t),add,'',lvCost(nl,t),nl>=lvMaxOf(t)); }).join('');
+  const brk=P.rep.map(t=>{ const add=c.lv[t]||0, nl=lvOf(t)+add; return row('lv:'+t,t==='ストレート'?ptn(t,'ストレート（伸び）'):t==='スライダー'&&lvOf(t)>=LV_MAX?ptn(t,'スライダー（＋1点でスイーパーに進化）'):ptn(t),'Lv.'+lvOf(t),add,'',lvCost(nl,t),nl>=lvMaxOf(t)); }).join('');
   const o=campLearnOpts();
   let learn;
   if(!o) learn=`<div class="hint">新しい変化球は2年目のキャンプから覚えられます。</div>`;
@@ -2923,7 +2928,7 @@ function renderCamp(el){
     const on=t=>c.learn&&c.learn.t===t||c.pick===t;
     const chip=t=>`<button class="btn ${on(t)?'on':''}" style="margin:3px 4px 3px 0;padding:6px 10px;width:auto" data-lt="${t}" data-lm="${o.canAdd?'add':'pick'}">${t}<small style="opacity:.75"> ${learnCost(t,!o.canAdd)}</small></button>`;
     const sel=c.learn?c.learn.t:c.pick;
-    learn=`<div class="hint" style="margin-bottom:6px">持っている変化球：${o.own.map(t=>`${t} Lv.${lvOf(t)}`).join('・')||'なし'}（${o.own.length}／${MAX_BRK}）</div>`+
+    learn=`<div class="hint" style="margin-bottom:6px">持っている変化球：${o.own.map(t=>`${ptn(t)} Lv.${lvOf(t)}`).join('・')||'なし'}（${o.own.length}／${MAX_BRK}）</div>`+
       (o.cands.length?Object.keys(PFAM_JP).map(f=>{ const ts=o.cands.filter(t=>PFAM[t]===f); return ts.length?`<div style="margin:2px 0"><small style="color:var(--mute);display:block;margin:4px 0 0">${PFAM_JP[f]}</small>${ts.map(chip).join('')}</div>`:''; }).join(''):`<div class="hint">覚えられる球種はもうありません。</div>`)+
       (sel?`<div class="lrn" style="margin-top:6px"><b>${sel}</b> <small>${PDESC[sel]||''}</small>${o.canAdd?`<div class="hint">${c.learn?'このキャンプで覚えます（もう一度押すと取り消し）':''}</div>`:
         `<div class="hint" style="margin-top:4px">変化球は${MAX_BRK}つまでなので、入れ替える球種を選んでください</div><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${o.own.map(b=>`<button class="btn ${c.learn&&c.learn.t===sel&&c.learn.base===b?'on':''}" style="flex:0 0 auto;margin:0;padding:6px 10px;white-space:nowrap;width:auto" data-lt="${sel}" data-lm="swap" data-lb="${b}">${b}と入れ替え</button>`).join('')}</div>`}</div>`:'')+
@@ -2971,7 +2976,7 @@ function renderCamp(el){
       <div class="hint">左打ちは右投手、右打ちは左投手に少し三振しづらい。両打ちは相手投手と逆の打席に入れる。</div></div></details>`:''}
     ${B?posSec:`<details class="cdet" ${c.learn||c.pick?"open":""}><summary class="sh2">新しい変化球を覚える・変える（0.9〜2.3ポイント）</summary>
     <div class="pcardx">${learn}</div></details>`}
-    <button class="btn main" id="campEnd">キャンプを終えて開幕へ${left>1e-6&&!L?`（残り${left}ptは消えます）`:''}</button>
+    <button class="btn main" id="campEnd">キャンプを終えて開幕へ${left>1e-6&&!L?`（残り${left}ptは来年に繰り越し）`:''}</button>
   </div>`;
   el.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>campStep(b.dataset.ck,b.dataset.d==='all'?'all':+b.dataset.d));
   el.querySelectorAll('[data-cb]').forEach(s=>{ s.oninput=()=>{ if(+s.value<+s.dataset.base) s.value=s.dataset.base; }; s.onchange=()=>campSetAdd(s.dataset.cb,r1(Math.max(0,+s.value-(+s.dataset.base)))); });
@@ -3125,7 +3130,7 @@ function renderPennant(){
       ${typeof injuryHTML==='function'?injuryHTML():''}
       ${isFavMgr()?`<div class="pcardx" style="border-color:#2a9d4f"><b>💚 ${mgrName(myMgr())}のお気に入り度：${myMgr().fav||0}／100</b>　<small style="color:var(--mute)">評価 ${favBonus()>=0?'+':''}${Math.round(favBonus())}点</small><div class="hint">贔屓起用の監督だけの仕組み。ミッション達成で+8、失敗で−2、打診を断ると下がる。60以上で能力にかかわらず起用されやすく、伸び悩みを待ってくれる年数もお気に入り度で${stagLimit()}年（30未満2年・50未満3年・70未満4年・70以上5年）</div></div>`:''}
       ${(B||isTW())&&P.btype?`<div class="hint" style="margin:0 0 4px">タイプ：<b style="color:var(--ink)">${P.btype}</b>　${BTYPE_INFO[P.btype]?BTYPE_INFO[P.btype].me:''}<details style="margin-top:2px"><summary>タイプ一覧と条件（毎年キャンプ前に去年の成績で決まる）</summary>${BTYPES.map(t=>`<div style="margin:3px 0"><b style="color:var(--ink)">${t}</b>：${BTYPE_INFO[t].cond}<br>→ ${BTYPE_INFO[t].me}</div>`).join('')}<div>複数の条件を満たしたときはランダムに1つ。上がる/下がる＝±5%、少し＝±2.5%、とても＝±7.5%</div></details></div>`:''}
-      <div class="hint" style="margin:0 0 4px">${B?`野手　${babilTxt(P.babil)}`:`${P.abil.velo}km/h・制球${P.abil.control}・スタミナ${P.abil.stamina}・${P.rep.length>1?P.rep.slice(1).map(t=>`${t} ${lvTxt(t)}`).join('・'):'ストレートのみ'}`}</div>
+      <div class="hint" style="margin:0 0 4px">${B?`野手　${babilTxt(P.babil)}`:`${P.abil.velo}km/h・制球${P.abil.control}・スタミナ${P.abil.stamina}・${P.rep.length>1?P.rep.slice(1).map(t=>`${ptn(t)} ${lvTxt(t)}`).join('・'):'ストレートのみ'}`}</div>
       <div style="font-size:13px;line-height:1.7">今年：${statLine(P.ss)}</div>
       <div style="font-size:12px;color:var(--mute);line-height:1.6;margin-top:4px">通算：${statLine(P.career)}</div>
       ${isTW()?`<div style="font-size:13px;line-height:1.7;margin-top:6px">⚾ 打撃（今年）：${batLine(P.bss||batStat())}</div><div class="hint">打撃の能力：${babilTxt(P.babil).replace(/・守備\d+/,'')}・${P.bhand==='L'?'左打':'右打'}</div>
@@ -3190,7 +3195,7 @@ function abilChangeHTML(ch){
   const rows=[['球速',a.velo,ch.velo,'km/h',ch.why.velo],['コントロール',a.control,ch.control,'',ch.why.control],['スタミナ',a.stamina,ch.stamina,'',ch.why.stamina]]
     .map(([n,v,d,u,w])=>`<tr><th>${n}</th><td>${v}${u} → <b>${clamp(v+d,0,n==='球速'?165:100)}${u}</b>（${f(d)}）<br><small style="color:var(--mute)">${w}</small></td></tr>`).join('');
   const br=Object.entries(ch.brk).filter(([t])=>PEN.rep.includes(t)).map(([t,d])=>{const cur=lvOf(t), nx=clamp(cur+d,0,LV_MAX);
-    return `<tr><th>${t}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）${ch.aging&&ch.aging.t===t?`<br><small style="color:var(--mute)">衰えで −${ch.aging.d}</small>`:''}</td></tr>`}).join('');
+    return `<tr><th>${ptn(t)}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）${ch.aging&&ch.aging.t===t?`<br><small style="color:var(--mute)">衰えで −${ch.aging.d}</small>`:''}</td></tr>`}).join('');
   return `<div class="sh2">能力の変化（来季に反映${(PEN.age||22)>33?'・33歳を超えたので衰えが大きい（マイナスは'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}${br}</table></div>`;
 }
 function seasonTable(){
@@ -4120,7 +4125,7 @@ function renderBat(){
   $('plB').innerHTML=`<div class="lab">打者 ${me.num||B_NUM}　${me.order}番${G.myPosK?`・<b style="color:var(--accent)">${G.myPosK}</b>`:''}・${G.pinch?'代打':G.tw?'二刀流':'あなた'}</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname)}</span> <span class="hb ${G.sw?'S':G.bhand}">${G.sw?'両打・':''}${L?'左打席':'右打席'}</span></div>
     ${asTag(PEN&&PEN.team)}<div class="sub">${G.sw&&G.meUp&&!ab.pitches.length?`<button class="btn swbtn" id="swBtn">⇄ ${L?'右':'左'}打席に変える</button>`:`今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}　ミート${A.meet}・パワー${A.power}`}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:p.text,foul:p.text,foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
-  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${p.pt}</span><span>${pres(p)}</span></div>`).join('')
+  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
     : `<div class="empty">${G.meUp?'下のバーで狙う球速、ゾーンで狙うコースを選んで「この読みで待つ」':'この打席の投球はまだありません'}</div>`;
   $('plist').scrollTop=$('plist').scrollHeight;
   const sb=$('swBtn'); if(sb) sb.onclick=swToggle;
@@ -4238,7 +4243,7 @@ function renderScoutBat(){
   $('scout').innerHTML=`<div class="sh2" style="margin-top:0">いまの相手投手</div>
     <table class="sct"><tr><th>${pit.name}</th><td>${pit.hand==='L'?'左投':'右投'}・最速${pit.velo}km/h・コントロール${pit.control}</td></tr>
     <tr><th>配球の傾向</th><td><b style="color:var(--accent)">${PSTYLE_JP[pit.style]||'全体にバラバラ'}</b>${kimeOf(pit)?'':'　<span style="color:var(--mute)">（決め球なし）</span>'}</td></tr>
-    ${pit.types.map(t=>`<tr><th>${t}</th><td>平均 約${pitSpeed(pit,t)}km/h・Lv.${pitLv(pit,t)}${t===kimeOf(pit)?' <b style="color:var(--accent)">決め球</b>':''}</td></tr>`).join('')}</table>
+    ${pit.types.map(t=>`<tr><th>${ptn(t)}</th><td>平均 約${pitSpeed(pit,t)}km/h・Lv.${pitLv(pit,t)}${t===kimeOf(pit)?' <b style="color:var(--accent)">決め球</b>':''}</td></tr>`).join('')}</table>
     <div class="hint" style="margin-top:6px">あなたが狙える球速の幅：狙いから−${meetTol(G.babil.meet)}〜+${meetUp(G.babil.meet)}km/h（速い球には+${meetUp(G.babil.meet)}までしか対応できない。狙いの−${SWEET}〜+${Math.min(SWEET,meetUp(G.babil.meet))}が芯、真ん中に一番近い球種が本命）／狙えるコース：${meetCells(G.babil.meet)}マス（ミート${G.babil.meet}）</div>
     <div class="sh2">相手バッテリーの読み</div>
     <div class="hint">傾向読みは<b>投手ごと</b>。${pit.name}があなたと対戦した${n}球ぶんの狙い（今までの試合＋この試合）を覚えています。<br>${n>=3?`あなたがよく張っている球速：<b style="color:var(--ink)">${top}</b>。よく張られている球速の球種は投げてこなくなり、よく狙うマスも避けてきます。`:'まだ狙いの傾向は読まれていません。'}</div>`;
@@ -4797,7 +4802,7 @@ function hallRegister(yes){
   renderPennant(); save();
 }
 const hallSeasonLine=s=>{ const ss=s.ss||{}; return ss.pa!=null ? `${ss.g}試合 打率${ss.ab?f3(bAvg(ss)):'-'} ${ss.hr}本 ${ss.rbi}打点 ${ss.sb}盗塁 OPS${ss.pa?f3(bObp(ss)+bSlg(ss)):'-'}` : `${ss.g}登板 ${ss.w}勝${ss.l}敗${ss.sv}S${ss.hld}H 防${fmtRate(ss.runs,ss.outs)} ${fmtIP(ss.outs)}回 K${ss.k}`; };
-const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${t}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・速度${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
+const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${ptn(t)}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・速度${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
 /* ---- 戦力外のあとの画面 ---- */
 function renderReleased(el){
   const P=PEN, t=P.tryout, left=TRYOUT_MAX-(P.tryoutN||0), W=P.pos==='W', B=P.pos==='B';
@@ -5853,7 +5858,7 @@ function renderAll(){
   const mark=t=>typeof PLEV[t]==='number' ? `<span class="lvm ${PLEV[t]>=3?'k':PLEV[t]<=1?'s':''}">Lv.${PLEV[t]}</span>` :
     lev(t)==='決'?'<span class="lvm k">★決め球</span>':lev(t)==='少'?'<span class="lvm s">少し</span>':'';
   $('ptypes').innerHTML=REP.map(t=>`<button class="btn ${t===ptype?'on':''}" data-t="${t}" >${t==='チェンジアップ'?'チェンジアップ':t}${mark(t)}</button>`).join('');
-  [...$('ptypes').children].forEach(el=>el.onclick=()=>{ptype=el.dataset.t;renderAll()});
+  [...$('ptypes').children].forEach(el=>el.onclick=()=>{ if(ptype===el.dataset.t){ ptipShow(el,el.dataset.t); return; } ptype=el.dataset.t; renderAll(); });   // 選んでいる球種をもう一度タップすると説明
   if(REP.length===1){   // 1種類だけのときは選ぶボタンを出さず、表示だけにする
     $('ptypes').style.setProperty('--n',1);
     $('ptypes').innerHTML=`<div class="onlyp">球種：<b>${REP[0]}</b>（持ち球1種類）</div>`;
@@ -5866,7 +5871,7 @@ function renderAll(){
   $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
     ${asTag(b.team)}<div class="sub">打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
-  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${p.pt}</span><span>${pres(p)}</span></div>`).join('')
+  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
     : `<div class="empty">この打席の投球はまだありません</div>`;
   $('plist').scrollTop=$('plist').scrollHeight;
 
@@ -6527,13 +6532,13 @@ function showProfile(o){
     const pen=PEN&&(G&&G.pen||SCREEN==='pennant');
     h=`<h2>${pen?PEN.pname:(G&&G.pname||'あなた')}</h2><div class="prow"><span class="hb ${PHAND}">${PHAND==='L'?'左投':'右投'}</span>${pen?`<span class="rbadge">${ROLE_NAME[PEN.role]}</span>${PEN.team?tchip(PEN.team):''}<span class="hint">${PEN.age}歳${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span>`:''}</div>
       <table>${pen&&PEN.abil?`<tr><th>球速</th><td>${PEN.abil.velo}km/h</td></tr><tr><th>コントロール</th><td>${bar10(PEN.abil.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(PEN.abil.stamina)}</td></tr>`:`<tr><th>ストレート平均</th><td>${PVELO}km/h</td></tr>`}
-      <tr><th>持ち球</th><td>${(pen&&PEN.rep?PEN.rep:REP).map((t,i)=>{ if(pen&&PEN.plev) return `${t}　Lv.${lvOf(t)}`; const L=lev(t); return `${t}${L==='決'?'（決め球）':L==='少'?'（少し）':''}`}).join('<br>')}</td></tr>
+      <tr><th>持ち球</th><td>${(pen&&PEN.rep?PEN.rep:REP).map((t,i)=>{ if(pen&&PEN.plev) return `${ptn(t)}　Lv.${lvOf(t)}`; const L=lev(t); return `${ptn(t)}${L==='決'?'（決め球）':L==='少'?'（少し）':''}`}).join('<br>')}</td></tr>
       ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr>${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・速度${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
         :`<tr><th>通算</th><td>防御率 ${fmtRate(C.runs,C.outs)}・${C.w}勝${C.l}敗・奪三振${C.k}</td></tr>`}</table>`;
   }else if(o.isP){
     h=`<h2>${o.name}</h2><div class="prow"><span class="hb ${o.hand}">${o.hand==='L'?'左投':'右投'}</span><span class="hint">背番号 ${o.num}</span></div>
       <table><tr><th>最速</th><td>${o.velo}km/h</td></tr>
-      <tr><th>変化球・持ち球</th><td>${o.types.map(t=>t==='ストレート'?`ストレート　Lv.${pitLv(o,t)}`:`${t}　Lv.${pitLv(o,t)}${t===kimeOf(o)?'（決め球）':''}`).join('<br>')}</td></tr>
+      <tr><th>変化球・持ち球</th><td>${o.types.map(t=>t==='ストレート'?`${ptn(t)}　Lv.${pitLv(o,t)}`:`${ptn(t)}　Lv.${pitLv(o,t)}${t===kimeOf(o)?'（決め球）':''}`).join('<br>')}</td></tr>
       ${o.style?`<tr><th>配球の傾向</th><td>${PSTYLE_JP[o.style]}</td></tr>`:''}
       ${o.plv?`<tr><th>決め球</th><td>${kimeOf(o)||'なし'}</td></tr>`:''}
       <tr><th>コントロール</th><td>${bar10(o.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(o.stamina)}</td></tr>
@@ -6645,9 +6650,9 @@ function renderAbil(){
   $('abCtl').value=AB.control; $('abCtlV').textContent=AB.control.toFixed(1);
   $('abSta').value=AB.stamina; $('abStaV').textContent=AB.stamina.toFixed(1);
   const nB=Object.keys(AB.brk).length;
-  const stRow=`<div class="abbr"><span>ストレート<small>伸び</small></span>${[1,2,3].map(l=>`<button class="lvb ${(AB.slv||3)===l?'on':''}" data-slv="${l}">Lv.${l}<small>${SLV_COST[l]}pt</small></button>`).join('')}</div>`;
+  const stRow=`<div class="abbr"><span>${ptn('ストレート')}<small>伸び</small></span>${[1,2,3].map(l=>`<button class="lvb ${(AB.slv||3)===l?'on':''}" data-slv="${l}">Lv.${l}<small>${SLV_COST[l]}pt</small></button>`).join('')}</div>`;
   $('abBreak').innerHTML=stRow+BRK_TYPES.map(t=>{const cur=AB.brk[t]||'';
-    return `<div class="abbr"><span>${t}</span>${[['','なし'],['少','少し<small>Lv.1・1pt</small>'],['普','普通<small>Lv.2・2pt</small>'],['決','決め球<small>Lv.3・5pt</small>']].map(([l,n])=>{
+    return `<div class="abbr"><span>${ptn(t)}</span>${[['','なし'],['少','少し<small>Lv.1・1pt</small>'],['普','普通<small>Lv.2・2pt</small>'],['決','決め球<small>Lv.3・5pt</small>']].map(([l,n])=>{
       const dis = l && !cur && nB>=2;   // 2つまで
       return `<button class="lvb ${cur===l?'on':''} ${dis?'dis':''}" data-t="${t}" data-l="${l}">${n}</button>`}).join('')}</div>`}).join('');
   $('abBreak').querySelectorAll('[data-slv]').forEach(el=>el.onclick=()=>{ const l=+el.dataset.slv; if(abCost({...AB,slv:l})>pBudget()+1e-6){ $('abLeft').textContent='ポイントが足りません'; $('abLeft').classList.add('over'); return; } AB.slv=l; renderAbil(); });
@@ -6758,6 +6763,28 @@ let loaded=false;
 try{loaded=applySave(JSON.parse(localStorage.getItem(SAVE_KEY)||'null'))}catch(e){}
 if(!loaded){ newGame(); showScreen('mode'); }
 initCloud();
+/* ---- 球種名をタップしたときの説明（どの画面でも） ---- */
+let ptipEl=null, ptipT=null;
+function ptipHide(){ if(ptipEl){ ptipEl.remove(); ptipEl=null; } clearTimeout(ptipT); }
+function ptipShow(anchor,t){
+  ptipHide(); if(!PDESC[t]) return;
+  const d=document.createElement('div'); d.className='ptip';
+  d.innerHTML=`<b>${t}</b><small>${PFAM_JP[PFAM[t]]||''}</small><div>${PDESC[t]}</div>`;
+  document.body.appendChild(d); ptipEl=d;
+  const r=anchor.getBoundingClientRect(), w=Math.min(300,window.innerWidth-20);
+  d.style.width=w+'px';
+  let x=r.left+r.width/2-w/2; x=Math.max(10,Math.min(window.innerWidth-w-10,x));
+  const h=d.offsetHeight; let y=r.bottom+6; if(y+h>window.innerHeight-8) y=r.top-h-6;
+  d.style.left=x+'px'; d.style.top=Math.max(8,y)+'px';
+  ptipT=setTimeout(ptipHide,6000);
+}
+document.addEventListener('click',e=>{
+  const el=e.target.closest&&e.target.closest('.ptn');
+  if(el){ e.stopPropagation(); e.preventDefault(); if(ptipEl&&ptipEl.dataset.for===el.dataset.pt){ ptipHide(); return; } ptipShow(el,el.dataset.pt); if(ptipEl) ptipEl.dataset.for=el.dataset.pt; return; }
+  if(ptipEl&&!(e.target.closest&&e.target.closest('.ptip'))) ptipHide();
+},true);
+window.addEventListener('scroll',()=>ptipHide(),{passive:true});
+
 </script>
 </body>
 </html>
