@@ -169,7 +169,27 @@ let PNAME_IN='', TNAME_IN='';   // 自分の名前・チーム名（空欄なら
 const PVELO=146, MYNUM=18;   // ストレートの平均球速（通常モード）・自分の背番号
 // 自分の能力（ペナントは G.abil：球速・コントロール・スタミナ）
 const myVelo=()=>G&&G.abil?G.abil.velo:PVELO;
-const fatigue=()=>G&&G.abil?Math.max(0,G.st.pitches-(45+G.abil.stamina*0.75)):0;   // スタミナを超えた球数
+const fatigue=()=>0;   // （旧）スタミナを超えた球数 → スタミナの残量（staF）に置き換え
+/* ---- スタミナ：スタミナの数値がそのまま残量。1球ごとに球種で決まる量を使う ----
+   全投手・全球種の平均で「スタミナ＋n」球投げられる（n：〜50は5、〜70は10、〜80は15、〜90は20、〜100は30）
+   その日の残量は スタミナ−15〜±0。半分を切ると、少しずつ制球・球威・球の質が落ち、全球種の球速が近づいていく */
+const staN=S=>S<=50?5:S<=70?10:S<=80?15:S<=90?20:30;
+const STA_FAM={fast:1.0,slider:1.1,shoot:1.1,curve:1.3,sinker:1.5,fork:1.5};   // 持ち点のコストが高い球種ほど多く使う
+const staW=(t,lv)=>(STA_FAM[PFAM[t]]||1.2)*(1+0.06*((lv||2)-2));                 // Lvが高いほど多く使う
+let STA_AVG=null;
+function staAvg(){ if(STA_AVG) return STA_AVG; let s=0; const N=2000;
+  for(let i=0;i<N;i++){ const p=genPitcher(); const w=p.types.map(t=>[t,t==='ストレート'?1.7:0.7+pitLv(p,t)*0.12]), tot=w.reduce((a,x)=>a+x[1],0); w.forEach(([t,x])=>{ s+=staW(t,pitLv(p,t))*x/tot; }); }
+  return STA_AVG=s/N; }
+const staCost=(t,lv,S)=>staW(t,lv)/staAvg()*S/(S+staN(S));
+function staNew(S){ S=clamp(S??50,1,100); const m=Math.max(3,r1(S-ri(0,15))); return {S,max:m,cur:m}; }   // 日によって−15〜±0のブレ
+const staF=st=>st?clamp((0.5-st.cur/st.max)/0.5,0,1.5):0;   // 0＝半分以上残っている、1＝空っぽ、1.5＝使い切ったあと
+function mySta(){ if(!G||!G.abil) return null; if(!G.sta){ G.sta=staNew(G.abil.stamina); if(G.st&&G.st.pitches) G.sta.cur=r1(G.sta.cur-G.st.pitches*G.sta.S/(G.sta.S+staN(G.sta.S))); } return G.sta; }
+const myStaF=()=>staF(mySta());
+// スタミナの残量バー（半分を切ると黄、2割を切ると赤）
+function staBarHTML(st){ if(!st) return ''; const r=clamp(st.cur/st.max,0,1), col=r<0.2?'#ff5a52':r<0.5?'#f5c542':'#3fb96b';
+  return `<div class="stab"><span>スタミナ</span><i><b style="width:${(r*100).toFixed(0)}%;background:${col}"></b></i><small>${Math.max(0,Math.round(st.cur))}/${Math.round(st.max)}</small></div>`; }
+// 疲れたときの球速：ストレートと一番遅い球の中間に近づく
+function tiredSpd(base,top,slow,f){ const mid=(top+slow)/2; return base+(mid-base)*Math.min(1,f)*0.7; }
 // 球速：直球からの差（km/h）。投げるたびに±2.5km/hのばらつき（小数第1位まで・それより下は切り捨て）
 const VOFF={'ストレート':0,'カットボール':-5,'ツーシーム':-3,'チェンジアップ':-30,'高速スライダー':-10,'スライダー':-20,'スロースライダー':-35,'スイーパー':-15,
   'シュート':-17,'高速シュート':-8,'シンカー':-25,'高速シンカー':-20,'カーブ':-25,'ドロップカーブ':-15,'スローカーブ':-45,'パワーカーブ':-10,'フォーク':-20,'SFF':-10};
@@ -463,7 +483,7 @@ function locFamShare(r,c,hand){
 function decideLoc(r,c){
   const r0=r,c0=c; let note='';
   const ctl=G.abil?G.abil.control:null;
-  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+fatigue()*0.003,0.03,0.55) : ($('optCtrl').checked?0.22:0);
+  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+myStaF()*0.15+(inPinch(G.bases)?PINCH.ctl:0),0.03,0.6) : ($('optCtrl').checked?0.22:0);   // 疲れると制球が乱れる
   if(rnd()<pMiss){
     const far = ctl!=null && ctl<30 && rnd()<0.3;   // コントロールが悪いと2マスずれることも
     const dr=pick([-1,0,1])*(far?2:1), dc=pick([-1,0,1])*(far?2:1);
@@ -484,7 +504,10 @@ const BREAK={
 const ptn=(t,label)=>PDESC[t]?`<span class="ptn" data-pt="${t}">${label??t}</span>`:(label??t);
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
-const PIT_ADJ={sw:0.03,ct:0.25,q:0,swNT:0.58,foul:0.05,oz:0.14,ctMin:0.38,qNT:0.2};   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+// ピンチ（ランナーが2塁か3塁）：投手の制球と球威がごくわずかに悪化
+const PINCH={ctl:0.03,q:0.03,mul:1.03};
+const inPinch=bs=>!!(bs&&(bs[1]||bs[2]));
+const PIT_ADJ={sw:0.03,ct:0.25,q:0,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
 let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
 // 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
 //  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
@@ -586,7 +609,7 @@ function simulatePitch(r,c,pt,note){
     swingP+=[-0.07,0,0.08][gMatch];
     swingP+=zoneHeavy*0.3-ballHeavy*0.3;
   }else{
-    swingP=(1-b.eye/100)*0.34;
+    swingP=(1-b.eye/100)*0.30;   // ボール球の見極め（少し見極めるように）
     if(nearTarget) swingP+=0.14;
     if(protect) swingP+=0.16;
     if(r===4) swingP+=PT_LOWB[pt]||0;   // 低めに沈んで振らせる
@@ -604,12 +627,14 @@ function simulatePitch(r,c,pt,note){
     if(ab.balls===3) swingP-=0.05;
     swingP*= (1+zoneHeavy*0.6)*(1-ballHeavy*1.2);   // ストライクばかりだと振ってくる／ボールばかりだと見極められる
     if(lureBall) swingP+=0.08;
+    swingP*=1-0.3*Math.min(1,myStaF());   // 疲れた球は見切られやすい
     if(sp>0&&r<=1) swingP+=0.04*sp;             // 速い高めの釣り球
   }
   if(fooled&&!protect) swingP=Math.max(swingP,0.8);   // 狙っていたマスに来たように見えて振ってしまう
   swingP=clamp(swingP,0.02,0.97);
   const swing=rnd()<swingP;
-  const speed=jitterSpd(myVelo()+VOFF[pt]-fatigue()*0.08);   // 球速（km/h・小数第1位まで）。疲れると落ちる
+  const fT=myStaF(), slowest=Math.min(...REP.map(t=>myVelo()+VOFF[t]));
+  const speed=jitterSpd(tiredSpd(myVelo()+VOFF[pt],myVelo(),slowest,fT));   // 球速（km/h・小数第1位まで）。疲れると全球種の球速が近づく
   const base={r,c,sr,sc,pt,inZone,note,guess,gMatch,readCell,abRead,speed,fooled,sb:fx.sb,bs:fx.bs};
 
   if(!swing){
@@ -637,7 +662,7 @@ function simulatePitch(r,c,pt,note){
   // 粘り・対応：追い込まれたら当てにいく。球数を見るほど目が慣れる
   if(protect) ct+=0.04+b.contact*0.0006;
   ct+=Math.min(0.08,ab.pitches.length*0.015);
-  if(inZone&&!isTarget) ct-=0.06;
+  if(inZone&&!isTarget) ct-=0.06-PIT_ADJ.ctNT;
   ct+=PT_CT[pt]||0;
   if(low) ct-=PT_LOWCT[pt]||0;
   ct+=PIT_ADJ.ct-fx.wh;                        // 球種の特徴（ストライク→ボール・待ち球とのずれ など）
@@ -658,7 +683,7 @@ function simulatePitch(r,c,pt,note){
   if(rd&&!readCell&&[...rd.cells].some(k=>{const[a,d]=k.split(',').map(Number);return Math.abs(a-r)<=1&&Math.abs(d-c)<=1})) ct+=0.03;   // 張っているコースの周り
   ct+=0.0;    // （全体の当てやすさの調整値）
   // 自分の能力：球速が速いほど当てにくい／スタミナ切れで当てられやすい
-  if(G.abil){ ct-=(G.abil.velo-PVELO)*0.0015; ct+=Math.min(0.12,fatigue()*0.002); }
+  if(G.abil){ ct-=(G.abil.velo-PVELO)*0.0015; ct+=myStaF()*0.10; }   // 疲れると球の質が落ちて当てられやすい
   ct-=0.06*sp;                                  // 速いストレートは空振りが取れる／遅いと当てられる
   if(inZone) ct+=zoneHeavy*0.18;                // ストライクばかりだとタイミングを合わせられる
   if(showBall) ct-=0.05;                        // 見せ球が効いている
@@ -666,7 +691,7 @@ function simulatePitch(r,c,pt,note){
   if(rnd()>ct) return {...base,kind:'swing',text:'空振り'};
 
   // --- ファウル判定 ---
-  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?0.16:0);   // 追い込まれるとファウルで粘る
+  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?PIT_ADJ.cut:0);   // 追い込まれるとファウルで粘る
   if(rnd()<foulP){
     if(rnd()<0.07){
       const f=wpick([['キャッチャー',5],['ファースト',2],['サード',2]]);
@@ -678,7 +703,7 @@ function simulatePitch(r,c,pt,note){
 
   // --- 打球の質 q ---
   let q=0;
-  if(strictTarget||readCell||abRead) q+=0.06+b.contact/100*0.24; else if(protect&&inZone) q-=0.08; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
+  if(strictTarget||readCell||abRead) q+=PIT_ADJ.qT+b.contact/100*0.24; else if(protect&&inZone) q-=PIT_ADJ.qP; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
   if(L==='少'){ q+=0.06; if(gMatch===0) q+=0.08; }
   if(L==='決'){ q-=0.08+0.03*lx; }
   if(pt==='ストレート') q-=0.025*stLv();   // 伸び：Lvが高いほど打球が弱い（被打率が少しずつ良くなる）
@@ -691,7 +716,7 @@ function simulatePitch(r,c,pt,note){
   if(!inZone) q-=0.38;
   q+=PT_Q[pt]||0;
   if(low) q-=PT_LOWQ[pt]||0;
-  q+=fx.q+PIT_ADJ.q;
+  q+=fx.q+PIT_ADJ.q+(inPinch(G.bases)?PINCH.q:0);   // ピンチでは球威がわずかに落ちる
   if(fooled) q-=PFX_K.fool;
   if(pt==='スローカーブ'&&(gMatch===2||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
   q+=[-0.12,0,0.16][gMatch];   // 読みが当たると強い打球
@@ -702,7 +727,7 @@ function simulatePitch(r,c,pt,note){
   if(pt==='カットボール'&&!away&&dIn<=2) q-=0.06;   // 打者の手元に食い込むカットで芯を外す
   q+=fam*0.8;
   q+=locShare*0.08;
-  if(G.abil){ q-=(G.abil.velo-PVELO)*0.0015; q+=Math.min(0.12,fatigue()*0.002); }
+  if(G.abil){ q-=(G.abil.velo-PVELO)*0.0015; q+=myStaF()*0.12; }   // 疲れると球威が落ちてヒット性になりやすい
   q-=0.07*sp;
   if(inZone) q+=zoneHeavy*0.22;
   if(showBall) q-=0.05;
@@ -908,6 +933,12 @@ function endAB(p){
     if(G.outs>=3 && !(G.inning>=INNINGS && myTot()>oppTot())) why='役目を終えて交代';
     else if(G.outs<3 && G.st.runs-G.innRuns0>=3 && rnd()<0.7) why=`この回${G.st.runs-G.innRuns0}失点`;
   }else why = (G.outs>=3 && G.inning>=INNINGS) ? null : managerCheck();   // 9回以降の3アウト目では代えない
+  if(why&&G.lastSta&&!(G.pen&&G.pen.allstar)){   // スタミナでの交代：監督がベンチを出たあと、続投か降板かを自分で決める
+    G.lastSta=false; G.staAsk={why,atEnd:G.outs>=3};
+    addLog(`<div class="pull">🧢 監督がマウンドへ：${why}</div>`);
+    if(G.outs>=3) $('next').textContent='チェンジ（その裏の攻撃へ）'; else $('next').textContent='次の打者へ';
+    $('next').style.display=''; renderAll(true); staAskWait(); save(); return;
+  }
   if(why){
     G.pulled=why; G.exit={lead:myTot()-oppTot(),outs:G.st.outs,lost:false,tied:false,atInnEnd:G.outs>=3};
     addLog(`<div class="pull">🔁 降板：${why}（${fmtIP(G.st.outs)}回 ${G.st.pitches}球 失点${G.st.runs}）</div>`);
@@ -935,6 +966,43 @@ function pullWait(why){
   },PULL_WAIT);
 }
 
+// スタミナでの交代の相談：「監督がベンチを出た…」のあと、この回を投げきるか・ここで降板するかを選ぶ
+function staAskWait(){
+  const t=$('throw'), n=$('next');
+  t.style.display=''; t.disabled=true; t.textContent='監督がベンチを出た…'; n.style.display='none';
+  clearTimeout(pullTimer);
+  pullTimer=setTimeout(()=>{ pullTimer=null; t.textContent='投げる'; t.disabled=false; staAskShow(); },PULL_WAIT);
+}
+function staAskShow(){
+  const A=G&&G.staAsk; if(!A||typeof $==='undefined'||!$('tin')) return;
+  const st=G.st, S=mySta(), mgr=(typeof PEN!=='undefined'&&PEN&&G.pen&&typeof mgrName==='function')?mgrName(myMgr()):'監督';
+  $('tin').innerHTML=`<div class="t1">監督がマウンドへ</div>
+    <div class="t3">${A.why}</div>
+    <div class="t4">${fmtIP(st.outs)}回 ${st.pitches}球 失点${st.runs}　スタミナ残り ${S?Math.max(0,Math.round(S.cur)):'-'}／${S?Math.round(S.max):'-'}<br>相手 ${oppTot()} − ${myTot()} 味方</div>
+    <div class="msay" style="margin:10px 0"><div class="bub r">${mgr}「だいぶ疲れてきたな。${A.atEnd?'次の回もいけるか？':'この回は投げきれるか？'}それとも、ここで代わるか？」</div></div>
+    <button class="btn main" style="width:100%;margin:4px 0" onclick="staKeep()">${A.atEnd?'次の回も投げる（投げきるまで降板しない）':'この回を投げきる（3アウトまで降板しない）'}</button>
+    <button class="btn" style="width:100%;margin:4px 0" onclick="staPull()">ここで降板する</button>
+    <div class="t4" style="opacity:.8">疲れているほど制球・球威・球のキレが落ち、全球種の球速が近づきます</div>`;
+  const t=$('title'); t.classList.remove('hide'); t.style.display=''; t.scrollTop=0;
+  if(typeof titleTimer!=='undefined') clearTimeout(titleTimer);
+}
+function staKeep(){
+  const A=G&&G.staAsk; if(!A) return; G.staAsk=null;
+  G.keepInning = A.atEnd ? G.inning+1 : G.inning;
+  addLog(`<div class="pull">💪 続投：${A.atEnd?'次の回も':'この回は'}投げきる</div>`);
+  if(typeof hideTitle==='function') hideTitle(); renderAll(true); save();
+}
+function staPull(){
+  const A=G&&G.staAsk; if(!A) return; G.staAsk=null;
+  const why=A.why;
+  G.pulled=why; G.exit={lead:myTot()-oppTot(),outs:G.st.outs,lost:false,tied:false,atInnEnd:G.outs>=3};
+  addLog(`<div class="pull">🔁 降板：${why}（${fmtIP(G.st.outs)}回 ${G.st.pitches}球 失点${G.st.runs}）</div>`);
+  if(typeof hideTitle==='function') hideTitle();
+  $('throw').style.display='none'; $('next').style.display=''; $('next').textContent='降板… 試合の続きを見る';
+  renderAll(true);
+  if(typeof showPulled==='function') showPulled(why);
+  save();
+}
 let busy=false;   // 投球アニメーション中
 function throwPitch(){
   if(G.abOver||busy)return;
@@ -956,6 +1024,7 @@ function resolvePitch(loc){
   G.phist.push(rec); aggAdd(C.agg,rec);   // 配球の記録（この試合＋通算）
   { const A=vsAggOf(b); if(A){ aggAdd(A,rec); if(A.n%50===0) vsTrim(); } }   // この打者との対戦データ（打者ごとの傾向読みに使う）
   G.st.pitches++; C.pitches++; G.hist.push(ptype); if(G.hist.length>60)G.hist.shift();
+  { const S=mySta(); if(S) S.cur=r1(S.cur-staCost(ptype,lvNum(ptype),S.S)); }   // スタミナを使う
   ab.pitches.push(p);
   if(G.pen){ const T=G.st.byType||(G.st.byType={}), e=T[ptype]||(T[ptype]={n:0,k:0,wh:0,h:0}); e.n++; if(p.kind==='swing') e.wh++; }
   const n=ab.pitches.length;
@@ -990,8 +1059,9 @@ function genTeam(){
 const sumN=a=>a.reduce((t,x)=>t+(typeof x==='number'?x:0),0);
 const myTot=()=>sumN(G.score.my), oppTot=()=>sumN(G.score.opp);
 // 1打席の簡易シミュレーション（自動で進むイニング用）。q>1で打者有利
+const SIM_K={bb:1.15};   // CPUの打席の四球（ボール球の見極め）の多さ
 function simPA(b,q){
-  const BT=b.type, bb=clamp(0.04+b.eye*0.0007,0.04,0.12), hr=Math.max(0,b.hrRate*q+btFx(BT,'hr')*0.4);
+  const BT=b.type, bb=clamp((0.04+b.eye*0.0007)*SIM_K.bb,0.04,0.15), hr=Math.max(0,b.hrRate*q+btFx(BT,'hr')*0.4);
   const hit=clamp((b.avg-b.hrRate)*0.8*q+btFx(BT,'hit')*0.7,0.1,0.4), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);
   const x=rnd();
   if(x<bb) return 'BB';
@@ -1006,7 +1076,7 @@ function simHalf(team,outs,bases,q,needToWin){
   const L={'1B':'ヒット','2B':'ツーベース','3B':'スリーベース','HR':'ホームラン','BB':'四球','GO':'内野ゴロ','FO':'外野フライ'};
   while(outs<3){
     team.order=(team.order+1)%team.lineup.length; const b=team.lineup[team.order];
-    let r=simPA(b,q); let sc=0, dp=false, special=null;
+    let r=simPA(b,q*(inPinch(bases)?PINCH.mul:1)); let sc=0, dp=false, special=null;   // ピンチでは投手がわずかに乱れる
     // 打球の方向と守備位置（表示用。自分の守備位置に飛んだヒット性の打球は好プレーでアウトになることがある）
     const pull = rnd()<0.5 ? (b.hand==='R'?'left':'right') : pick(['left','center','right']);
     const side=pull, d={left:'左',center:'中',right:'右'}[side];
@@ -1132,11 +1202,12 @@ function skipMyOuting(){
   while(true){
     if(G.outs<3){
       const i=G.inning-1, base=G.score.opp[i]||0, hb=G.st.hits+G.hitsOpp, o0=G.outs;
-      const r=simHalf(T,G.outs,G.bases,q,null);
+      const r=simHalf(T,G.outs,G.bases,q*(1+myStaF()*0.12),null);   // 疲れていると打たれやすい
       // 自分の成績に加える
       const cnt=f=>r.pas.filter(f).length;
       const add={outs:3-o0,runs:r.runs,hits:r.hits,hr:cnt(x=>/本塁打/.test(x.label)),bb:cnt(x=>x.label==='四球'),k:cnt(x=>/三振/.test(x.label)),bf:r.pas.length};
       add.pitches=Math.round(add.bf*3.9+ri(-3,3));
+      { const S=mySta(); if(S) S.cur=r1(S.cur-add.pitches*S.S/(S.S+staN(S.S))); }   // おまかせの回もスタミナを使う
       for(const k in add){ G.st[k]+=add[k]; C[k]+=add[k]; }
       if(G.pen && typeof estByType==='function') mergeByType(G.st.byType||(G.st.byType={}),estByType(add));
       G.runs+=r.runs; G.score.opp[i]=base+r.runs; G.outs=3; G.bases=[0,0,0];
@@ -1147,7 +1218,7 @@ function skipMyOuting(){
     }
     // 交代するか
     const stop = relief ? !(G.inning>=INNINGS && myTot()>oppTot()) :
-      (G.st.outs>=target || G.st.runs>=6 || G.st.pitches>=118) && !(G.inning>=INNINGS && myTot()>oppTot());
+      (G.st.outs>=target || G.st.runs>=6 || (G.sta?G.sta.cur<=0:G.st.pitches>=118)) && !(G.inning>=INNINGS && myTot()>oppTot());
     if(stop) break;
     // その裏
     over=playBottom(); if(G.lastBottom) Q.push(...bottomQueue(G.lastBottom));
@@ -1179,10 +1250,13 @@ function managerCheck(){
   if(G.pen&&G.pen.allstar){ if(G.outs>=3&&G.inning>=3) return 'オールスターの先発は3回まで'; if(ra>=5) return `${ra}失点`; return null; }
   const leash = lead>=5?2 : lead>=3?1 : 0;   // 大量リードなら長めに投げさせる
   const onb=G.bases.filter(Boolean).length;
-  const lim = G.abil ? Math.round(60+G.abil.stamina*0.72) : 130;   // スタミナで球数の限界が変わる
-  if(pc>=lim) return `球数が${pc}球に達した`;
-  if(pc>=lim-18 && (onb||G.outs>=3) && rnd()<0.55) return `球数${pc}球、疲れが見えた`;
-  if(pc>=lim-30 && G.inning>=7 && Math.abs(lead)<=2 && onb>=1 && rnd()<0.35) return `終盤の勝負どころで継投`;
+  const S=mySta(); G.lastSta=false;
+  if(G.keepInning===G.inning){ if(G.outs>=3){ G.keepInning=null; return `この回を投げきって交代（${pc}球）`; } return null; }   // 「この回は投げきる」と決めた回は代えない
+  if(S){ const r=S.cur/S.max;   // スタミナの残りで交代（このときは監督と話して自分で決められる）
+    if(S.cur<=0){ G.lastSta=true; return `スタミナ切れ（${pc}球）`; }
+    if(r<0.15 && (onb||G.outs>=3) && rnd()<0.55){ G.lastSta=true; return `球数${pc}球、疲れが見えた`; }
+    if(r<0.3 && G.inning>=7 && Math.abs(lead)<=2 && onb>=1 && rnd()<0.35){ G.lastSta=true; return `終盤の勝負どころで継投`; }
+  }else if(pc>=130) return `球数が${pc}球に達した`;
   if(ra>=7+leash) return `${ra}失点で試合を壊した`;
   if(ra>=5+leash && G.inning<=5 && rnd()<0.6) return `序盤で${ra}失点`;
   if(inn>=4+leash && rnd()<0.75) return `この回${inn}失点`;
@@ -1240,6 +1314,7 @@ function finishGame(noOverlay){
 }
 
 function goNext(){
+  if(G&&G.staAsk){ staAskShow(); return; }   // 続投か降板かを先に決める
   if(G.over){ if(G.pen && typeof penBack==='function'){ penBack(); return; } showScreen('mode'); return; }   // 1試合モードは無し
   if(G.pulled && !G.restDone && G.tw && typeof twRestFirst==='function'){ twRestFirst(); return; }   // 二刀流：降板しても打席は自分で打つ
   if(G.pulled && !G.restDone){

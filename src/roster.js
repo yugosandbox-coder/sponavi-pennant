@@ -34,7 +34,7 @@ function genRosterPitcher(age,tier){
   const p=genPitcher(); p.age=age; const adj=AGE_ADJ(age)+(tier||0);
   p.velo=clamp(Math.round(147+adj*0.35+(rnd()-.5)*16),128,162);
   p.control=clamp(Math.round(50+adj+(rnd()-.5)*36),10,100);
-  p.stamina=clamp(Math.round(50+adj*0.5+(rnd()-.5)*40),10,100);
+  p.stamina=clamp(Math.round(86+adj*0.5+(rnd()-.5)*30),35,100);   // スタミナ＝投げられる球数の目安（80で約95球）
   p.q=pitQ(p); return p;
 }
 function pitQ(p){
@@ -147,16 +147,37 @@ function cpuGrowP(p,pts){
     if(k==='lv'){ const ts=p.types.filter(t=>t!=='ストレート'&&pitLv(p,t)<7); if(!ts.length) continue; const t=pick(ts), nl=pitLv(p,t)+1, c=nl<=2?1:nl===3?3:nl; if(c>left+1e-9) continue; p.plv=p.plv||{}; p.plv[t]=nl; left-=c; continue; }
     const c=k==='velo'?0.5:0.1, cap=k==='velo'?162:100; if(c>left+1e-9||p[k]>=cap){ if(left<0.1) break; continue; } p[k]=Math.round((p[k]+0.1)*10)/10; left=Math.round((left-c)*1000)/1000; }
 }
-function ageFielder(f,T,star){
+// 去年の成績から決まるCPUの持ち点（自分と同じように、活躍・覚醒・タイトルで増える）
+//  ev：{pts, m, p}（m/p＝覚醒でミート・パワーが直接+5）
+function cpuStatEvents(x,s,isP,titles,age){
+  const ev={pts:0,m:0,p:0,why:[]};
+  if(s){
+    if(!isP){ const avg=s.ab?s.h/s.ab:0, half=s.pa>=Math.ceil(QUAL_PA/2), qual=s.pa>=QUAL_PA;
+      if(s.pa>=300) ev.pts+=1;                                                                   // レギュラーとして1年出た
+      if((qual&&avg>=0.300)||s.hr>=25||s.sb>=25||s.rbi>=80) ev.pts+=3;                            // 好成績
+      if(age<=25&&half&&avg>=0.300&&rnd()<0.25){ ev.pts+=10; ev.m+=5; ev.why.push('安打製造機の覚醒'); }
+      if(age<=25&&half&&s.hr>=10&&rnd()<0.25){ ev.pts+=10; ev.p+=5; ev.why.push('長距離砲の覚醒'); }
+    }else{ const era=s.outs?s.er*27/s.outs:99;
+      if(s.outs>=300||s.g>=40) ev.pts+=1;
+      if((s.outs>=SEASON_GAMES*3&&era<=2.80)||s.w>=12||s.sv>=25||s.k>=150) ev.pts+=3;
+      if(age<=25&&s.outs>=Math.ceil(SEASON_GAMES*3/2)&&era<=3.00&&rnd()<0.25){ ev.pts+=20; ev.why.push('エースピッチャーへの兆し'); }
+    }
+  }
+  ev.pts+=3*(titles||0);                                              // タイトル1つにつき+3
+  if(age>=27&&rnd()<0.05) ev.pts+=5; if(age>=30&&rnd()<0.015) ev.pts+=10;   // ベテランの覚醒（まれ）
+  return ev;
+}
+function ageFielder(f,T,star,ev){
   f.age++;
   if(f.age>=30){ const d=f.age<=32?()=>ri(-2,0):()=>ri(-4,0); for(const k of ['m','p','e','d']) f[k]=clamp(f[k]+d(),10,100); f.s=clamp(f.s+ri(-4,0),10,100); }   // 衰え
-  const pts=CPU_BASE(f.age)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+cpuEvents(f.age,star);
+  if(ev){ f.m=clamp(f.m+ev.m,10,100); f.p=clamp(f.p+ev.p,10,100); }
+  const pts=CPU_BASE(f.age)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(f.age,star));
   cpuGrowF(f,pts); f.btype=cpuTypeOf(f,true);
 }
-function agePitcher(p,T,star){
+function agePitcher(p,T,star,ev){
   p.age++;
   if(p.age>=30){ const d=p.age<=33?()=>ri(-2,0):()=>ri(-3,0); p.velo=clamp(p.velo+d(),125,162); p.control=clamp(p.control+d()*2,10,100); p.stamina=clamp(p.stamina+d(),10,100); }
-  const pts=CPU_BASE(p.age)*1.4+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+cpuEvents(p.age,star);
+  const pts=CPU_BASE(p.age)*1.4+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(p.age,star));
   cpuGrowP(p,pts); p.q=pitQ(p);
 }
 function retireAndTrim(T){
@@ -181,15 +202,25 @@ function draftFor(id,rank){
   return {np,nf,got};
 }
 // シーズンの切り替え（年俸査定のあと）
-function rosterNewSeason(fin){
-  const res={};
+function rosterNewSeason(fin,cs){
+  const res={}, hasCS=!!(cs&&Object.keys(cs).length);
+  // 去年のタイトル（各リーグの1位）：打率・本塁打・打点・盗塁・安打・出塁率／防御率・勝利・奪三振・セーブ
+  const tit={};
+  if(hasCS) for(const lg of ['セ','パ']){
+    const F=[],P=[]; lgTeams(lg).forEach(id=>{ const T=PEN.teams[id]; (T.F||[]).forEach(f=>{ if(cs[f.id]) F.push({k:f.id,s:cs[f.id]}); }); (T.P||[]).forEach(p=>{ if(p.pid&&cs[p.pid]) P.push({k:p.pid,s:cs[p.pid]}); }); });
+    const top=(L,v,ok,low)=>{ const c=L.filter(x=>ok(x.s)); if(!c.length) return; c.sort((a,b)=>low?v(a.s)-v(b.s):v(b.s)-v(a.s)); tit[c[0].k]=(tit[c[0].k]||0)+1; };
+    top(F,s=>s.ab?s.h/s.ab:0,s=>s.pa>=QUAL_PA); top(F,s=>s.hr,s=>s.hr>0); top(F,s=>s.rbi,s=>s.rbi>0); top(F,s=>s.sb,s=>s.sb>0); top(F,s=>s.h,s=>s.h>0);
+    top(F,s=>s.pa?(s.h+s.bb)/s.pa:0,s=>s.pa>=QUAL_PA);
+    top(P,s=>s.outs?s.er*27/s.outs:99,s=>s.outs>=SEASON_GAMES*3,true); top(P,s=>s.w,s=>s.w>0); top(P,s=>s.k,s=>s.k>0); top(P,s=>s.sv,s=>s.sv>0);
+  }
   for(const t of NPB){
     const T=PEN.teams[t.id];
     // リーグ上位（タイトル相当）：各リーグの野手上位3人・投手上位3人に+3、次の3人に+1
     const lgF=[],lgP=[]; lgTeams(t.lg).forEach(id=>{ PEN.teams[id].F.forEach(f=>lgF.push(f)); PEN.teams[id].P.forEach(p=>lgP.push(p)); });
     const topF=lgF.sort((a,b)=>hitScore(b)-hitScore(a)), topP=lgP.sort((a,b)=>pitScore(b)-pitScore(a));
     const starOf=(x,arr)=>{ const i=arr.indexOf(x); return i>=0&&i<3?1:i>=0&&i<6?2:0; };
-    T.F.forEach(f=>ageFielder(f,T,starOf(f,topF))); T.P.forEach(p=>agePitcher(p,T,starOf(p,topP)));
+    if(hasCS){ T.F.forEach(f=>ageFielder(f,T,0,cpuStatEvents(f,cs[f.id],false,tit[f.id],f.age))); T.P.forEach(p=>agePitcher(p,T,0,cpuStatEvents(p,p.pid&&cs[p.pid],true,tit[p.pid],p.age))); }   // 去年の成績で成長
+    else { T.F.forEach(f=>ageFielder(f,T,starOf(f,topF))); T.P.forEach(p=>agePitcher(p,T,starOf(p,topP))); }
     retireAndTrim(T);
     const rank=fin?fin[t.lg].findIndex(x=>x.id===t.id)+1:ri(1,6);
     res[t.id]=draftFor(t.id,rank);
@@ -290,14 +321,89 @@ function csTeamGame(tid,rf,ra,res,oid,me){
   if(res==='L'&&!/負/.test(dec)){ const s0=used.find(u=>u.sp); const l=s0&&(s0.er>=ra*0.5||rnd()<0.5)?s0:used.filter(u=>!u.sp).sort((a,b)=>b.er-a.er)[0]||s0; if(l) l.s.l++; }
   if(res==='W'&&rf-ra<=3&&!/S/.test(dec)){ const c=used.find(u=>u.close); if(c&&rnd()<0.9) c.s.sv++; }
 }
+/* ===== CPUの試合を選手1人ずつ1打席ずつ回す（全試合）。結果と成績はこの試合の中身そのもの ===== */
+const LG_K={q:1.05,hrCut:0.4,hit:0.03,steal:0.02};   // 見た目をNPBらしくする調整値（本塁打を減らし安打を少し増やす・盗塁の多さ）
+function simLeagueGame(aid,bid,opts){
+  opts=opts||{}; ensurePids();
+  const A=PEN.teams[aid], B=PEN.teams[bid], day=PEN.day, rec=opts.rec!==false;
+  const side=(T,tid,errUp)=>{ const gp=gamePitchers(tid,day), st=staff(T);
+    const bull=(st.pen||[]).filter(p=>p!==gp.sp);
+    return {T,tid,lineup:(T.lineup||[]).slice(0,9),order:-1,sp:gp.sp,bull,used:[],cur:null,curS:null,lim:0,
+      fq:1+(50-(T.fdef||50))*0.004+(errUp?0.08:0), cDef:catcherDef(T)}; };
+  const S={a:side(A,aid,opts.errA),b:side(B,bid,opts.errB)}, sc={a:0,b:0};
+  const bs=b=>(!b||b.isMe||!b.fid||!rec)?null:csGet(b.fid,false);
+  const ps=p=>(!p||!p.pid||!rec)?null:csGet(p.pid,true);
+  // 投手の交代：先発は球数（スタミナ・出来）まで、そのあとは中継ぎ1〜2回ずつ、9回はリードが3点以内なら抑え
+  const setPitcher=(D,p,isSP)=>{ D.cur=p; D.curS={p,s:ps(p),outs:0,r:0,sp:!!isSP,entLead:null,sta:staNew(p.stamina??60)}; D.used.push(D.curS); if(D.curS.s){ D.curS.s.g++; if(isSP) D.curS.s.gs++; } };
+  const lead=k=>k==='a'?sc.a-sc.b:sc.b-sc.a;
+  const choosePitcher=(k,inn,force)=>{ const D=S[k], u=D.curS;
+    if(!u){ setPitcher(D,D.sp,true); return; }
+    const L=lead(k), tired=u.sta.cur<=u.sta.max*0.12, need = u.sp ? (tired||u.r>=5||(u.r>=4&&inn>=5)) : (u.outs>=u.max||u.r>=3||u.sta.cur<=0);   // 先発はスタミナが尽きかけたら交代
+    const closer=D.bull[0], saveSit=inn>=9&&L>0&&L<=3;
+    if(saveSit&&closer&&D.cur!==closer&&!D.used.some(x=>x.p===closer)){ setPitcher(D,closer,false); D.curS.max=3; D.curS.entLead=L; return; }
+    if(!need&&!force) return;
+    const pool=D.bull.slice(1).filter(p=>!D.used.some(x=>x.p===p)); const p=pool.length?(L>0&&inn>=7?pool[0]:pick(pool)):(D.bull.find(p=>!D.used.some(x=>x.p===p))||D.cur);
+    if(p===D.cur){ u.max=(u.max||0)+3; return; }
+    setPitcher(D,p,false); D.curS.max=ri(1,2)*3; D.curS.entLead=L; };
+  let goA=null;   // 決勝点のとき：{win:'a'|'b', wp, lp}
+  const half=(att,def,inn,walk)=>{   // walk：サヨナラで終わる（裏）
+    const O=S[att], D=S[def]; choosePitcher(def,inn);
+    let outs=0, bases=[null,null,null];
+    const score=(n,runners)=>{ if(!n) return; const before=lead(att); sc[att]+=n; D.curS.r+=n; if(D.curS.s){ for(let i=0;i<n;i++) if(rnd()<0.9) D.curS.s.er++; }
+      runners.forEach(r=>{ const s=bs(r); if(s) s.run=(s.run||0)+1; });
+      if(before<=0&&lead(att)>0) goA={win:att,wp:O.curS,lp:D.curS}; };
+    while(outs<3){
+      O.order=(O.order+1)%O.lineup.length; const b=O.lineup[O.order]; if(!b){ outs++; continue; }
+      if(D.curS.sta.cur<=0){ D.curS.outs+=outs-(D.curS.o0??0); if(D.curS.s) D.curS.s.outs+=outs-(D.curS.o0??0); choosePitcher(def,inn,true); D.curS.o0=outs; }   // 回の途中でスタミナ切れ → 交代
+      const P=D.cur, q=clamp((P.q||1)*D.fq*LG_K.q*(1+staF(D.curS.sta)*0.09)*(inPinch(bases)?PINCH.mul:1),0.6,1.6);   /* ピンチではわずかに乱れる */ let r=simPA(b,q); const s=bs(b); if(s) s.pa++;
+      { const st=D.curS.sta; st.cur=r1(st.cur-ri(1,7)*st.S/(st.S+staN(st.S))); }   // 1打席で1〜7球ぶんのスタミナを使う
+      if(r==='HR'&&rnd()<LG_K.hrCut) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<LG_K.hit) r='1B';
+      let runs=0, sc0=[];
+      if(r==='BB'){ if(s) s.bb++; if(bases[0]){ if(bases[1]){ if(bases[2]){ runs++; sc0.push(bases[2]); } bases[2]=bases[1]; } bases[1]=bases[0]; } bases[0]=b; }
+      else { if(s) s.ab++;
+        if(r==='HR'){ bases.forEach(x=>{ if(x){ runs++; sc0.push(x); } }); runs++; sc0.push(b); bases=[null,null,null]; if(s){ s.h++; s.hr++; } }
+        else if(r==='3B'){ bases.forEach(x=>{ if(x){ runs++; sc0.push(x); } }); bases=[null,null,b]; if(s){ s.h++; s.d3++; } }
+        else if(r==='2B'){ if(bases[2]){ runs++; sc0.push(bases[2]); } if(bases[1]){ runs++; sc0.push(bases[1]); } const r1=bases[0]; bases=[null,b,null]; if(r1){ if(rnd()<.4){ runs++; sc0.push(r1); } else bases[2]=r1; } if(s){ s.h++; s.d2++; } }
+        else if(r==='1B'){ if(bases[2]){ runs++; sc0.push(bases[2]); } const nb=[b,null,null]; if(bases[1]){ if(rnd()<.6){ runs++; sc0.push(bases[1]); } else nb[2]=bases[1]; } if(bases[0]){ if(!nb[2]&&rnd()<.3) nb[2]=bases[0]; else nb[1]=bases[0]; } bases=nb; if(s) s.h++; }
+        else if(r==='K'){ outs++; if(s) s.k++; if(D.curS.s) D.curS.s.k++; }
+        else if(r==='GO'){ if(bases[0]&&outs<2&&rnd()<.35){ outs+=2; bases[0]=null; } else { outs++; if(outs<3&&bases[2]&&rnd()<.4){ runs++; sc0.push(bases[2]); bases[2]=null; } } }
+        else { outs++; if(outs<3&&bases[2]&&rnd()<.5){ runs++; sc0.push(bases[2]); bases[2]=null; } }
+      }
+      const outsAdd=(r==='K'||r==='GO'||r==='FO')?1:0;   // （併殺は下で）
+      if(s&&runs) s.rbi+=(r==='GO'&&runs&&outs>=2)?0:runs;
+      score(runs,sc0);
+      // 盗塁：一塁に出た足に自信のある走者（二塁が空いていて2アウト未満）
+      if(outs<2&&bases[0]&&!bases[1]&&(r==='1B'||r==='BB')){ const R=bases[0], sp=R.speed||50;
+        if(sp>=60&&rnd()<(sp-55)*LG_K.steal){ const rs=bs(R), ok=rnd()<cpuStealP(sp,D.cDef,(P.velo||145)-8);
+          if(ok){ bases[1]=R; bases[0]=null; if(rs) rs.sb++; } else { bases[0]=null; outs++; if(rs) rs.cs++; } } }
+      if(walk&&sc[att]>sc[def]) break;
+    }
+    { const o=Math.min(outs,3)-(D.curS.o0??0); D.curS.outs+=o; if(D.curS.s) D.curS.s.outs+=o; D.curS.o0=0; }
+  };
+  let inn=1;
+  for(;inn<=12;inn++){
+    half('a','b',inn,false);
+    if(inn>=9&&sc.b>sc.a) break;
+    half('b','a',inn,inn>=9);
+    if(inn>=9&&sc.a!==sc.b) break;
+  }
+  // 勝ち負け・セーブ
+  if(rec&&sc.a!==sc.b){ const W=sc.a>sc.b?'a':'b', L=W==='a'?'b':'a', g=goA&&goA.win===W?goA:null;
+    let wp=(g&&g.wp)||S[W].used[0], lp=(g&&g.lp)||S[L].used[0];
+    if(wp&&wp.sp&&wp.outs<15){ const rel=S[W].used.filter(x=>!x.sp); wp=rel.sort((x,y)=>x.r-y.r||y.outs-x.outs)[0]||wp; }
+    if(wp&&wp.s) wp.s.w++; if(lp&&lp.s) lp.s.l++;
+    const fin=S[W].used[S[W].used.length-1];
+    if(fin&&fin!==wp&&fin.s&&fin.entLead!=null&&fin.entLead>0&&fin.entLead<=3&&fin.outs>=3) fin.s.sv++; }
+  if(rec){ for(const k of ['a','b']) S[k].lineup.forEach(b=>{ const s=bs(b); if(s) s.g++; }); }
+  return {ra:sc.a, rb:sc.b, res:sc.a>sc.b?'W':sc.a<sc.b?'L':'T'};
+}
 // まだ成績が無いセーブデータ：今日までの試合ぶんを作っておく
 function csBackfill(){
   if(!PEN||!PEN.teams||PEN.cs) return; PEN.cs={};
   const d0=PEN.day; for(let d=0;d<Math.min(d0,SEASON_GAMES);d++){ PEN.day=d;
-    dayPairs(PEN.sched[d]).forEach(([a,b])=>{ const A=PEN.teams[a], B=PEN.teams[b]; if(!A||!B) return;
-      let ra=poisson(Math.max(1.6,3.85+A.off-B.def)), rb=poisson(Math.max(1.6,3.85+B.off-A.def)); const res=teamResult(rb,ra); if(res==='W'&&ra<=rb) ra=rb+1; if(res==='L'&&rb<=ra) rb=ra+1;
-      csTeamGame(a,ra,rb,res,b,null); csTeamGame(b,rb,ra,flipRes(res),a,null); }); }
+    dayPairs(PEN.sched[d]).forEach(([a,b])=>{ if(!PEN.teams[a]||!PEN.teams[b]) return; simLeagueGame(a,b); }); }
   PEN.day=d0;
+  if(typeof save==='function') try{ save(); }catch(e){}   // 作った成績はすぐ保存（読み込み直すたびに作り直されないように）
 }
 // リーグの成績一覧（キャッシュ）
 let CS_CACHE=null;
