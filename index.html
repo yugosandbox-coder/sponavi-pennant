@@ -421,6 +421,7 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .ptn{text-decoration:underline dotted #ffffff80;text-underline-offset:3px;cursor:pointer}
 .ptip{position:fixed;z-index:9999;background:#0f1a14f2;border:1px solid #f5c54288;border-radius:10px;padding:8px 11px;font-size:12.5px;line-height:1.5;color:#eef3ee;box-shadow:0 6px 20px #000a}
 .ptip b{color:#f5c542;font-size:14px;margin-right:6px}.ptip small{color:#9fb3a5}.ptip div{margin-top:3px}
+svg.crown{vertical-align:-3px;margin-right:1px}
 </style>
 </head>
 <body>
@@ -1402,6 +1403,28 @@ function shortRes(p,big){
   if(big==='ゲッツー！')return f[x.fielder]+'併殺';
   return f[x.fielder]+{GO:'ゴロ',LO:'直',PO:'飛',FO:'飛'}[x.res];
 }
+// CPUの盗塁（自分が投げているとき）：一塁の走者（足に自信のある選手）が投げる前に走るか決め、投げた球の球速とこちらの捕手の守備で成否が決まる
+const myCatcherDef=()=>typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen&&!G.pen.wbc&&!G.pen.allstar&&typeof catcherDef==='function'?catcherDef(PEN.teams[PEN.team]):50;
+function r1Update(done,b){
+  const onFirst=done.kind==='BB'||done.kind==='hbp'||(done.bip&&!done.bip.out&&(done.bip.res==='1B'||done.bip.res==='IFH'));
+  if(onFirst&&G.bases[0]) G.r1={spd:b.speed,name:b.name,tried:false}; else if(!G.bases[0]) G.r1=null;
+}
+function cpuStealDecide(){
+  const R=G.r1; if(!R||R.tried||!G.bases[0]||G.bases[1]||G.outs>=2||typeof cpuStealP!=='function') return null;
+  if(cpuStealP(R.spd,myCatcherDef(),136)<0.7) return null;   // 自信がなければ走らない
+  if(rnd()>(R.spd-60)*0.008) return null;
+  R.tried=true; return {R};
+}
+function cpuStealResolve(stl,p){
+  if(p.kind==='foul'||p.kind==='foulout'||!G.bases[0]||G.bases[1]) return '';
+  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0),0.05,0.97), ok=rnd()<pr;
+  G.bases[0]=0; G.r1=null;
+  let msg;
+  if(ok){ G.bases[1]=1; msg=`一塁走者 ${stl.R.name} が二盗成功`; }
+  else { G.outs++; G.st.outs++; C.outs++; msg=`一塁走者 ${stl.R.name} の盗塁を阻止！`; }   // 盗塁死のアウトも投球回に入れる
+  addLog(`<div>🏃 ${msg}（${p.speed}km/h・捕手の守備${Math.round(cd)}）</div>`);
+  return msg;
+}
 function endAB(p){
   const b=G.batter; G.abOver=true;
   const st0={...G.st}, outs0=G.outs, runs0=G.runs;
@@ -1509,6 +1532,7 @@ function resolvePitch(loc){
   const r=loc.r0, c=loc.c0; const ab=G.ab, b=G.batter;
   if(!ab||G.abOver) { renderAll(); return; }
   const sit=sitOf(ab);
+  const stl=cpuStealDecide();   // 一塁の走者が走るか（投げる前に決まる）
   const p=simulatePitch(loc.r,loc.c,ptype,loc.note);
   const rec={h:b.hand,s:sit,pt:ptype,r:p.r,c:p.c,z:p.inZone?1:0,who:vsKey(b)};
   G.phist.push(rec); aggAdd(C.agg,rec);   // 配球の記録（この試合＋通算）
@@ -1528,10 +1552,11 @@ function resolvePitch(loc){
   else {line+=p.bip.cls==='out'?p.bip.text:'<b>'+p.bip.big+'</b>';done=p}
   line+=` <span style="color:var(--mute);font-size:12px">［読み:${p.guess}${['','△','◎'][p.gMatch]}${p.readCell?(p.inZone?'・コースを張られた':'・見極められた'):''}${p.abRead?(p.inZone?'・打席内で張られた':'・打席内で見極められた'):''}］</span>`;
   addLog(`<div>${line}</div>`);
-  if(done) endAB(done);
+  if(done){ endAB(done); r1Update(done,b); }
   else{
+    const sm=stl?cpuStealResolve(stl,p):'';
     const cls={ball:'cb',hbp:'cb',look:'cs',swing:'cs',foul:'cf'}[p.kind];
-    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${ptype}、${courseName(p.r,p.c,b.hand)}${p.note}`,b.order);
+    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${ptype}、${courseName(p.r,p.c,b.hand)}${p.note}${sm?'／'+sm:''}`,b.order);
     renderAll();
     save();
   }
@@ -1597,6 +1622,10 @@ function simHalf(team,outs,bases,q,needToWin){
     else {label=POS1[ofF]+(sc?'犠飛':'飛');bip={kind:'fly',side,res:'FO',fielder:ofF}}
     if(special){ label=special; if(bip) bip.fielder=gb1?ifF:ofF; ev.push(`${b.order}番${b.name} ${special}`); }
     if(bip) bip.seed=rnd();
+    // 足に自信のあるCPUの走者は盗塁する（一塁に出た打者が、二塁が空いていて2アウト未満のとき）
+    if(!b.isMe&&(r==='1B'||r==='BB')&&bases[0]&&!bases[1]&&outs<2&&typeof cpuStealP==='function'&&cpuStealP(b.speed,50,136)>=0.7&&rnd()<(b.speed-60)*0.03){
+      if(rnd()<cpuStealP(b.speed,50,136)){ bases[0]=0; bases[1]=1; label+='・二盗成功'; ev.push(`${b.order}番${b.name} 二盗成功`); }
+      else { bases[0]=0; outs++; label+='・盗塁失敗'; ev.push(`${b.order}番${b.name} 盗塁失敗`); } }
     pas.push({order:b.order,name:b.name,hand:b.hand,avg:b.avg,hrRate:b.hrRate,label:label+(sc?`（${sc}点）`:''),hit,bip,outs:Math.min(outs,3),bases:bases.slice(),runsSoFar:runs});
     if(needToWin!=null&&runs>=needToWin){walkoff=true;break}
   }
@@ -1918,11 +1947,15 @@ function otherGames(day){
     let ra=poisson(Math.max(1.6,3.85+A.off-B.def)), rb=poisson(Math.max(1.6,3.85+B.off-A.def));
     const res=teamResult(rb,ra); if(res==='W'&&ra<=rb) ra=rb+1; if(res==='L'&&rb<=ra) rb=ra+1;
     recAdd(a,res); recAdd(b,flipRes(res));
+    if(PEN.cs) { csTeamGame(a,ra,rb,res,b,null); csTeamGame(b,rb,ra,flipRes(res),a,null); }   // CPU選手の成績
   });
 }
 // 自分のチームの試合を記録して、1日進める
 function recordMyGame(res,score,me){
   const d=PEN.day, op=oppOf(d);
+  if(!PEN.cs) csBackfill();
+  { const m=me||{}, mp=!isBat()&&(m.kind==='start'||m.kind==='relief'||m.kind==='close'||m.kind==='hold')?{kind:m.kind==='start'?'start':'relief',outs:m.outs||0,runs:m.runs||0,dec:m.dec||''}:null;
+    csTeamGame(PEN.team,score[1],score[0],res,op,mp?{pitch:mp}:null); csTeamGame(op,score[0],score[1],flipRes(res),PEN.team,null); }   // CPU選手の成績（自分の分は除く）
   recAdd(PEN.team,res); recAdd(op,flipRes(res)); otherGames(d);
   PEN.days.push({d:d+1,opp:TEAM[op].short,oid:op,res,score,me});
   if(PEN.days.length>40) PEN.days.splice(0,PEN.days.length-40);
@@ -2503,11 +2536,11 @@ function titleRace(){
   const hp=s.hld+(s.rw||0);
   const aw=ri(13,16), al=ri(2,6);
   const R={
-    era:{ai:{...who(),v:+(1.35+rnd()*0.95).toFixed(2)}, mine:ip>=143?s.runs*9/ip:null, low:true, fmt:v=>v.toFixed(2), unit:'', why:ip>=143?'':`規定投球回に届かず（${fmtIP(s.outs)}回）`},
-    win:{ai:{...who(),v:ri(12,17)}, mine:s.w, unit:'勝'},
+    era:{ai:csAI(lg,'era',x=>x.outs>=429,2)||{...who(),v:+(1.35+rnd()*0.95).toFixed(2)}, mine:ip>=143?s.runs*9/ip:null, low:true, fmt:v=>v.toFixed(2), unit:'', why:ip>=143?'':`規定投球回に届かず（${fmtIP(s.outs)}回）`},
+    win:{ai:csAI(lg,'win')||{...who(),v:ri(12,17)}, mine:s.w, unit:'勝'},
     pct:{ai:rnd()<0.85?{...who(),v:aw/(aw+al),wl:`${aw}勝${al}敗`}:null, mine:s.w>=13?s.w/(s.w+s.l):null, fmt:v=>v.toFixed(3).replace(/^0/,''), unit:'', why:s.w>=13?'':`13勝に届かず（${s.w}勝）`},
-    k:{ai:{...who(),v:ri(140,195)}, mine:s.k, unit:'個'},
-    sv:{ai:{...who(),v:ri(28,44)}, mine:s.sv, unit:'S'},
+    k:{ai:csAI(lg,'k')||{...who(),v:ri(140,195)}, mine:s.k, unit:'個'},
+    sv:{ai:csAI(lg,'sv')||{...who(),v:ri(28,44)}, mine:s.sv, unit:'S'},
     hp:{ai:{...who(),v:ri(28,42)}, mine:hp, unit:'HP'},
   };
   return TITLES.map(t=>{
@@ -2716,7 +2749,7 @@ function penNextSeason(){
 function seasonRollover(fin){
   const prevB = isBat()?PEN.ss : isTW()?PEN.bss : null;   // 去年の打撃成績（タイプの判定用）
   PEN.age=(PEN.age||22)+1;
-  PEN.year++; PEN.day=0; PEN.ss=isBat()?batStat():penStat(); PEN.days=[]; PEN.review=null;
+  PEN.year++; PEN.day=0; PEN.ss=isBat()?batStat():penStat(); PEN.days=[]; PEN.review=null; PEN.cs={};
   if(typeof injuryRollover==='function') injuryRollover();
   if(typeof oddPlan==='function') oddPlan();   // 今年の変則出場（野手登板・代打投手）の予定
   if(isTW()) PEN.bss=batStat();
@@ -3441,6 +3474,136 @@ function twCompete(quiet){
   if(quiet||was===PEN.dh) return;
   penNotice(PEN.dh?`投げない日は指名打者（${PEN.dhOrder}番）で出場することになった！`:'打撃の評価が下がり、投げない日の指名打者から外れた');
 }
+
+/* ===== CPU選手のシーズン成績（チームの試合結果から1試合ずつ作る）・タイトル争いの順位 ===== */
+let PID_N=1;
+function ensurePids(){ for(const id in PEN.teams){ (PEN.teams[id].P||[]).forEach(p=>{ if(!p.pid) p.pid='p'+(Date.now()%1e6)+'_'+(PID_N++); }); } }
+const csB=()=>({g:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,bb:0,k:0,sb:0,cs:0});
+const csP=()=>({g:0,gs:0,outs:0,er:0,w:0,l:0,sv:0,k:0});
+function csGet(key,isP){ const C=PEN.cs||(PEN.cs={}); return C[key]||(C[key]=isP?csP():csB()); }
+// 捕手の守備（盗塁の阻止）：スタメンの捕手の守備力
+function catcherDef(T){ if(!T) return 50; const i=(T.lpos||[]).indexOf('C'), b=i>=0&&T.lineup?T.lineup[i]:null;
+  if(b&&b.isMe) return (PEN.babil&&PEN.babil.def)||50;
+  const f=b&&T.F?T.F.find(x=>x.id===b.fid):null; return f?f.d:(T.fdef||50); }
+// CPUの盗塁：足に自信のある選手（速度60以上）だけが走る。成功率は足・捕手の守備・投手の球の速さ（平均）で決まる
+function cpuStealP(spd,cDef,pitchSpd){ return clamp(0.46+(spd-50)*0.008+(50-cDef)*0.004+(140-(pitchSpd||140))*0.004,0.3,0.93); }
+function csStealTry(b,s,O){
+  if(b.speed<60||rnd()>(b.speed-55)*0.01) return;
+  if(rnd()<cpuStealP(b.speed,catcherDef(O),136)) s.sb++; else s.cs++;
+}
+const CS_K={hr:0.4,hit:0.035,era:3.0};   // 見た目の調整値
+const CS_W=[4.65,4.55,4.45,4.35,4.25,4.15,4.05,3.95,3.85];
+// 1チームの1試合ぶんの成績を作る。rf＝得点 ra＝失点。me：自分が出た試合なら {bat:true} か {pitch:{outs,runs,dec}}
+function csTeamGame(tid,rf,ra,res,oid,me){
+  const T=PEN.teams[tid], O=PEN.teams[oid]; if(!T||!O) return;
+  ensurePids();
+  // 打者
+  const L=T.lineup||[], oq=((gamePitchers(oid,PEN.day)||{}).sp||{q:1}).q||1, tot=CS_W.reduce((a,b)=>a+b,0), PA=33.5+rf*0.9, H=[]; let hrN=0;
+  L.forEach((b,i)=>{ if(b.isMe||!b.fid) return; const s=csGet(b.fid,false); s.g++;
+    const n=Math.floor(PA*CS_W[i%9]/tot+rnd()); let hits=0;
+    for(let k=0;k<n;k++){ let r=simPA(b,oq); s.pa++;
+      if(r==='HR'&&rnd()<CS_K.hr) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<CS_K.hit) r='1B';   // 成績の見た目をNPBらしく（本塁打を減らし、安打を少し増やす）
+      if(r==='BB'){ s.bb++; csStealTry(b,s,O); continue; }
+      s.ab++; if(r==='K'){ s.k++; continue; } if(r==='GO'||r==='FO') continue;
+      s.h++; hits++; if(r==='2B') s.d2++; else if(r==='3B') s.d3++; else if(r==='HR'){ s.hr++; s.rbi++; hrN++; } else csStealTry(b,s,O); }
+    H.push({s,w:(hits+0.25)*(i>=2&&i<=4?1.2:i<=1?0.95:0.85)}); });
+  // 打点：本塁打の本人分を除いたチームの得点を、打った選手に配る（クリーンアップ寄り）
+  let rest=Math.max(0,Math.round(rf*0.93)-H.reduce((t,x)=>t+0,0)-L.reduce((t,b)=>t,0));
+  const hrR=H.reduce((t,x)=>t,0); rest=Math.max(0,rest-0);
+  for(let k=0;k<rest&&H.length;k++){ const x=wpick(H.map(h=>[h,h.w])); x.s.rbi++; }
+  // 投手
+  const gp=gamePitchers(tid,PEN.day), mp=me&&me.pitch;
+  let outs=27, left=ra; const used=[];
+  if(mp){ outs-=mp.outs||0; left-=mp.runs||0; }
+  const sp=gp&&gp.sp&&!(mp&&mp.kind==='start')?gp.sp:null;
+  if(sp){ const s=csGet(sp.pid,true); s.g++; s.gs++;
+    let o=Math.round(clamp(14+(sp.stamina||50)*0.09+(1-(sp.q||1))*25+noise(3)-Math.max(0,ra-4)*1.6,5,Math.min(27,outs)));
+    const er=Math.min(left,poisson(o/27*CS_K.era*Math.pow(sp.q||1,3)));   // 投手の質で自責点が決まる（チームの失点を超えない）
+    s.outs+=o; s.er+=er; s.k+=poisson(o/27*clamp(7.2+(1-(sp.q||1))*18,4,12)); outs-=o; left-=er; used.push({p:sp,s,o,er,sp:true}); }
+  const pen=(staff(T).pen||[]).filter(p=>p.pid); let guard=0;
+  while(outs>0&&pen.length&&guard++<8){
+    const close=res==='W'&&rf-ra<=3&&outs<=3, p=close?pen[0]:pick(pen.slice(1).length?pen.slice(1):pen);
+    if(used.some(u=>u.p===p)&&!close) continue;
+    const o=Math.min(outs,close?outs:ri(2,5)), er=left>0?Math.min(left,outs-o<=0?left:poisson(o/27*CS_K.era*Math.pow(p.q||1,3))):0;
+    const s=csGet(p.pid,true); s.g++; s.outs+=o; s.er+=er; s.k+=poisson(o/27*clamp(8+(1-(p.q||1))*18,4,13));
+    outs-=o; left-=er; used.push({p,s,o,er,close}); }
+  if(left>0&&used.length){ const u=used[used.length-1], e=Math.round(left*0.85); u.s.er+=e; u.er+=e; }   // 残りの失点（自責点は約85%）
+  // 勝ち負け・セーブ（自分に付いたものは除く）
+  const dec=mp&&mp.dec||'';
+  if(res==='W'&&!/勝/.test(dec)){ const s0=used.find(u=>u.sp); const w=s0&&s0.o>=15&&rnd()<0.8?s0:used.filter(u=>!u.sp)[0]||s0; if(w) w.s.w++; }
+  if(res==='L'&&!/負/.test(dec)){ const s0=used.find(u=>u.sp); const l=s0&&(s0.er>=ra*0.5||rnd()<0.5)?s0:used.filter(u=>!u.sp).sort((a,b)=>b.er-a.er)[0]||s0; if(l) l.s.l++; }
+  if(res==='W'&&rf-ra<=3&&!/S/.test(dec)){ const c=used.find(u=>u.close); if(c&&rnd()<0.9) c.s.sv++; }
+}
+// まだ成績が無いセーブデータ：今日までの試合ぶんを作っておく
+function csBackfill(){
+  if(!PEN||!PEN.teams||PEN.cs) return; PEN.cs={};
+  const d0=PEN.day; for(let d=0;d<Math.min(d0,SEASON_GAMES);d++){ PEN.day=d;
+    dayPairs(PEN.sched[d]).forEach(([a,b])=>{ const A=PEN.teams[a], B=PEN.teams[b]; if(!A||!B) return;
+      let ra=poisson(Math.max(1.6,3.85+A.off-B.def)), rb=poisson(Math.max(1.6,3.85+B.off-A.def)); const res=teamResult(rb,ra); if(res==='W'&&ra<=rb) ra=rb+1; if(res==='L'&&rb<=ra) rb=ra+1;
+      csTeamGame(a,ra,rb,res,b,null); csTeamGame(b,rb,ra,flipRes(res),a,null); }); }
+  PEN.day=d0;
+}
+// リーグの成績一覧（キャッシュ）
+let CS_CACHE=null;
+function csBoard(lg){
+  if(!PEN||!PEN.teams) return null; if(!PEN.cs) csBackfill();
+  const key=PEN.year+'-'+PEN.day+'-'+lg+'-'+JSON.stringify(PEN.ss&&[PEN.ss.pa,PEN.ss.outs]);
+  if(CS_CACHE&&CS_CACHE.key===key) return CS_CACHE;
+  const bat=[], pit=[];
+  for(const id of lgTeams(lg)){ const T=PEN.teams[id]; if(!T) continue;
+    (T.F||[]).forEach(f=>{ const s=PEN.cs[f.id]; if(s) bat.push({key:f.id,name:f.n,team:id,s}); });
+    (T.P||[]).forEach(p=>{ const s=p.pid&&PEN.cs[p.pid]; if(s) pit.push({key:p.pid,name:p.name,team:id,s}); }); }
+  if(TEAM[PEN.team].lg===lg){ const ms=hasBat()?(isBat()?PEN.ss:PEN.bss):null; if(ms) bat.push({key:'ME',name:PEN.pname,team:PEN.team,me:true,s:ms});
+    if(!isBat()&&PEN.ss) pit.push({key:'ME',name:PEN.pname,team:PEN.team,me:true,s:{...PEN.ss,er:PEN.ss.runs}}); }
+  CS_CACHE={key,bat,pit}; return CS_CACHE;
+}
+// 順位（同じ値は同じ順位）。規定：打率は打席がチーム試合数×3.1、防御率は投球回がチーム試合数以上
+const CS_STAT={
+  avg:{b:true,v:s=>s.ab?s.h/s.ab:0,ok:(s,g)=>s.pa>=g*3.1&&s.pa>0},
+  hr:{b:true,v:s=>s.hr,ok:s=>s.hr>0}, sb:{b:true,v:s=>s.sb,ok:s=>s.sb>0}, rbi:{b:true,v:s=>s.rbi,ok:s=>s.rbi>0},
+  hit:{b:true,v:s=>s.h,ok:s=>s.h>0}, obp:{b:true,v:s=>s.pa?(s.h+s.bb+(s.hbp||0))/s.pa:0,ok:(s,g)=>s.pa>=g*3.1&&s.pa>0},
+  era:{low:true,v:s=>s.outs?s.er*27/s.outs:99,ok:(s,g)=>s.outs>=g*3&&s.outs>0}, win:{v:s=>s.w,ok:s=>s.w>0},
+  k:{v:s=>s.k,ok:s=>s.k>0}, sv:{v:s=>s.sv,ok:s=>s.sv>0},
+};
+const csGames=()=>Math.max(1,PEN.day);
+function csSorted(lg,stat){
+  const B=csBoard(lg); if(!B) return []; const S=CS_STAT[stat], g=csGames();
+  return (S.b?B.bat:B.pit).filter(x=>S.ok(x.s,g)).map(x=>({...x,v:S.v(x.s)})).sort((a,b)=>S.low?a.v-b.v:b.v-a.v);
+}
+function csRank(lg,stat,key){
+  const L=csSorted(lg,stat), i=L.findIndex(x=>x.key===key); if(i<0) return 0;
+  const v=L[i].v; return L.findIndex(x=>x.v===v)+1;
+}
+// 王冠のバッジ（1位金・2位銀・3位銅・4〜5位グレー）
+function crownBadge(n){
+  if(!n||n>5) return '';
+  // 2位の銀は少し青みがかった明るい銀、4・5位は真っ白
+  const col=n===1?'#e8b923':n===2?'#cbdbeb':n===3?'#c98443':'#ffffff', defs='';
+  return `<svg class="crown" width="19" height="16" viewBox="0 0 19 16" aria-label="${n}位">${defs}<path d="M1.5 15 L1.5 5.5 L5.5 9.5 L9.5 2 L13.5 9.5 L17.5 5.5 L17.5 15 Z" fill="${col}" stroke="#0007" stroke-width=".8" stroke-linejoin="round"/><text x="9.5" y="13.6" text-anchor="middle" font-size="7.5" font-weight="900" fill="#1b1b1b">${n}</text></svg>`;
+}
+const csLgOf=team=>TEAM[team]?TEAM[team].lg:TEAM[PEN.team].lg;
+// 打者の今季成績の1行（打率・本塁打・盗塁＋順位バッジ）
+function csLineB(key,team){
+  if(!PEN||!PEN.teams) return null; csBoard(csLgOf(team));
+  const s=key==='ME'?(isBat()?PEN.ss:PEN.bss):PEN.cs&&PEN.cs[key]; if(!s) return null;
+  const lg=csLgOf(team), r=k=>crownBadge(csRank(lg,k,key));
+  return `${r('avg')}打率 ${s.ab?f3(s.h/s.ab):'-'}　${r('hr')}本塁打 ${s.hr}　${r('sb')}盗塁 ${s.sb||0}`;
+}
+// 投手の今季成績の1行（防御率・勝敗＋順位バッジ）
+function csLineP(key,team){
+  if(!PEN||!PEN.teams) return null; csBoard(csLgOf(team));
+  let s=key==='ME'?PEN.ss:PEN.cs&&PEN.cs[key]; if(!s) return null; if(key==='ME') s={...s,er:s.runs};
+  const lg=csLgOf(team), r=k=>crownBadge(csRank(lg,k,key));
+  return `${r('era')}防御率 ${s.outs?(s.er*27/s.outs).toFixed(2):'-.--'}　${r('win')}${s.w}勝${s.l}敗`;
+}
+// タイトル争いのいちばん上のCPU選手（自分を除く）。まだ成績が無いときは null
+function csLeader(lg,stat,qualAbs){
+  const B=csBoard(lg); if(!B) return null; const S=CS_STAT[stat];
+  const L=(S.b?B.bat:B.pit).filter(x=>!x.me&&(qualAbs?qualAbs(x.s):S.ok(x.s,csGames()))).map(x=>({...x,v:S.v(x.s)})).sort((a,b)=>S.low?a.v-b.v:b.v-a.v);
+  return L[0]||null;
+}
+// タイトル判定用：CPUのいちばん上の選手 {name,team,v}（成績が無ければ null）
+function csAI(lg,stat,qual,dig){ if(!PEN||!PEN.cs||!Object.keys(PEN.cs).length) return null; const x=csLeader(lg,stat,qual); if(!x) return null; return {name:x.name,team:x.team,v:dig?+x.v.toFixed(dig):x.v}; }
 /* ========= 打者タイプ（自分・CPU共通） =========
    上がる/下がる＝±5%、少し＝±2.5%、とても＝±7.5%（それぞれの確率に足し引き） */
 const BTYPES=['フルスイング','ヒットメーカー','スピードスター','バランス','守備職人','代打男','アスリート'];
@@ -3562,7 +3725,7 @@ const SHORT_T={'ストレート':'直球','カットボール':'カット','ツ�
 const hrRateOf=p=>clamp(HR_MIN*Math.pow(HR_MAX/HR_MIN,(p-18)/81),HR_MIN*0.5,HR_MAX*1.1);
 const HR_ME_K=0.9;   // 自分の本塁打率（パワー依存）：打球になったときの基礎率。パワー100・ミート100で年70本くらいになる調整値
 const myHrRate=p=>clamp(0.006+Math.pow(clamp(p,0,100)/100,2)*HR_MAX*HR_ME_K,HR_MIN*0.5,HR_MAX*2);
-const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.08:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0),0.25,0.95);   // タイプ（スピードスター・アスリート）で成功率が上がる
+const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0),toThird?0.08:0.25,0.95);   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
 const B_NUM=7;   // 野手の背番号
 
 /* ---- 相手投手 ---- */
@@ -3762,7 +3925,7 @@ function bottomRun(Q){
   if(G.walk) return 'end';
   while(G.outs<3){
     if(canSteal()&&G.stealAsk!==stealKey()&&!G.autoMe) return 'steal';
-    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealProb(G.babil.speed,meOnBase()===1)>=0.75) Q.push(doSteal()); if(G.outs>=3) break; }
+    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=0.75) Q.push(doSteal()); if(G.outs>=3) break; }
     const nx=(T.order+1)%9, pinchNow=G.pinch&&!G.pinch.done&&G.inning===G.pinch.inning&&G.halfPA>=G.pinch.after;
     if((T.lineup[nx].isMe&&G.meActive)||pinchNow){
       if(pinchNow){ G.pinch.done=true; G.me.order=nx+1; }
@@ -3887,12 +4050,21 @@ function batEndPA(kind,p){
   renderAll(); save();
 }
 // 盗塁
+// 盗塁：走った球の球種・球速と、相手捕手の守備で決まる（打者が空振りするとほんの少し成功しやすい）
+const oppCatcherDef=()=>G&&G.pen&&typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen.opp&&!G.pen.wbc&&!G.pen.allstar?catcherDef(PEN.teams[G.pen.opp]):50;
+const stealExpect=(spd,toThird)=>clamp(stealProb(spd,toThird)+(50-oppCatcherDef())*0.004,toThird?0.05:0.15,0.97);   // 表示用のおおよその成功率
+function stealPitch(){
+  const pit=curPit(), t=wpick(pit.types.map(x=>[x,x==='ストレート'?1.7:0.7+pitLv(pit,x)*0.12])), v=jitterSpd(pitSpeed(pit,t));
+  return {t,v,whiff:rnd()<0.1};
+}
 function doSteal(){
-  const i=meOnBase(), p=stealProb(G.babil.speed,i===1), ok=rnd()<p;
+  const i=meOnBase(), sp=stealPitch(), cd=oppCatcherDef();
+  const p=clamp(stealProb(G.babil.speed,i===1)+(145-sp.v)*0.005-0.045+(50-cd)*0.004+(sp.whiff?0.03:0),i===1?0.05:0.15,0.97), ok=rnd()<p;
   G.stealAsk=null;
   if(ok){ G.bases[i]=0; G.bases[i+1]=2; G.st.sb++; }
   else { G.bases[i]=0; G.outs++; G.st.cs++; }
-  const label = ok ? `${i===0?'二':'三'}盗成功！` : `盗塁失敗（${i===0?'二':'三'}塁でタッチアウト）`;
+  const how=`${sp.t} ${sp.v}km/h${sp.whiff?'・打者が空振り':''}・捕手の守備${Math.round(cd)}`;
+  const label = ok ? `${i===0?'二':'三'}盗成功！（${how}）` : `盗塁失敗（${i===0?'二':'三'}塁でタッチアウト・${how}）`;
   addLog(`<div>🏃 ${label}</div>`);
   G.stealAsk=stealKey();
   return {half:'bottom',inning:G.inning,order:G.me.order,name:G.pname,hand:G.bhand,avg:0,hrRate:0,label,hit:ok,outs:Math.min(G.outs,3),bases:G.bases.slice(),
@@ -4106,7 +4278,7 @@ function renderBat(){
   if(G.meUp) fixSpd();
   $('selinfo').classList.remove('warn');
   $('selinfo').innerHTML = G.meUp ? selTxt()
-    : G.over ? '試合終了' : canSteal() ? `🏃 盗塁できます（成功率 約${Math.round(stealProb(A.speed,meOnBase()===1)*100)}%）` : '打席の結果';
+    : G.over ? '試合終了' : canSteal() ? `🏃 盗塁できます（成功率 約${Math.round(stealExpect(A.speed,meOnBase()===1)*100)}%・遅い球ほど決まりやすい）` : '打席の結果';
   $('ptypes').style.setProperty('--n',1);
   $('ptypes').innerHTML = G.meUp ? speedBarHTML(pit) : '';
   if(G.meUp) bindSpeedBar();
@@ -4120,10 +4292,10 @@ function renderBat(){
   }
   // チーム・投手・打者
   setTeamBar(G.half);
-  $('plP').innerHTML=`<div class="lab">投手 ${pit.num}</div><div class="nm"><span class="nmt">${plink(pit,pit.name)}</span> <span class="hb ${pit.hand}">${pit.hand==='L'?'左投':'右投'}</span></div>${asTag(pit.team)}<div class="sub">最速${pit.velo}km/h・${pit.types.length}球種</div>`;
+  $('plP').innerHTML=`<div class="lab">投手 ${pit.num}</div><div class="nm"><span class="nmt">${plink(pit,pit.name)}</span> <span class="hb ${pit.hand}">${pit.hand==='L'?'左投':'右投'}</span></div>${asTag(pit.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&pit.pid&&csLineP(pit.pid,pit.team||G.pen.opp))||`最速${pit.velo}km/h・${pit.types.length}球種`}</div>`;
   const s=G.st;
   $('plB').innerHTML=`<div class="lab">打者 ${me.num||B_NUM}　${me.order}番${G.myPosK?`・<b style="color:var(--accent)">${G.myPosK}</b>`:''}・${G.pinch?'代打':G.tw?'二刀流':'あなた'}</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname)}</span> <span class="hb ${G.sw?'S':G.bhand}">${G.sw?'両打・':''}${L?'左打席':'右打席'}</span></div>
-    ${asTag(PEN&&PEN.team)}<div class="sub">${G.sw&&G.meUp&&!ab.pitches.length?`<button class="btn swbtn" id="swBtn">⇄ ${L?'右':'左'}打席に変える</button>`:`今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}　ミート${A.meet}・パワー${A.power}`}</div>`;
+    ${asTag(PEN&&PEN.team)}<div class="sub">${G.sw&&G.meUp&&!ab.pitches.length?`<button class="btn swbtn" id="swBtn">⇄ ${L?'右':'左'}打席に変える</button>`:(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&csLineB('ME',PEN.team)?csLineB('ME',PEN.team)+`<br><small>今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}</small>`:`今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}　ミート${A.meet}・パワー${A.power}`)}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:p.text,foul:p.text,foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
   $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
     : `<div class="empty">${G.meUp?'下のバーで狙う球速、ゾーンで狙うコースを選んで「この読みで待つ」':'この打席の投球はまだありません'}</div>`;
@@ -4385,11 +4557,11 @@ function titleRaceB(s){
   s=s||PEN.ss; const lg=TEAM[PEN.team].lg, rivals=lgTeams(lg).filter(id=>id!==PEN.team), used=new Set();
   const who=()=>({name:randName(used),team:pick(rivals)}), q=s.pa>=QUAL_PA;
   const R={
-    avg:{ai:{...who(),v:+(0.312+rnd()*0.04).toFixed(3)},mine:q?bAvg(s):null,f:f3,unit:'',why:q?'':`規定打席に届かず（${s.pa}打席）`},
-    hr:{ai:{...who(),v:ri(28,46)},mine:s.hr,unit:'本'}, rbi:{ai:{...who(),v:ri(85,115)},mine:s.rbi,unit:'打点'},
-    sb:{ai:{...who(),v:ri(25,50)},mine:s.sb,unit:'盗塁'},
-    obp:{ai:{...who(),v:+(0.385+rnd()*0.055).toFixed(3)},mine:q?bObp(s):null,f:f3,unit:'',why:q?'':`規定打席に届かず（${s.pa}打席）`},
-    hit:{ai:{...who(),v:ri(162,192)},mine:s.h,unit:'安打'},
+    avg:{ai:csAI(lg,'avg',x=>x.pa>=QUAL_PA,3)||{...who(),v:+(0.312+rnd()*0.04).toFixed(3)},mine:q?bAvg(s):null,f:f3,unit:'',why:q?'':`規定打席に届かず（${s.pa}打席）`},
+    hr:{ai:csAI(lg,'hr')||{...who(),v:ri(28,46)},mine:s.hr,unit:'本'}, rbi:{ai:csAI(lg,'rbi')||{...who(),v:ri(85,115)},mine:s.rbi,unit:'打点'},
+    sb:{ai:csAI(lg,'sb')||{...who(),v:ri(25,50)},mine:s.sb,unit:'盗塁'},
+    obp:{ai:csAI(lg,'obp',x=>x.pa>=QUAL_PA,3)||{...who(),v:+(0.385+rnd()*0.055).toFixed(3)},mine:q?bObp(s):null,f:f3,unit:'',why:q?'':`規定打席に届かず（${s.pa}打席）`},
+    hit:{ai:csAI(lg,'hit')||{...who(),v:ri(162,192)},mine:s.h,unit:'安打'},
     gg:(()=>{ const fg=(s.fg||0)+(s.ds||0), ok=fg>=100&&!isTW(); return {ai:{...who(),v:ri(84,104)},mine:ok?ggPoints(s):null,unit:'pt',why:ok?'':`守備での出場が足りず（${fg}試合・指名打者の試合は数えません）`}; })(),
   };
   return TITLES_B.map(t=>{
@@ -5865,11 +6037,12 @@ function renderAll(){
   }
 
   // チーム名・投手と打者・この打席の投球（写真の並びに合わせる）
+  const oppT=G.pen&&G.pen.opp, csOn=typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen&&!G.pen.wbc;
   setTeamBar(G.half||'top');   // 投手モードで自分が投げているときは表（相手の攻撃）
   $('plP').innerHTML=`<div class="lab">投手 ${MYNUM}・<b style="color:var(--accent)">投</b>・あなた</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname||'あなた')}</span> <span class="hb ${PHAND==='L'?'L':'R'}">${PHAND==='L'?'左投':'右投'}</span></div>
-    ${asTag(PEN&&PEN.team)}<div class="sub">防御率 ${fmtRate(C.runs,C.outs)}</div>`;
+    ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>`;
   $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
-    ${asTag(b.team)}<div class="sub">打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}</div>`;
+    ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||`打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}`}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
   $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
     : `<div class="empty">この打席の投球はまだありません</div>`;
@@ -6285,9 +6458,9 @@ function showPB(ev){
   const cls = ev.hit ? (ev.label.startsWith('四球')?'cb':'ch') : 'co';
   // 左の投手欄：守っている側の投手（野手モードの表は味方の投手、投手モードの裏は相手の投手）
   if(!G.bat&&ev.pitcher){ const op=ev.pitcher, tn=top?G.names.my.name:G.names.opp.name;
-    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`}</div>`; }
+    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(op.isMe?csLineP('ME',PEN.team):op.pid?csLineP(op.pid,op.team||(top?PEN.team:G.pen.opp)):null))||(op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`)}</div>`; }
   if(G.bat&&top&&G.ours&&G.ours.length){ const op=G.ours[ev.inning<=6?0:Math.min(G.ours.length-1,ev.inning-6)];
-    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${G.names.my.name}</div><div class="nm"><span class="nmt">${op.name}</span> <span class="hb ${op.hand}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.team)}<div class="sub">最速${op.velo}km/h・${op.types?op.types.length:'-'}球種</div>`; }
+    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${G.names.my.name}</div><div class="nm"><span class="nmt">${op.name}</span> <span class="hb ${op.hand}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&op.pid&&csLineP(op.pid,op.team||PEN.team))||`最速${op.velo}km/h・${op.types?op.types.length:'-'}球種`}</div>`; }
   if(ev.summary){   // 相手の攻撃（1イニングまとめて）
     setResult(ev.hit?'co':'ch', ev.label, `${ev.inning}回表 ${G.names.opp.name}の攻撃${ev.sub?'　'+ev.sub:''}`, 0);
     $('plB').innerHTML=`<div class="lab">${ev.inning}回表</div><div class="nm"><span class="nmt">${G.names.opp.name}の攻撃</span></div><div class="sub">味方の投手が投げています</div>`;
@@ -6295,7 +6468,7 @@ function showPB(ev){
   setResult(cls, ev.label, `${top?G.names.opp.name:G.names.my.name}の攻撃　${ev.order}番 ${ev.name}${ev.isMe?'（あなた）':''}`, ev.order);
   const bobj=ev.isMe?{isMe:true}:(top?G.lineup:G.myTeam.lineup).find(x=>x.name===ev.name)||ev;
   $('plB').innerHTML=`<div class="lab">打者　${ev.order}番</div><div class="nm"><span class="nmt">${plink(bobj,ev.name)}</span> <span class="hb ${ev.hand==='L'?'L':'R'}">${ev.hand==='L'?'左打':'右打'}</span></div>
-      ${asTag(ev.isMe?PEN.team:bobj.team)}<div class="sub">${ev.isMe?'あなた':`打率 ${ev.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(ev.hrRate*PA_SEASON)}`}</div>`;
+      ${asTag(ev.isMe?PEN.team:bobj.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(ev.isMe?(hasBat()?csLineB('ME',PEN.team):null):bobj.fid?csLineB(bobj.fid,bobj.team||(top?G.pen.opp:PEN.team)):null))||(ev.isMe?'あなた':`打率 ${ev.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(ev.hrRate*PA_SEASON)}`)}</div>`;
   }
   if(ev.pitcher){ const p=ev.pitcher;
     $('plP').innerHTML=`<div class="lab">投手 ${p.num}</div><div class="nm"><span class="nmt">${plink(p,p.name)}</span> <span class="hb ${p.hand}">${p.hand==='L'?'左投':'右投'}</span></div>${asTag(p.isMe?PEN.team:p.team)}<div class="sub">最速${p.velo}km/h・${p.types.length}球種</div>`; }
