@@ -539,7 +539,7 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
     <div id="bposWrap"><div class="sh">守備位置</div>
     <div class="seg3" id="bposcards"></div>
     <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで2つまで増やせます</div></div>
-    <div class="sh">能力　持ち点 <span id="bBudget"></span>（40〜110でランダム・平均75。0.1%で「天才」の170）</div>
+    <div class="sh">能力　持ち点 <span id="bBudget"></span>（50〜120でランダム・平均85。0.1%で「天才」の170）</div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
     <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
@@ -556,7 +556,7 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
   </div>
   <!-- ペナント：持ち点で能力を決める -->
   <div id="abilSec" style="display:none">
-    <div class="sh">能力　持ち点 <span id="abBudget"></span>（40〜110でランダム・平均75。0.1%で「天才」の170）</div>
+    <div class="sh">能力　持ち点 <span id="abBudget"></span>（50〜120でランダム・平均85。0.1%で「天才」の170）</div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
     <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>
@@ -720,7 +720,7 @@ const PDESC={
   '高速スライダー':'直球−10km/h。横に1マス曲がる',
   'スライダー':'直球−20km/h。横に2マス曲がる',
   'スロースライダー':'直球−35km/h。横に2マス曲がる。狙われると打たれやすい',
-  'スイーパー':'直球−15km/h。横に3マス大きく曲がる（スライダーLv.7からさらに上げると覚える）。ボール→ストライクは見逃され、ストライク→ボールは空振りを取りやすいが死球も増える',
+  'スイーパー':'直球−15km/h。横に3マス大きく曲がる（スライダーLv.7からさらに上げると進化して覚える）。ボール→ストライクは見逃され、ストライク→ボールは空振りを取りやすいが死球も増える',
   'シュート':'直球−17km/h。シュート方向に2マス曲がる',
   '高速シュート':'直球−8km/h。シュート方向に1マス。利き腕と同じ打席の打者の内角でフライ（死球に注意）、逆の打席の打者の内角はとても見逃されやすい',
   'シンカー':'直球−25km/h。シュート方向に1マス・下に2マス沈む',
@@ -6596,7 +6596,7 @@ function renderSetup(){
   $('startGame').textContent=!draft.size?'球種を1つ以上選んでください':`プレイボール（持ち球${draft.size}種）`;
 }
 /* ---- ペナント：持ち点（100〜200）で能力を決める ---- */
-const BRK_TYPES=LEARN_TYPES;
+const BRK_TYPES=LEARN_TYPES;   // 最初はスイーパー以外の全部の変化球から選べる（スイーパーはスライダーからの進化のみ）
 const LV_COST={'少':1,'普':2,'決':5}, SLV_COST={1:0,2:2,3:5};   // ストレートのLv（最初は1〜3。Lv.3が今までの性能）
 let AB={budget:60,velo:130,control:20,stamina:20,brk:{},slv:3};
 const V0=130, VCOST=5;   // 球速は130km/hが基礎。1km/hで5pt（0.1km/hで0.5pt）
@@ -6707,7 +6707,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ dGenius=rnd()<0.001; AB={budget:dGenius?170:Math.round(ri(40,110)*0.65+ri(40,110)*0.35),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は40〜110（平均75。2つの乱数を65:35で混ぜるので、平均で割るより散らばりが大きい）。0.1%で「天才」（持ち点170）
+  if(MODE==='pennant'){ dGenius=rnd()<0.001; AB={budget:dGenius?170:Math.round(ri(50,120)*0.65+ri(50,120)*0.35),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は50〜120（平均85。2つの乱数を65:35で混ぜるので、平均で割るより散らばりが大きい）。0.1%で「天才」（持ち点170）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
