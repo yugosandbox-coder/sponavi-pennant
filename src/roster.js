@@ -230,3 +230,133 @@ function twCompete(quiet){
   if(quiet||was===PEN.dh) return;
   penNotice(PEN.dh?`投げない日は指名打者（${PEN.dhOrder}番）で出場することになった！`:'打撃の評価が下がり、投げない日の指名打者から外れた');
 }
+
+/* ===== CPU選手のシーズン成績（チームの試合結果から1試合ずつ作る）・タイトル争いの順位 ===== */
+let PID_N=1;
+function ensurePids(){ for(const id in PEN.teams){ (PEN.teams[id].P||[]).forEach(p=>{ if(!p.pid) p.pid='p'+(Date.now()%1e6)+'_'+(PID_N++); }); } }
+const csB=()=>({g:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,bb:0,k:0,sb:0,cs:0});
+const csP=()=>({g:0,gs:0,outs:0,er:0,w:0,l:0,sv:0,k:0});
+function csGet(key,isP){ const C=PEN.cs||(PEN.cs={}); return C[key]||(C[key]=isP?csP():csB()); }
+// 捕手の守備（盗塁の阻止）：スタメンの捕手の守備力
+function catcherDef(T){ if(!T) return 50; const i=(T.lpos||[]).indexOf('C'), b=i>=0&&T.lineup?T.lineup[i]:null;
+  if(b&&b.isMe) return (PEN.babil&&PEN.babil.def)||50;
+  const f=b&&T.F?T.F.find(x=>x.id===b.fid):null; return f?f.d:(T.fdef||50); }
+// CPUの盗塁：足に自信のある選手（速度60以上）だけが走る。成功率は足・捕手の守備・投手の球の速さ（平均）で決まる
+function cpuStealP(spd,cDef,pitchSpd){ return clamp(0.46+(spd-50)*0.008+(50-cDef)*0.004+(140-(pitchSpd||140))*0.004,0.3,0.93); }
+function csStealTry(b,s,O){
+  if(b.speed<60||rnd()>(b.speed-55)*0.01) return;
+  if(rnd()<cpuStealP(b.speed,catcherDef(O),136)) s.sb++; else s.cs++;
+}
+const CS_K={hr:0.4,hit:0.035,era:3.0};   // 見た目の調整値
+const CS_W=[4.65,4.55,4.45,4.35,4.25,4.15,4.05,3.95,3.85];
+// 1チームの1試合ぶんの成績を作る。rf＝得点 ra＝失点。me：自分が出た試合なら {bat:true} か {pitch:{outs,runs,dec}}
+function csTeamGame(tid,rf,ra,res,oid,me){
+  const T=PEN.teams[tid], O=PEN.teams[oid]; if(!T||!O) return;
+  ensurePids();
+  // 打者
+  const L=T.lineup||[], oq=((gamePitchers(oid,PEN.day)||{}).sp||{q:1}).q||1, tot=CS_W.reduce((a,b)=>a+b,0), PA=33.5+rf*0.9, H=[]; let hrN=0;
+  L.forEach((b,i)=>{ if(b.isMe||!b.fid) return; const s=csGet(b.fid,false); s.g++;
+    const n=Math.floor(PA*CS_W[i%9]/tot+rnd()); let hits=0;
+    for(let k=0;k<n;k++){ let r=simPA(b,oq); s.pa++;
+      if(r==='HR'&&rnd()<CS_K.hr) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<CS_K.hit) r='1B';   // 成績の見た目をNPBらしく（本塁打を減らし、安打を少し増やす）
+      if(r==='BB'){ s.bb++; csStealTry(b,s,O); continue; }
+      s.ab++; if(r==='K'){ s.k++; continue; } if(r==='GO'||r==='FO') continue;
+      s.h++; hits++; if(r==='2B') s.d2++; else if(r==='3B') s.d3++; else if(r==='HR'){ s.hr++; s.rbi++; hrN++; } else csStealTry(b,s,O); }
+    H.push({s,w:(hits+0.25)*(i>=2&&i<=4?1.2:i<=1?0.95:0.85)}); });
+  // 打点：本塁打の本人分を除いたチームの得点を、打った選手に配る（クリーンアップ寄り）
+  let rest=Math.max(0,Math.round(rf*0.93)-H.reduce((t,x)=>t+0,0)-L.reduce((t,b)=>t,0));
+  const hrR=H.reduce((t,x)=>t,0); rest=Math.max(0,rest-0);
+  for(let k=0;k<rest&&H.length;k++){ const x=wpick(H.map(h=>[h,h.w])); x.s.rbi++; }
+  // 投手
+  const gp=gamePitchers(tid,PEN.day), mp=me&&me.pitch;
+  let outs=27, left=ra; const used=[];
+  if(mp){ outs-=mp.outs||0; left-=mp.runs||0; }
+  const sp=gp&&gp.sp&&!(mp&&mp.kind==='start')?gp.sp:null;
+  if(sp){ const s=csGet(sp.pid,true); s.g++; s.gs++;
+    let o=Math.round(clamp(14+(sp.stamina||50)*0.09+(1-(sp.q||1))*25+noise(3)-Math.max(0,ra-4)*1.6,5,Math.min(27,outs)));
+    const er=Math.min(left,poisson(o/27*CS_K.era*Math.pow(sp.q||1,3)));   // 投手の質で自責点が決まる（チームの失点を超えない）
+    s.outs+=o; s.er+=er; s.k+=poisson(o/27*clamp(7.2+(1-(sp.q||1))*18,4,12)); outs-=o; left-=er; used.push({p:sp,s,o,er,sp:true}); }
+  const pen=(staff(T).pen||[]).filter(p=>p.pid); let guard=0;
+  while(outs>0&&pen.length&&guard++<8){
+    const close=res==='W'&&rf-ra<=3&&outs<=3, p=close?pen[0]:pick(pen.slice(1).length?pen.slice(1):pen);
+    if(used.some(u=>u.p===p)&&!close) continue;
+    const o=Math.min(outs,close?outs:ri(2,5)), er=left>0?Math.min(left,outs-o<=0?left:poisson(o/27*CS_K.era*Math.pow(p.q||1,3))):0;
+    const s=csGet(p.pid,true); s.g++; s.outs+=o; s.er+=er; s.k+=poisson(o/27*clamp(8+(1-(p.q||1))*18,4,13));
+    outs-=o; left-=er; used.push({p,s,o,er,close}); }
+  if(left>0&&used.length){ const u=used[used.length-1], e=Math.round(left*0.85); u.s.er+=e; u.er+=e; }   // 残りの失点（自責点は約85%）
+  // 勝ち負け・セーブ（自分に付いたものは除く）
+  const dec=mp&&mp.dec||'';
+  if(res==='W'&&!/勝/.test(dec)){ const s0=used.find(u=>u.sp); const w=s0&&s0.o>=15&&rnd()<0.8?s0:used.filter(u=>!u.sp)[0]||s0; if(w) w.s.w++; }
+  if(res==='L'&&!/負/.test(dec)){ const s0=used.find(u=>u.sp); const l=s0&&(s0.er>=ra*0.5||rnd()<0.5)?s0:used.filter(u=>!u.sp).sort((a,b)=>b.er-a.er)[0]||s0; if(l) l.s.l++; }
+  if(res==='W'&&rf-ra<=3&&!/S/.test(dec)){ const c=used.find(u=>u.close); if(c&&rnd()<0.9) c.s.sv++; }
+}
+// まだ成績が無いセーブデータ：今日までの試合ぶんを作っておく
+function csBackfill(){
+  if(!PEN||!PEN.teams||PEN.cs) return; PEN.cs={};
+  const d0=PEN.day; for(let d=0;d<Math.min(d0,SEASON_GAMES);d++){ PEN.day=d;
+    dayPairs(PEN.sched[d]).forEach(([a,b])=>{ const A=PEN.teams[a], B=PEN.teams[b]; if(!A||!B) return;
+      let ra=poisson(Math.max(1.6,3.85+A.off-B.def)), rb=poisson(Math.max(1.6,3.85+B.off-A.def)); const res=teamResult(rb,ra); if(res==='W'&&ra<=rb) ra=rb+1; if(res==='L'&&rb<=ra) rb=ra+1;
+      csTeamGame(a,ra,rb,res,b,null); csTeamGame(b,rb,ra,flipRes(res),a,null); }); }
+  PEN.day=d0;
+}
+// リーグの成績一覧（キャッシュ）
+let CS_CACHE=null;
+function csBoard(lg){
+  if(!PEN||!PEN.teams) return null; if(!PEN.cs) csBackfill();
+  const key=PEN.year+'-'+PEN.day+'-'+lg+'-'+JSON.stringify(PEN.ss&&[PEN.ss.pa,PEN.ss.outs]);
+  if(CS_CACHE&&CS_CACHE.key===key) return CS_CACHE;
+  const bat=[], pit=[];
+  for(const id of lgTeams(lg)){ const T=PEN.teams[id]; if(!T) continue;
+    (T.F||[]).forEach(f=>{ const s=PEN.cs[f.id]; if(s) bat.push({key:f.id,name:f.n,team:id,s}); });
+    (T.P||[]).forEach(p=>{ const s=p.pid&&PEN.cs[p.pid]; if(s) pit.push({key:p.pid,name:p.name,team:id,s}); }); }
+  if(TEAM[PEN.team].lg===lg){ const ms=hasBat()?(isBat()?PEN.ss:PEN.bss):null; if(ms) bat.push({key:'ME',name:PEN.pname,team:PEN.team,me:true,s:ms});
+    if(!isBat()&&PEN.ss) pit.push({key:'ME',name:PEN.pname,team:PEN.team,me:true,s:{...PEN.ss,er:PEN.ss.runs}}); }
+  CS_CACHE={key,bat,pit}; return CS_CACHE;
+}
+// 順位（同じ値は同じ順位）。規定：打率は打席がチーム試合数×3.1、防御率は投球回がチーム試合数以上
+const CS_STAT={
+  avg:{b:true,v:s=>s.ab?s.h/s.ab:0,ok:(s,g)=>s.pa>=g*3.1&&s.pa>0},
+  hr:{b:true,v:s=>s.hr,ok:s=>s.hr>0}, sb:{b:true,v:s=>s.sb,ok:s=>s.sb>0}, rbi:{b:true,v:s=>s.rbi,ok:s=>s.rbi>0},
+  hit:{b:true,v:s=>s.h,ok:s=>s.h>0}, obp:{b:true,v:s=>s.pa?(s.h+s.bb+(s.hbp||0))/s.pa:0,ok:(s,g)=>s.pa>=g*3.1&&s.pa>0},
+  era:{low:true,v:s=>s.outs?s.er*27/s.outs:99,ok:(s,g)=>s.outs>=g*3&&s.outs>0}, win:{v:s=>s.w,ok:s=>s.w>0},
+  k:{v:s=>s.k,ok:s=>s.k>0}, sv:{v:s=>s.sv,ok:s=>s.sv>0},
+};
+const csGames=()=>Math.max(1,PEN.day);
+function csSorted(lg,stat){
+  const B=csBoard(lg); if(!B) return []; const S=CS_STAT[stat], g=csGames();
+  return (S.b?B.bat:B.pit).filter(x=>S.ok(x.s,g)).map(x=>({...x,v:S.v(x.s)})).sort((a,b)=>S.low?a.v-b.v:b.v-a.v);
+}
+function csRank(lg,stat,key){
+  const L=csSorted(lg,stat), i=L.findIndex(x=>x.key===key); if(i<0) return 0;
+  const v=L[i].v; return L.findIndex(x=>x.v===v)+1;
+}
+// 王冠のバッジ（1位金・2位銀・3位銅・4〜5位グレー）
+function crownBadge(n){
+  if(!n||n>5) return '';
+  // 2位の銀は少し青みがかった明るい銀、4・5位は真っ白
+  const col=n===1?'#e8b923':n===2?'#cbdbeb':n===3?'#c98443':'#ffffff', defs='';
+  return `<svg class="crown" width="19" height="16" viewBox="0 0 19 16" aria-label="${n}位">${defs}<path d="M1.5 15 L1.5 5.5 L5.5 9.5 L9.5 2 L13.5 9.5 L17.5 5.5 L17.5 15 Z" fill="${col}" stroke="#0007" stroke-width=".8" stroke-linejoin="round"/><text x="9.5" y="13.6" text-anchor="middle" font-size="7.5" font-weight="900" fill="#1b1b1b">${n}</text></svg>`;
+}
+const csLgOf=team=>TEAM[team]?TEAM[team].lg:TEAM[PEN.team].lg;
+// 打者の今季成績の1行（打率・本塁打・盗塁＋順位バッジ）
+function csLineB(key,team){
+  if(!PEN||!PEN.teams) return null; csBoard(csLgOf(team));
+  const s=key==='ME'?(isBat()?PEN.ss:PEN.bss):PEN.cs&&PEN.cs[key]; if(!s) return null;
+  const lg=csLgOf(team), r=k=>crownBadge(csRank(lg,k,key));
+  return `${r('avg')}打率 ${s.ab?f3(s.h/s.ab):'-'}　${r('hr')}本塁打 ${s.hr}　${r('sb')}盗塁 ${s.sb||0}`;
+}
+// 投手の今季成績の1行（防御率・勝敗＋順位バッジ）
+function csLineP(key,team){
+  if(!PEN||!PEN.teams) return null; csBoard(csLgOf(team));
+  let s=key==='ME'?PEN.ss:PEN.cs&&PEN.cs[key]; if(!s) return null; if(key==='ME') s={...s,er:s.runs};
+  const lg=csLgOf(team), r=k=>crownBadge(csRank(lg,k,key));
+  return `${r('era')}防御率 ${s.outs?(s.er*27/s.outs).toFixed(2):'-.--'}　${r('win')}${s.w}勝${s.l}敗`;
+}
+// タイトル争いのいちばん上のCPU選手（自分を除く）。まだ成績が無いときは null
+function csLeader(lg,stat,qualAbs){
+  const B=csBoard(lg); if(!B) return null; const S=CS_STAT[stat];
+  const L=(S.b?B.bat:B.pit).filter(x=>!x.me&&(qualAbs?qualAbs(x.s):S.ok(x.s,csGames()))).map(x=>({...x,v:S.v(x.s)})).sort((a,b)=>S.low?a.v-b.v:b.v-a.v);
+  return L[0]||null;
+}
+// タイトル判定用：CPUのいちばん上の選手 {name,team,v}（成績が無ければ null）
+function csAI(lg,stat,qual,dig){ if(!PEN||!PEN.cs||!Object.keys(PEN.cs).length) return null; const x=csLeader(lg,stat,qual); if(!x) return null; return {name:x.name,team:x.team,v:dig?+x.v.toFixed(dig):x.v}; }
