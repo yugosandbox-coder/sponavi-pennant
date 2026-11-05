@@ -39,11 +39,13 @@ function renderAll(){
   const showT=G.abOver||$('optTgt').checked;
   const rdNow=G.abOver?null:scoutRead(b.hand,sitOf(ab));
   let h='';
+  const fr=sel&&!G.abOver&&BREAK[ptype]?[sel[0]-BREAK[ptype][1],sel[1]-breakX(ptype)]:null, frOn=fr&&(fr[0]!==sel[0]||fr[1]!==sel[1]);   // 曲がる前のマス
   for(let r=0;r<5;r++)for(let c=0;c<5;c++){
     const k=K(r,c), inZ=r>=1&&r<=3&&c>=1&&c<=3;
     let cl='cell'+(inZ?' in':'');
     if(b.good.has(k))cl+=' good'; if(b.bad.has(k))cl+=' bad';
     if(sel&&sel[0]===r&&sel[1]===c)cl+=' sel';
+    if(frOn&&fr[0]===r&&fr[1]===c)cl+=' from';
     if(showT&&b.target.cells.has(k))cl+=' tgt';
     if($('optTgt').checked&&rdNow&&rdNow.cells.has(k))cl+=' rd';
     const lab=b.good.has(k)?'得意':b.bad.has(k)?'苦手':'';
@@ -67,7 +69,7 @@ function renderAll(){
     if(sel&&sel[0]===r&&sel[1]===c){throwPitch();return}   // 同じマスを再タップで投球
     sel=[r,c]; renderAll();
   });
-  $('selinfo').innerHTML = G.abOver?'打席終了':(sel?`<b>${courseName(sel[0],sel[1],b.hand)}</b> に <b>${ptype}</b>`:'コースをタップ');
+  $('selinfo').innerHTML = G.abOver?'打席終了':(sel?`<b>${courseName(sel[0],sel[1],b.hand)}</b> に <b>${ptype}</b>${frOn?`<small>（${fr[0]<0||fr[0]>4||fr[1]<0||fr[1]>4?'枠の外':courseName(fr[0],fr[1],b.hand)}から曲がる${inZoneRC(fr[0],fr[1])&&!inZoneRC(sel[0],sel[1])?'・ストライク→ボール':!inZoneRC(fr[0],fr[1])&&inZoneRC(sel[0],sel[1])?'・ボール→ストライク':''}）</small>`:''}`:'コースをタップ');
   $('throw').disabled=G.abOver||busy;
   $('selinfo').classList.remove('warn');
 
@@ -344,13 +346,13 @@ window.addEventListener('resize',()=>G&&fitZone());
 
 /* ---- 球の形：ストレート＝丸、チェンジアップ＝四角、それ以外の変化球＝曲がる方向を指す三角形 ---- */
 // 画面上の横の曲がり：投手目線ではそのまま、打者目線（野手）では左右反転
-function scrBX(pt){ return G&&G.bat ? -pbx(curPit(),pt) : breakX(pt); }
+function scrBX(pt){ const vx=BRV(pt)[0]; return G&&G.bat ? -vx*(curPit().hand==='R'?1:-1) : vx*(PHAND==='R'?1:-1); }   // 見た目の横の動き
 function pitchShape(pt,col,s,num){
   const h=s/2; let shape, tx=h, ty=h;
   if(pt==='ストレート') shape=`<circle cx="${h}" cy="${h}" r="${h-1.5}"/>`;
   else if(pt==='チェンジアップ') shape=`<rect x="2" y="2" width="${s-4}" height="${s-4}" rx="2"/>`;
   else{
-    const a=Math.atan2(BREAK[pt][1],scrBX(pt));   // 曲がる向き（画面上）
+    const a=Math.atan2(BRV(pt)[1],scrBX(pt));   // 曲がる向き（画面上）
     shape=`<polygon points="${s-1},${h} 1.5,1.5 1.5,${s-1.5}" transform="rotate(${a*180/Math.PI} ${h} ${h})"/>`;
     const cx=(s+2)/3-h; tx=h+cx*Math.cos(a); ty=h+cx*Math.sin(a);   // 三角形の重心に番号
   }
@@ -371,7 +373,7 @@ function animatePitch(r,c,pt,done){
     const wb=wrap.getBoundingClientRect();
     const cell=zone.children[dispIdx(r,c)].getBoundingClientRect(), mid=zone.children[12].getBoundingClientRect();
     const ex=cell.left+cell.width/2-wb.left, ey=cell.top+cell.height/2-wb.top;
-    const dx=scrBX(pt)*mid.width, dy=BREAK[pt][1]*mid.height;
+    const dx=scrBX(pt)*mid.width, dy=BRV(pt)[1]*mid.height;
     const sx=ex-dx, sy=ey-dy;
     const col=inZoneRC(r,c)?COL_STRIKE:COL_BALL, straight=!dx&&!dy;
     const ball=document.createElement('div'); ball.className='ball'; ball.style.setProperty('--bc',col);
@@ -803,7 +805,7 @@ function renderSetup(){
   $('hcards').innerHTML=[['R','右投げ'],['L','左投げ']].map(([k,n])=>`<button class="btn ${dHand===k?'on':''}" data-k="${k}">${n}</button>`).join('');
   [...$('hcards').children].forEach(el=>el.onclick=()=>{store.played=true;dHand=el.dataset.k;renderSetup()});
   const nK=Object.entries(dLev).filter(([t,l])=>l==='決'&&draft.has(t)).length;
-  $('pcards').innerHTML=PTYPES.map(t=>{const on=draft.has(t), L=dLev[t]||'普';
+  $('pcards').innerHTML=PTYPES.filter(t=>t!=='スイーパー').map(t=>{const on=draft.has(t), L=dLev[t]||'普';
     return `<div class="pcard ${on?'on':''}"><button class="pck" data-t="${t}"><span class="chk">${on?'✓':''}</span><span><b>${t}</b><small>${PDESC[t]}</small></span></button>
       ${on?`<div class="lv">${['少','普','決'].map(l=>`<button class="lvb ${L===l?'on':''} ${l==='決'&&L!=='決'&&nK>=2?'dis':''}" data-t="${t}" data-l="${l}">${LEVN[l]}</button>`).join('')}</div>`:''}</div>`}).join('');
   $('pcards').querySelectorAll('.pck').forEach(el=>el.onclick=()=>{store.played=true;const t=el.dataset.t;draft.has(t)?draft.delete(t):draft.add(t);renderSetup()});
@@ -820,7 +822,7 @@ function renderSetup(){
   $('startGame').textContent=!draft.size?'球種を1つ以上選んでください':`プレイボール（持ち球${draft.size}種）`;
 }
 /* ---- ペナント：持ち点（100〜200）で能力を決める ---- */
-const BRK_TYPES=PTYPES.filter(t=>t!=='ストレート');
+const BRK_TYPES=LEARN_TYPES;   // 最初はスイーパー以外の全部の変化球から選べる（スイーパーはスライダーからの進化のみ）
 const LV_COST={'少':1,'普':2,'決':5}, SLV_COST={1:0,2:2,3:5};   // ストレートのLv（最初は1〜3。Lv.3が今までの性能）
 let AB={budget:60,velo:130,control:20,stamina:20,brk:{},slv:3};
 const V0=130, VCOST=5;   // 球速は130km/hが基礎。1km/hで5pt（0.1km/hで0.5pt）
@@ -931,14 +933,14 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ dGenius=rnd()<0.001; AB={budget:dGenius?170:Math.round((ri(60,120)+ri(60,120))/2),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は70〜120（平均95。真ん中あたりが出やすい）。0.1%で「天才」（持ち点170）
+  if(MODE==='pennant'){ dGenius=rnd()<0.001; AB={budget:dGenius?170:Math.round(ri(50,120)*0.65+ri(50,120)*0.35),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は50〜120（平均85。2つの乱数を65:35で混ぜるので、平均で割るより散らばりが大きい）。0.1%で「天才」（持ち点170）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
   $('tnameSec').style.display=MODE==='pennant'?'none':'';
   $('setupTitle').textContent=MODE==='pennant'?'🏆 ペナントモードの準備':'⚾ 試合の準備';
   $('setupNote').textContent=MODE==='pennant'?'希望球団を選ぶと、ドラフトで入団します（18歳スタート）。持ち点が多いほど上位指名になりやすいです。名前は空欄ならランダムです。':'相手打線は試合ごとにランダムで決まります（試合開始時に発表）。';$('pname').value=PNAME_IN; $('tname').value=TNAME_IN;renderSetup();showSetup(true);}
-$('selAll').onclick=()=>{draft=new Set(PTYPES);renderSetup()};
+$('selAll').onclick=()=>{draft=new Set(PTYPES.filter(t=>t!=='スイーパー'));renderSetup()};
 $('selStd').onclick=()=>{draft=new Set(['ストレート','カーブ','スライダー']);renderSetup()};
 $('selNone').onclick=()=>{draft=new Set();renderSetup()};
 $('startGame').onclick=()=>{

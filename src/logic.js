@@ -125,22 +125,34 @@ const HR_K=1.05;   // 打球1つあたりの本塁打確率への補正（シミ
 /* ========= 状態 ========= */
 const r1=v=>Math.round(v*10)/10;   // 能力・持ち点は0.1刻み
 const bhandJP=h=>h==='S'?'両打':h==='L'?'左打':'右打';
-const PTYPES=['ストレート','ツーシーム','カットボール','スライダー','シュート','カーブ','ドロップカーブ','スローカーブ','チェンジアップ','フォーク','SFF','シンカー'];
-// 球種グループ（読みが「近い」かどうかの判定用）
-const PGROUP={'ストレート':'fast','ツーシーム':'fast','カットボール':'fast','カーブ':'break','ドロップカーブ':'break','スローカーブ':'break','スライダー':'break','シュート':'break','チェンジアップ':'sink','フォーク':'sink','SFF':'sink','シンカー':'sink'};
+const PTYPES=['ストレート','カットボール','ツーシーム','チェンジアップ','高速スライダー','スライダー','スロースライダー','スイーパー','シュート','高速シュート','シンカー','高速シンカー','カーブ','ドロップカーブ','スローカーブ','パワーカーブ','フォーク','SFF'];
+const LEARN_TYPES=PTYPES.filter(t=>t!=='ストレート'&&t!=='スイーパー');   // 最初から・キャンプで選べる変化球（スイーパーはスライダーLv.7からさらに上げると覚える）
+// 球種の系統（表示用）
+const PFAM={'ストレート':'fast','カットボール':'fast','ツーシーム':'fast','チェンジアップ':'fast','高速スライダー':'slider','スライダー':'slider','スロースライダー':'slider','スイーパー':'slider',
+  'シュート':'shoot','高速シュート':'shoot','シンカー':'sinker','高速シンカー':'sinker','カーブ':'curve','ドロップカーブ':'curve','スローカーブ':'curve','パワーカーブ':'curve','フォーク':'fork','SFF':'fork'};
+const PFAM_JP={fast:'ストレート系',slider:'スライダー系',shoot:'シュート系',sinker:'シンカー系',curve:'カーブ系',fork:'フォーク系'};
+// 球種グループ（読みが「近い」かどうかの判定・色分け用）：速い球／横・斜めに曲がる球／沈む球
+const PGROUP={'ストレート':'fast','カットボール':'fast','ツーシーム':'fast','高速スライダー':'break','スライダー':'break','スロースライダー':'break','スイーパー':'break','シュート':'break','高速シュート':'break',
+  'カーブ':'break','ドロップカーブ':'break','スローカーブ':'break','パワーカーブ':'break','チェンジアップ':'sink','シンカー':'sink','高速シンカー':'sink','フォーク':'sink','SFF':'sink'};
 const PDESC={
-  'ストレート':'基本の球。高めはパワーヒッターの空振りを誘う',
-  'ツーシーム':'シュート方向（スライダーと逆）に曲がる。ゴロを打たせやすく、内角は詰まらせる',
-  'カーブ':'見逃しを取りやすい。ストレートの後で効果アップ',
-  'スライダー':'外角のボール球を振らせやすい',
-  'チェンジアップ':'低めで空振り。ストレートの後で効果アップ',
-  'フォーク':'低めのボール球を振らせて空振りを取る決め球',
-  'シンカー':'沈んでゴロを打たせる。低めで特に有効',
-  'カットボール':'ストレートに近い速さで小さく曲がる。芯を外して詰まらせやすい',
-  'シュート':'スライダーと逆（腕側）に曲がる。内角で詰まらせてゴロを打たせる',
-  'ドロップカーブ':'よく落ちる少し速いカーブ。低めで空振りを取りやすい',
-  'スローカーブ':'とても遅いカーブ。ストレートとの緩急でタイミングを外す（続けると打たれやすい）',
-  'SFF':'速く小さく落ちるフォーク。ストレートと見分けにくく、空振りやゴロを取る',
+  'ストレート':'いちばん速い球（MAXの球速）。球威があり、遅い変化球を待っている打者ほど空振り・打ち損じが増える',
+  'カットボール':'直球−5km/h。同じマスの中で小さく横に動く。利き腕と逆の打席の打者の内角でゴロ、同じ打席の打者の内角は見逃されやすい',
+  'ツーシーム':'直球−3km/h。同じマスの中でシュート方向に動く。利き腕と同じ打席の打者の内角でフライ、逆の打席の打者の内角は見逃されやすい',
+  'チェンジアップ':'直球−30km/h。同じマスの中で少し沈む。速い球（直球〜直球−10km/h）を待つ打者から空振りがとても取れるが、狙われると打たれやすい',
+  '高速スライダー':'直球−10km/h。横に1マス曲がる',
+  'スライダー':'直球−20km/h。横に2マス曲がる',
+  'スロースライダー':'直球−35km/h。横に2マス曲がる。狙われると打たれやすい',
+  'スイーパー':'直球−15km/h。横に3マス大きく曲がる（スライダーLv.7からさらに上げると進化して覚える）。ボール→ストライクは見逃され、ストライク→ボールは空振りを取りやすいが死球も増える',
+  'シュート':'直球−17km/h。シュート方向に2マス曲がる',
+  '高速シュート':'直球−8km/h。シュート方向に1マス。利き腕と同じ打席の打者の内角でフライ（死球に注意）、逆の打席の打者の内角はとても見逃されやすい',
+  'シンカー':'直球−25km/h。シュート方向に1マス・下に2マス沈む',
+  '高速シンカー':'直球−20km/h。シュート方向の斜め下に1マス。ボール→ストライクで見逃し、ストライク→ボールで振らせやすい',
+  'カーブ':'直球−25km/h。斜め下に1マス曲がる',
+  'ドロップカーブ':'直球−15km/h。縦に2マス・横に1マス落ちる',
+  'スローカーブ':'直球−45km/h。斜め下に2マス。速い球を待つ打者から空振り・打ち損じがとても取れるが、狙われるととても長打にされやすい',
+  'パワーカーブ':'直球−10km/h。斜め下に1マス。ボール→ストライクで見逃しを取りやすいが、打たれると長打になりやすい',
+  'フォーク':'直球−20km/h。下に2マス落ちる。低め・低めのボールで空振りを取りやすく、高め・真ん中は打たれやすい（狙われると空振りしにくい）',
+  'SFF':'直球−10km/h。下に1マス落ちる。直球・スライダー・シュート系を待つ打者からゴロや空振りを取りやすい（狙われると打たれやすい）',
 };
 let REP=['ストレート','カーブ','スライダー'];   // 持ち球
 let PHAND='R';   // 自分の利き腕（R=右投げ L=左投げ）
@@ -158,12 +170,23 @@ const PVELO=146, MYNUM=18;   // ストレートの平均球速（通常モード
 // 自分の能力（ペナントは G.abil：球速・コントロール・スタミナ）
 const myVelo=()=>G&&G.abil?G.abil.velo:PVELO;
 const fatigue=()=>G&&G.abil?Math.max(0,G.st.pitches-(45+G.abil.stamina*0.75)):0;   // スタミナを超えた球数
-const SLOW_BASE=100;   // スローカーブは球速に関係なく100km/h基準（±2.5のばらつきだけ）
-const VOFF={'ストレート':0,'ツーシーム':-3,'カットボール':-6,'スライダー':-15,'シュート':-10,'カーブ':-30,'ドロップカーブ':-22,'スローカーブ':-48,'チェンジアップ':-19,'フォーク':-10,'SFF':-7,'シンカー':-8};
+// 球速：直球からの差（km/h）。投げるたびに±2.5km/hのばらつき（小数第1位まで・それより下は切り捨て）
+const VOFF={'ストレート':0,'カットボール':-5,'ツーシーム':-3,'チェンジアップ':-30,'高速スライダー':-10,'スライダー':-20,'スロースライダー':-35,'スイーパー':-15,
+  'シュート':-17,'高速シュート':-8,'シンカー':-25,'高速シンカー':-20,'カーブ':-25,'ドロップカーブ':-15,'スローカーブ':-45,'パワーカーブ':-10,'フォーク':-20,'SFF':-10};
+const spd1=v=>Math.floor(v*10)/10;
+const jitterSpd=v=>spd1(v+(rnd()-0.5)*5);
 // 球種ごとの当てにくさ（ct）と打球の弱さ（q）
-const PT_CT={'ストレート':0,'ツーシーム':-0.02,'カットボール':-0.03,'スライダー':-0.06,'シュート':-0.04,'カーブ':-0.05,'ドロップカーブ':-0.06,'スローカーブ':-0.03,'チェンジアップ':-0.07,'フォーク':-0.08,'SFF':-0.06,'シンカー':-0.05};
-const PT_Q ={'ストレート':0,'ツーシーム':-0.06,'カットボール':-0.07,'スライダー':-0.05,'シュート':-0.06,'カーブ':-0.04,'ドロップカーブ':-0.05,'スローカーブ':-0.02,'チェンジアップ':-0.07,'フォーク':-0.1,'SFF':-0.08,'シンカー':-0.08};
-const SLOWP=new Set(['カーブ','ドロップカーブ','スローカーブ','チェンジアップ','フォーク']);   // 緩い球（直球の後に効く・引っかけやすい）
+const PT_CT={'ストレート':0,'カットボール':-0.03,'ツーシーム':-0.02,'チェンジアップ':-0.06,'高速スライダー':-0.05,'スライダー':-0.06,'スロースライダー':-0.04,'スイーパー':-0.07,
+  'シュート':-0.04,'高速シュート':-0.03,'シンカー':-0.05,'高速シンカー':-0.04,'カーブ':-0.05,'ドロップカーブ':-0.06,'スローカーブ':-0.03,'パワーカーブ':-0.06,'フォーク':-0.07,'SFF':-0.06};
+const PT_Q ={'ストレート':0,'カットボール':-0.07,'ツーシーム':-0.06,'チェンジアップ':-0.07,'高速スライダー':-0.06,'スライダー':-0.05,'スロースライダー':-0.04,'スイーパー':-0.05,
+  'シュート':-0.06,'高速シュート':-0.06,'シンカー':-0.08,'高速シンカー':-0.07,'カーブ':-0.04,'ドロップカーブ':-0.05,'スローカーブ':-0.02,'パワーカーブ':-0.04,'フォーク':-0.09,'SFF':-0.08};
+// ゾーンに来たときの振られやすさ（カーブ系は見送られやすい）
+const PT_SWZ={'カーブ':-0.07,'ドロップカーブ':-0.05,'スローカーブ':-0.10,'パワーカーブ':-0.03,'ツーシーム':0.03,'カットボール':0.03,'SFF':0.03,'高速シンカー':0.02};
+// 低め（r=4のボール）を振らせやすさ／低めの当てにくさ・打球の弱さ
+const PT_LOWB={'チェンジアップ':0.16,'フォーク':0.2,'シンカー':0.1,'高速シンカー':0.08,'SFF':0.15,'ドロップカーブ':0.1,'カーブ':0.06,'パワーカーブ':0.06,'スローカーブ':0.04};
+const PT_LOWCT={'チェンジアップ':0.08,'フォーク':0.12,'SFF':0.08,'ドロップカーブ':0.06,'シンカー':0.05,'高速シンカー':0.04,'パワーカーブ':0.03};
+const PT_LOWQ={'チェンジアップ':0.05,'フォーク':0.06,'シンカー':0.06,'高速シンカー':0.05,'SFF':0.05,'ドロップカーブ':0.03};
+const SLOWP=new Set(['カーブ','ドロップカーブ','スローカーブ','チェンジアップ','フォーク','スロースライダー','シンカー']);   // 緩い球（直球の後に効く・引っかけやすい）
 // 架空のチーム名（実在の球団名は使わない）
 const CITIES=['札幌','仙台','千葉','埼玉','東京','横浜','静岡','名古屋','京都','大阪','神戸','広島','高松','福岡','那覇'];
 const NICKS=['ファルコンズ','シャークス','タイタンズ','ウルフズ','フェニックス','サンダース','コメッツ','マスタングス','オーシャンズ','レッドウイングス','ブルーノーツ','グリフォンズ'];
@@ -392,8 +415,9 @@ function levsFrom(p){
 const kScore=p=>p.types.reduce((a,t)=>a+(t==='ストレート'?(p.levs&&p.levs[t]==='決'?0.5:0):Math.max(0,pitLv(p,t)-2)*0.5),0);
 function genPitcher(){
   const hand=rnd()<.7?'R':'L', nb=wpick(NB_W);
-  const brk=shuffle(PTYPES.filter(t=>t!=='ストレート')).slice(0,nb), plv={};
+  let brk=shuffle(LEARN_TYPES).slice(0,nb), plv={};
   brk.forEach(t=>plv[t]=clamp(wpick(CPU_LV_W)+(nb<=2&&rnd()<0.4?1:0),1,7));   // 球種が少ない投手は1つ1つの球の質が高め
+  if(plv['スライダー']>=6&&rnd()<0.4){ brk=brk.map(t=>t==='スライダー'?'スイーパー':t); plv['スイーパー']=ri(1,3); delete plv['スライダー']; }   // スライダーを極めた投手はスイーパー
   const types=PTYPES.filter(t=>t==='ストレート'||brk.includes(t));
   const velo=ri(138,157), control=ri(30,90), stamina=ri(30,95);
   const p={isP:true,name:randName(),num:ri(11,69),hand,velo,types,plv,control,stamina,style:wpick(PSTYLE_W)};
@@ -408,7 +432,7 @@ function upgradePit(p){
   const brk=p.types.filter(t=>t!=='ストレート'), lv={};
   brk.forEach(t=>lv[t]= (p.levs||{})[t]==='決'?ri(3,5) : (p.levs||{})[t]==='少'?1 : wpick([[2,60],[3,40]]));
   const nb=wpick(NB_W), keep=brk.slice().sort((a,b)=>lv[b]-lv[a]).slice(0,nb);
-  while(keep.length<nb){ const t=pick(PTYPES.filter(x=>x!=='ストレート'&&!keep.includes(x))); keep.push(t); lv[t]=ri(1,2); }
+  while(keep.length<nb){ const t=pick(LEARN_TYPES.filter(x=>!keep.includes(x))); keep.push(t); lv[t]=ri(1,2); }
   p.types=PTYPES.filter(t=>t==='ストレート'||keep.includes(t)); p.plv={}; keep.forEach(t=>p.plv[t]=lv[t]);
   p.kime=pickKime(p); p.levs=levsFrom(p); if(!p.style) p.style=wpick(PSTYLE_W);
   return p;
@@ -448,15 +472,43 @@ function decideLoc(r,c){
   }
   return {r,c,note,r0,c0};
 }
-// 変化の向き（投手目線・右投手の場合。x:+は右＝右投手の腕側、y:+は下。単位はマス）
-//   スライダー：真横（グラブ側）　ツーシーム：スライダーと逆の横（シュート方向）
-//   カーブ：斜め下（グラブ側）　シンカー：カーブと逆の斜め下　フォーク：下　チェンジアップ：少し下
-//   カットボール：小さく横（グラブ側）　シュート：腕側に横　ドロップカーブ：縦に近い斜め　スローカーブ：大きな斜め　SFF：小さく下
+// 変化（投手目線・右投手の場合。x:+は腕側＝シュート方向、−はグラブ側＝スライダー方向、y:+は下。単位はマス）
+//   曲がる前のマス＝投げたマス−変化。カット・ツーシーム・チェンジアップは同じマスの中で動くだけ（見た目だけ BRV で少し動かす）
 const BREAK={
-  'ストレート':[0,0],'ツーシーム':[1.2,0],'スライダー':[-1.4,0],'カーブ':[-1.0,1.0],
-  'シンカー':[1.0,1.0],'フォーク':[0,1.4],'チェンジアップ':[0,0.7],
-  'カットボール':[-0.6,0.1],'シュート':[1.4,0.15],'ドロップカーブ':[-0.55,1.35],'スローカーブ':[-1.15,1.25],'SFF':[0,1.0],
+  'ストレート':[0,0],'カットボール':[0,0],'ツーシーム':[0,0],'チェンジアップ':[0,0],
+  '高速スライダー':[-1,0],'スライダー':[-2,0],'スロースライダー':[-2,0],'スイーパー':[-3,0],
+  'シュート':[2,0],'高速シュート':[1,0],'シンカー':[1,2],'高速シンカー':[1,1],
+  'カーブ':[-1,1],'ドロップカーブ':[-1,2],'スローカーブ':[-2,2],'パワーカーブ':[-1,1],'フォーク':[0,2],'SFF':[0,1],
 };
+const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
+const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
+const PIT_ADJ={sw:0.03,ct:0.06,q:0.03};   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
+// 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
+//  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
+//  戻り値 sw:ゾーンの球を振る確率の増減 swB:ボール球を振る確率の増減 wh:空振りの増減 q:打球の質の増減 gb/fb:ゴロ・フライの増減 xbh:長打の増減 hbp:死球の倍率 sb:ストライク→ボール bs:ボール→ストライク
+function pitchFx(x){
+  const {pt,r,c}=x, endZ=r>=1&&r<=3&&c>=1&&c<=3, stZ=x.sr>=1&&x.sr<=3&&x.sc>=1&&x.sc<=3, moved=x.sr!==r||x.sc!==c;
+  const fx={sw:0,swB:0,wh:0,q:0,gb:0,fb:0,xbh:0,hbp:1,sb:moved&&stZ&&!endZ,bs:moved&&!stZ&&endZ};
+  if(fx.sb){ fx.swB+=PFX_K.sbSw; fx.wh+=PFX_K.sbWh; fx.q-=PFX_K.sbQ; }   // ストライク→ボール：振らせて空振り・打ち損じ
+  if(fx.bs){ fx.sw-=PFX_K.bsSw; }                                         // ボール→ストライク：見逃されやすい
+  const inside=horizIdx(c,x.hand)<=1, same=x.phand===x.hand, main=x.mainT||null, mS=x.mainSpd, st=x.stSpd, isMain=main===pt;
+  switch(pt){
+    case 'ストレート': if(main&&main!=='ストレート'&&mS!=null){ const d=clamp(st-mS,0,50); fx.wh+=d*0.004; fx.q-=d*0.003; } break;
+    case 'カットボール': if(inside&&!same){ fx.gb+=0.15; fx.q-=0.04; } if(inside&&same&&endZ) fx.sw-=0.12; break;
+    case 'ツーシーム': if(inside&&same){ fx.fb+=0.15; fx.q-=0.04; } if(inside&&!same&&endZ) fx.sw-=0.12; break;
+    case 'チェンジアップ': if(isMain){ fx.wh-=0.08; fx.q+=0.12; } else if(mS!=null&&mS>=st-10.5&&mS<=st+3){ fx.wh+=0.15; fx.q-=0.06; } break;
+    case 'スロースライダー': if(isMain){ fx.wh-=0.06; fx.q+=0.12; } break;
+    case 'スイーパー': if(fx.bs) fx.sw-=0.08; if(fx.sb){ fx.wh+=0.06; fx.hbp=2.5; } break;
+    case '高速シュート': if(inside&&same){ fx.fb+=0.15; fx.q-=0.04; fx.hbp=2.5; } if(inside&&!same&&endZ) fx.sw-=0.22; break;
+    case '高速シンカー': if(fx.bs) fx.sw-=0.08; if(fx.sb) fx.swB+=0.08; break;
+    case 'スローカーブ': if(isMain){ fx.q+=0.18; fx.xbh+=0.25; fx.wh-=0.05; } else if(main&&PFAM[main]==='fast'&&main!=='チェンジアップ'){ fx.wh+=0.12; fx.q-=0.1; } break;
+    case 'パワーカーブ': if(fx.bs) fx.sw-=0.08; fx.xbh+=0.12; break;
+    case 'フォーク': if(r<=2){ fx.q+=0.08; fx.wh-=0.04; } else fx.wh+= isMain?-0.04:0.08; break;
+    case 'SFF': if(isMain){ fx.q+=0.1; fx.wh-=0.04; } else if(main&&main!=='チェンジアップ'&&['fast','slider','shoot'].includes(PFAM[main])){ fx.gb+=0.1; fx.wh+=0.05; } break;
+  }
+  return fx;
+}
 const COL_STRIKE='#f5c542', COL_BALL='#7fe0a2', COL_FOUL='#f5c542', COL_HIT='#4ea1ff', COL_OUT='#ff5a52';
 // 投げた球の色：ストライク黄・ファウル薄灰・ボール緑。ヒット／ホームランは青、アウトは赤を優先
 function pitchColor(p){
@@ -501,6 +553,11 @@ function simulatePitch(r,c,pt,note){
   const samePH = PHAND===b.hand;
   const bx=breakX(pt);
   const away = b.hand==='R' ? bx<-0.3 : bx>0.3;   // 投手目線：右打者は右に立つので、左へ曲がる球が逃げていく
+  // 曲がる前のマスと球種の特徴
+  const sr=r-BREAK[pt][1], sc=c-bx, moved=sr!==r||sc!==c;
+  const gSpd=guess?myVelo()+VOFF[guess]:null;
+  const fx=pitchFx({pt,r,c,sr,sc,hand:b.hand,phand:PHAND,mainT:guess,mainSpd:gSpd,stSpd:myVelo()});
+  const fooled=moved&&!strictTarget&&b.target.cells.has(K(sr,sc));   // 曲がる前のマスを狙っていた（つられて振り、打ち損じ・空振りが増える）
 
   // --- ストライクとボールの使い分け ---
   // 最近ストライクばかりなら打者は積極的に振ってきて合わせやすくなる。ボールばかりなら見極められる
@@ -521,10 +578,8 @@ function simulatePitch(r,c,pt,note){
     if(readCell) swingP=Math.max(swingP,0.9);   // 分析で張っていたコース
     if(abRead) swingP=Math.max(swingP,0.9);     // 打席の中で張っていたコース
     if(ab.balls===3&&ab.strikes===0) swingP*=0.45;
-    if(pt==='カーブ') swingP-=0.07;
-    if(pt==='ドロップカーブ') swingP-=0.05;
-    if(pt==='スローカーブ') swingP-=0.10;   // 遅すぎて見送られやすい
-    if(pt==='ツーシーム'||pt==='カットボール'||pt==='SFF') swingP+=0.03;   // ストライクに見えて手を出させる
+    swingP+=(PT_SWZ[pt]||0)+PIT_ADJ.sw;   // カーブ系は見送られやすい／小さく動く球はストライクに見えて手を出させる
+    swingP+=fx.sw;           // ボール→ストライクは見逃されやすい など
     if(pt==='ストレート') swingP-=0.03*stLv();   // 伸びのあるストレートは見逃されやすい（Lvが低いと振られやすい）
     swingP+=[-0.07,0,0.08][gMatch];
     swingP+=zoneHeavy*0.3-ballHeavy*0.3;
@@ -532,16 +587,12 @@ function simulatePitch(r,c,pt,note){
     swingP=(1-b.eye/100)*0.34;
     if(nearTarget) swingP+=0.14;
     if(protect) swingP+=0.16;
-    if(pt==='チェンジアップ'&&r===4) swingP+=0.16;   // 低めに沈んで振らせる
-    if(pt==='フォーク'&&r===4) swingP+=0.2;
-    if(pt==='シンカー'&&r===4) swingP+=0.1;
-    if(pt==='SFF'&&r===4) swingP+=0.15;
-    if(pt==='ドロップカーブ'&&r===4) swingP+=0.1;
+    if(r===4) swingP+=PT_LOWB[pt]||0;   // 低めに沈んで振らせる
     if(gMatch===2) swingP-=0.05; else if(gMatch===0&&PGROUP[pt]!=='fast') swingP+=0.06; // 読み外れの変化球に手が出る
-    if(pt==='カーブ'&&r===4) swingP+=0.06;
-    if((pt==='ツーシーム'||pt==='シュート')&&dIn<=1) swingP+=0.06;
-    if(pt==='スライダー'&&dIn>=3) swingP+=0.08;
+    if((pt==='ツーシーム'||PFAM[pt]==='shoot')&&dIn<=1) swingP+=0.06;
+    if(PFAM[pt]==='slider'&&dIn>=3) swingP+=({'高速スライダー':0.06,'スイーパー':0.1}[pt]||0.08);
     if(pt==='カットボール'&&dIn>=3) swingP+=0.04;
+    swingP+=fx.swB;          // ストライク→ボールは振らせやすい
     if(away&&dIn>=3) swingP+=0.06;              // 外へ逃げる球を追いかける
     if(corner) swingP*=0.5;
     if(readCell) swingP*=0.4;                    // よく来るボール球は見極められる
@@ -553,15 +604,16 @@ function simulatePitch(r,c,pt,note){
     if(lureBall) swingP+=0.08;
     if(sp>0&&r<=1) swingP+=0.04*sp;             // 速い高めの釣り球
   }
+  if(fooled&&!protect) swingP=Math.max(swingP,0.8);   // 狙っていたマスに来たように見えて振ってしまう
   swingP=clamp(swingP,0.02,0.97);
   const swing=rnd()<swingP;
-  const speed=Math.round((pt==='スローカーブ'?SLOW_BASE:myVelo()+VOFF[pt]-fatigue()*0.08)+(rnd()-0.5)*5);   // 球速（km/h）。疲れると落ちる。スローカーブは誰が投げても100km/h基準
-  const base={r,c,pt,inZone,note,guess,gMatch,readCell,abRead,speed};
+  const speed=jitterSpd(myVelo()+VOFF[pt]-fatigue()*0.08);   // 球速（km/h・小数第1位まで）。疲れると落ちる
+  const base={r,c,sr,sc,pt,inZone,note,guess,gMatch,readCell,abRead,speed,fooled,sb:fx.sb,bs:fx.bs};
 
   if(!swing){
     if(!inZone){
       // 内角のボールは死球の可能性
-      if(dIn===0 && r>=1 && r<=3 && rnd()<0.05) return {...base,kind:'hbp',text:'デッドボール'};
+      if(dIn===0 && r>=1 && r<=3 && rnd()<0.05*fx.hbp) return {...base,kind:'hbp',text:'デッドボール'};
       return {...base,kind:'ball',text:'ボール'};
     }
     return {...base,kind:'look',text:'見逃しストライク'};
@@ -585,12 +637,9 @@ function simulatePitch(r,c,pt,note){
   ct+=Math.min(0.08,ab.pitches.length*0.015);
   if(inZone&&!isTarget) ct-=0.06;
   ct+=PT_CT[pt]||0;
-  if(pt==='チェンジアップ'&&low) ct-=0.08;
-  if(pt==='フォーク'&&low) ct-=0.12;
-  if(pt==='SFF'&&low) ct-=0.08;
-  if(pt==='ドロップカーブ'&&low) ct-=0.06;
-  if(pt==='シンカー'&&low) ct-=0.05;
-  if(pt==='SFF'&&guess==='ストレート') ct-=0.04;   // 直球待ちだと見分けにくい
+  if(low) ct-=PT_LOWCT[pt]||0;
+  ct+=PIT_ADJ.ct-fx.wh;                        // 球種の特徴（ストライク→ボール・待ち球とのずれ など）
+  if(fooled) ct-=PFX_K.fool;                   // 曲がる前のマスを狙っていた
   ct+=[-0.07,0,0.07][gMatch];
   ct+= samePH ? -0.02 : 0.02;
   if(away) ct-=0.04;
@@ -639,16 +688,15 @@ function simulatePitch(r,c,pt,note){
   if(inZone && (r!==2) && (c!==2)) q-=0.08;   // ゾーンの四隅
   if(!inZone) q-=0.38;
   q+=PT_Q[pt]||0;
-  if(pt==='チェンジアップ'&&low) q-=0.05;
-  if((pt==='フォーク'||pt==='シンカー')&&low) q-=0.06;
-  if(pt==='SFF'&&low) q-=0.05;
-  if(pt==='ドロップカーブ'&&low) q-=0.03;
+  if(low) q-=PT_LOWQ[pt]||0;
+  q+=fx.q+PIT_ADJ.q;
+  if(fooled) q-=PFX_K.fool;
   if(pt==='スローカーブ'&&(gMatch===2||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
   q+=[-0.12,0,0.16][gMatch];   // 読みが当たると強い打球
   q+= samePH ? -0.04 : 0.03;
   if(away) q-=0.03;
   if(pt==='ツーシーム'&&dIn<=1) q-=0.06;   // 内角のツーシームで詰まらせる
-  if(pt==='シュート'&&dIn<=1) q-=0.07;     // 内角のシュートで詰まらせる
+  if(PFAM[pt]==='shoot'&&dIn<=1) q-=0.07;  // 内角のシュートで詰まらせる
   if(pt==='カットボール'&&!away&&dIn<=2) q-=0.06;   // 打者の手元に食い込むカットで芯を外す
   q+=fam*0.8;
   q+=locShare*0.08;
@@ -658,13 +706,14 @@ function simulatePitch(r,c,pt,note){
   if(showBall) q-=0.05;
   q+=noise(0.22);
 
+  BIPFX={gb:fx.gb,fb:fx.fb,xbh:fx.xbh};
   return {...base,kind:'bip',q,bip:Object.assign(resolveBIP(r,c,pt,q,b),BIPMETA)};
 }
 
 /* ========= 打球の結果 ========= */
 const FN={P:'ピッチャー',C:'キャッチャー','1B':'ファースト','2B':'セカンド',SS:'ショート','3B':'サード',LF:'レフト',CF:'センター',RF:'ライト'};
 function resolveBIP(r,c,pt,q,b){
-  const inZone=r>=1&&r<=3&&c>=1&&c<=3;
+  const inZone=r>=1&&r<=3&&c>=1&&c<=3, PX=BIPFX||{gb:0,fb:0,xbh:0}; BIPFX=null;   // 球種の特徴（ゴロ・フライ・長打）
   const dIn=horizIdx(c,b.hand);
   // 方向：引っ張り/センター/流し
   let pull=[0.55,0.55,0.38,0.22,0.2][dIn], opp=[0.14,0.15,0.27,0.48,0.5][dIn];
@@ -681,6 +730,7 @@ function resolveBIP(r,c,pt,q,b){
   let hrP=b.hrRate*HR_K*Math.exp((b.sure!==undefined?1.7:2.3)*q);   // 自分の打席はパワー依存を強く（打球の質への依存は弱め）
   if(!inZone) hrP*=0.3;
   if(b.sureK) hrP*= b.sure ? 1+0.5*b.sure : 1-0.5*b.sureK;   // 自分の打席：ミートが高いほど本塁打も「本命が芯」に集中する
+  hrP*=1+PX.xbh;   // 長打になりやすい球種
   const BT=b.type;   // 打者タイプの効果（打席あたり±5%相当）
   hrP+=btFx(BT,'hr')*0.6;
   hrP=clamp(hrP,0,0.75);
@@ -691,12 +741,13 @@ function resolveBIP(r,c,pt,q,b){
   // 打球の種類
   let gP=[0.25,0.36,0.48,0.62,0.72][r]-(b.power-50)/260;
   const setKind=k=>{BIPMETA.kind=k};
-  gP+=({'ツーシーム':0.16,'シンカー':0.2,'フォーク':0.1,'SFF':0.14,'チェンジアップ':0.07,'シュート':0.1,'カットボール':0.06}[pt]||0); if(pt==='ストレート'&&r<=1)gP-=0.05;
+  gP+=({'ツーシーム':0.16,'シンカー':0.2,'高速シンカー':0.17,'フォーク':0.1,'SFF':0.14,'チェンジアップ':0.07,'シュート':0.1,'高速シュート':0.08,'カットボール':0.06}[pt]||0); if(pt==='ストレート'&&r<=1)gP-=0.05;
+  gP+=PX.gb-PX.fb;
   if(b.speed>=80) gP+=0.08;   // 俊足は転がして内野安打を狙う
   gP+=btFx(BT,'gb');
   let lP=0.17+Math.max(0,q)*0.15;
   gP=clamp(gP,0.15,0.8);
-  const fP=Math.max(0.1,1-gP-lP);
+  const fP=Math.max(0.1,1-gP-lP)*(1+PX.fb);
   const kind=wpick([['ground',gP],['liner',lP],['fly',fP]]);
   setKind(kind);
   // ヒット確率
@@ -715,7 +766,7 @@ function resolveBIP(r,c,pt,q,b){
       const w={left:'三遊間を抜けるレフト前ヒット',center:'センター前へ抜けるヒット',right:'一二塁間を破るライト前ヒット'}[side];
       return {res:'1B',bases:1,cls:'hit',big:'ヒット',text:w};
     }
-    let p2=Math.max(0,0.17+b.power/100*0.2+(kind==='liner'?0.05:0)+btFx(BT,'d2')), p3=b.speed/100*0.08;
+    let p2=Math.max(0,0.17+b.power/100*0.2+(kind==='liner'?0.05:0)+btFx(BT,'d2')+PX.xbh*0.6), p3=b.speed/100*0.08;
     const x=rnd();
     if(x<p3) return {res:'3B',bases:3,cls:'hit',big:'スリーベース',text:(side==='left'?'左中間':side==='right'?'右中間':'センター')+'を深々と破るスリーベース'};
     if(x<p3+p2) return {res:'2B',bases:2,cls:'hit',big:'ツーベース',text:pick([sideWord+'線を破るツーベース',(side==='right'?'右中間':'左中間')+'を割るツーベース',sideWord+'の頭を越えるツーベース'])};
