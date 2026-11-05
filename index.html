@@ -556,7 +556,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div id="bposWrap"><div class="sh">守備位置</div>
     <div class="seg3" id="bposcards"></div>
     <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで2つまで増やせます</div></div>
-    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜120の中でランダム。1%で「天才」の155）</div>
+    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
     <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
@@ -573,7 +573,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   </div>
   <!-- ペナント：持ち点で能力を決める -->
   <div id="abilSec" style="display:none">
-    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜120の中でランダム。1%で「天才」の155）</div>
+    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
     <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>
@@ -1078,7 +1078,7 @@ function locFamShare(r,c,hand){
 function decideLoc(r,c){
   const r0=r,c0=c; let note='';
   const ctl=G.abil?G.abil.control:null;
-  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+myStaF()*0.15,0.03,0.6) : ($('optCtrl').checked?0.22:0);   // 疲れると制球が乱れる
+  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+myStaF()*0.15+(inPinch(G.bases)?PINCH.ctl:0),0.03,0.6) : ($('optCtrl').checked?0.22:0);   // 疲れると制球が乱れる
   if(rnd()<pMiss){
     const far = ctl!=null && ctl<30 && rnd()<0.3;   // コントロールが悪いと2マスずれることも
     const dr=pick([-1,0,1])*(far?2:1), dc=pick([-1,0,1])*(far?2:1);
@@ -1099,7 +1099,10 @@ const BREAK={
 const ptn=(t,label)=>PDESC[t]?`<span class="ptn" data-pt="${t}">${label??t}</span>`:(label??t);
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
-const PIT_ADJ={sw:0.03,ct:0.25,q:0,swNT:0.58,foul:0.05,oz:0.14,ctMin:0.38,qNT:0.2};   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+// ピンチ（ランナーが2塁か3塁）：投手の制球と球威がごくわずかに悪化
+const PINCH={ctl:0.03,q:0.03,mul:1.03};
+const inPinch=bs=>!!(bs&&(bs[1]||bs[2]));
+const PIT_ADJ={sw:0.03,ct:0.25,q:0,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
 let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
 // 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
 //  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
@@ -1254,7 +1257,7 @@ function simulatePitch(r,c,pt,note){
   // 粘り・対応：追い込まれたら当てにいく。球数を見るほど目が慣れる
   if(protect) ct+=0.04+b.contact*0.0006;
   ct+=Math.min(0.08,ab.pitches.length*0.015);
-  if(inZone&&!isTarget) ct-=0.06;
+  if(inZone&&!isTarget) ct-=0.06-PIT_ADJ.ctNT;
   ct+=PT_CT[pt]||0;
   if(low) ct-=PT_LOWCT[pt]||0;
   ct+=PIT_ADJ.ct-fx.wh;                        // 球種の特徴（ストライク→ボール・待ち球とのずれ など）
@@ -1283,7 +1286,7 @@ function simulatePitch(r,c,pt,note){
   if(rnd()>ct) return {...base,kind:'swing',text:'空振り'};
 
   // --- ファウル判定 ---
-  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?0.16:0);   // 追い込まれるとファウルで粘る
+  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?PIT_ADJ.cut:0);   // 追い込まれるとファウルで粘る
   if(rnd()<foulP){
     if(rnd()<0.07){
       const f=wpick([['キャッチャー',5],['ファースト',2],['サード',2]]);
@@ -1295,7 +1298,7 @@ function simulatePitch(r,c,pt,note){
 
   // --- 打球の質 q ---
   let q=0;
-  if(strictTarget||readCell||abRead) q+=0.06+b.contact/100*0.24; else if(protect&&inZone) q-=0.08; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
+  if(strictTarget||readCell||abRead) q+=PIT_ADJ.qT+b.contact/100*0.24; else if(protect&&inZone) q-=PIT_ADJ.qP; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
   if(L==='少'){ q+=0.06; if(gMatch===0) q+=0.08; }
   if(L==='決'){ q-=0.08+0.03*lx; }
   if(pt==='ストレート') q-=0.025*stLv();   // 伸び：Lvが高いほど打球が弱い（被打率が少しずつ良くなる）
@@ -1308,7 +1311,7 @@ function simulatePitch(r,c,pt,note){
   if(!inZone) q-=0.38;
   q+=PT_Q[pt]||0;
   if(low) q-=PT_LOWQ[pt]||0;
-  q+=fx.q+PIT_ADJ.q;
+  q+=fx.q+PIT_ADJ.q+(inPinch(G.bases)?PINCH.q:0);   // ピンチでは球威がわずかに落ちる
   if(fooled) q-=PFX_K.fool;
   if(pt==='スローカーブ'&&(gMatch===2||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
   q+=[-0.12,0,0.16][gMatch];   // 読みが当たると強い打球
@@ -1668,7 +1671,7 @@ function simHalf(team,outs,bases,q,needToWin){
   const L={'1B':'ヒット','2B':'ツーベース','3B':'スリーベース','HR':'ホームラン','BB':'四球','GO':'内野ゴロ','FO':'外野フライ'};
   while(outs<3){
     team.order=(team.order+1)%team.lineup.length; const b=team.lineup[team.order];
-    let r=simPA(b,q); let sc=0, dp=false, special=null;
+    let r=simPA(b,q*(inPinch(bases)?PINCH.mul:1)); let sc=0, dp=false, special=null;   // ピンチでは投手がわずかに乱れる
     // 打球の方向と守備位置（表示用。自分の守備位置に飛んだヒット性の打球は好プレーでアウトになることがある）
     const pull = rnd()<0.5 ? (b.hand==='R'?'left':'right') : pick(['left','center','right']);
     const side=pull, d={left:'左',center:'中',right:'右'}[side];
@@ -3807,7 +3810,7 @@ function csTeamGame(tid,rf,ra,res,oid,me){
   if(res==='W'&&rf-ra<=3&&!/S/.test(dec)){ const c=used.find(u=>u.close); if(c&&rnd()<0.9) c.s.sv++; }
 }
 /* ===== CPUの試合を選手1人ずつ1打席ずつ回す（全試合）。結果と成績はこの試合の中身そのもの ===== */
-const LG_K={q:1.06,hrCut:0.4,hit:0.03,steal:0.02};   // 見た目をNPBらしくする調整値（本塁打を減らし安打を少し増やす・盗塁の多さ）
+const LG_K={q:1.05,hrCut:0.4,hit:0.03,steal:0.02};   // 見た目をNPBらしくする調整値（本塁打を減らし安打を少し増やす・盗塁の多さ）
 function simLeagueGame(aid,bid,opts){
   opts=opts||{}; ensurePids();
   const A=PEN.teams[aid], B=PEN.teams[bid], day=PEN.day, rec=opts.rec!==false;
@@ -3840,7 +3843,7 @@ function simLeagueGame(aid,bid,opts){
     while(outs<3){
       O.order=(O.order+1)%O.lineup.length; const b=O.lineup[O.order]; if(!b){ outs++; continue; }
       if(D.curS.sta.cur<=0){ D.curS.outs+=outs-(D.curS.o0??0); if(D.curS.s) D.curS.s.outs+=outs-(D.curS.o0??0); choosePitcher(def,inn,true); D.curS.o0=outs; }   // 回の途中でスタミナ切れ → 交代
-      const P=D.cur, q=clamp((P.q||1)*D.fq*LG_K.q*(1+staF(D.curS.sta)*0.09),0.6,1.6); let r=simPA(b,q); const s=bs(b); if(s) s.pa++;
+      const P=D.cur, q=clamp((P.q||1)*D.fq*LG_K.q*(1+staF(D.curS.sta)*0.09)*(inPinch(bases)?PINCH.mul:1),0.6,1.6);   /* ピンチではわずかに乱れる */ let r=simPA(b,q); const s=bs(b); if(s) s.pa++;
       { const st=D.curS.sta; st.cur=r1(st.cur-ri(1,7)*st.S/(st.S+staN(st.S))); }   // 1打席で1〜7球ぶんのスタミナを使う
       if(r==='HR'&&rnd()<LG_K.hrCut) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<LG_K.hit) r='1B';
       let runs=0, sc0=[];
@@ -4143,7 +4146,7 @@ function pitAI(pit){
   }
   let [r,c]=wpick(cand);
   const fT=curPitF();
-  if(rnd()<clamp(0.42-pit.control*0.0042+(sty==='mix'?0.08:0)+fT*0.15,0.04,0.6)){   /* 疲れると制球が乱れる */ r=clamp(r+ri(-1,1),0,4); c=clamp(c+ri(-1,1),0,4); }   // 制球ミス
+  if(rnd()<clamp(0.42-pit.control*0.0042+(sty==='mix'?0.08:0)+fT*0.15+(inPinch(G.bases)?PINCH.ctl:0),0.04,0.6)){   /* 疲れると制球が乱れる */ r=clamp(r+ri(-1,1),0,4); c=clamp(c+ri(-1,1),0,4); }   // 制球ミス
   const speed=jitterSpd(pitSpeed(pit,pt));   // ±2.5km/h（小数第1位まで）。疲れると全球種の球速が近づく
   const sr0=r-BREAK[pt][1], sc0=c-pbx(pit,pt), sr=clamp(sr0,0,4), sc=clamp(sc0,0,4);   // 曲がる前のマス（sr0/sc0はマスの外もそのまま）
   return {pt,r,c,sr,sc,sr0,sc0,speed};
@@ -4169,7 +4172,7 @@ function batResolve(p){
   const nearT=T.cells.some(k=>{const[a,b]=k.split(',').map(Number);return Math.abs(a-p.r)<=1&&Math.abs(b-p.c)<=1});
   const eye=A.eye/100, meet=A.meet/100, two=ab.strikes===2;
   // 球の質：変化球はLv（Lv.2が普通、Lv.7でいちばん打ちにくい）、ストレートは球速
-  const lvP = p.pt==='ストレート' ? clamp((pitLv(pit,'ストレート')-3)*0.5,-1,2) : clamp((pitLv(pit,p.pt)-2)*0.45,-0.5,2.2), pfT=curPitF(), pq=pit.q*(1+pfT*0.12);   // ストレートもLv（3が標準）。疲れた投手は球威が落ちる
+  const lvP = p.pt==='ストレート' ? clamp((pitLv(pit,'ストレート')-3)*0.5,-1,2) : clamp((pitLv(pit,p.pt)-2)*0.45,-0.5,2.2), pfT=curPitF(), pq=pit.q*(1+pfT*0.12)*(inPinch(G.bases)?1+PINCH.q*2:1);   // ストレートもLv（3が標準）。疲れた投手は球威が落ちる
   const platoon=(G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L');   // 左打ちは右投手、右打ちは左投手に少し三振しづらい
   const fx=pitchFx({pt:p.pt,r:p.r,c:p.c,sr:p.sr0??p.sr,sc:p.sc0??p.sc,hand:G.bhand,phand:pit.hand,mainT:main,mainSpd:T.spd,stSpd:pitSpeed(pit,'ストレート')});   // 球種の特徴（ストライク→ボール・本命とのずれ など）
   let mode;
@@ -4291,7 +4294,7 @@ function bottomRun(Q){
       startMyPA(); return 'me';
     }
     T.order=nx; G.halfPA++;
-    const b=T.lineup[nx], r=simPA(b,pit.q*(1+curPitF()*0.12)), kind=r==='K'?'K':r;
+    const b=T.lineup[nx], r=simPA(b,pit.q*(1+curPitF()*0.12)*(inPinch(G.bases)?PINCH.mul:1)), kind=r==='K'?'K':r;
     { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*S.S/(S.S+staN(S.S))); }   // 味方の打席でも相手投手はスタミナを使う
     const adv=bAdvance(G.bases,kind,1,G.outs);
     G.bases=adv.b; G.outs+=adv.o; const runs=adv.sc.length; if(adv.sc.includes(2)) G.st.run++;
@@ -7250,7 +7253,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ dGenius=rnd()<0.01; AB={budget:dGenius?155:ri(60,120),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜120の中で一様にランダム。1%で「天才」（持ち点155）
+  if(MODE==='pennant'){ dGenius=rnd()<0.01; AB={budget:dGenius?120:ri(60,100),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜100の中で一様にランダム。1%で「天才」（持ち点120）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
