@@ -78,15 +78,18 @@ const rankOf=id=>standings(TEAM[id].lg).findIndex(x=>x.id===id)+1;
 function otherGames(day){
   dayPairs(PEN.sched[day]).forEach(([a,b])=>{
     if(a===PEN.team||b===PEN.team) return;
-    const A=PEN.teams[a], B=PEN.teams[b];
-    let ra=poisson(Math.max(1.6,3.85+A.off-B.def)), rb=poisson(Math.max(1.6,3.85+B.off-A.def));
-    const res=teamResult(rb,ra); if(res==='W'&&ra<=rb) ra=rb+1; if(res==='L'&&rb<=ra) rb=ra+1;
-    recAdd(a,res); recAdd(b,flipRes(res));
+    // 選手1人ずつ1打席ずつ試合を回し、その結果と成績を記録する
+    if(!PEN.cs) PEN.cs={};
+    const g=simLeagueGame(a,b);
+    recAdd(a,g.res); recAdd(b,flipRes(g.res));
   });
 }
 // 自分のチームの試合を記録して、1日進める
-function recordMyGame(res,score,me){
+function recordMyGame(res,score,me,simmed){
   const d=PEN.day, op=oppOf(d);
+  if(!PEN.cs) csBackfill();
+  if(!simmed){ const m=me||{}, mp=!isBat()&&(m.kind==='start'||m.kind==='relief'||m.kind==='close'||m.kind==='hold')?{kind:m.kind==='start'?'start':'relief',outs:m.outs||0,runs:m.runs||0,dec:m.dec||''}:null;
+    csTeamGame(PEN.team,score[1],score[0],res,op,mp?{pitch:mp}:null); csTeamGame(op,score[0],score[1],flipRes(res),PEN.team,null); }   // CPU選手の成績（自分の分は除く）
   recAdd(PEN.team,res); recAdd(op,flipRes(res)); otherGames(d);
   PEN.days.push({d:d+1,opp:TEAM[op].short,oid:op,res,score,me});
   if(PEN.days.length>40) PEN.days.splice(0,PEN.days.length-40);
@@ -152,11 +155,20 @@ function newPennant(startRole,abil,rep,plev,teamId,pos,babil,bhand){
   rebuildAll(); if(typeof oddPlan==='function') oddPlan(); if(W) twCompete(true);
   if(B){ penCompete(true); penNotice(`1年目のシーズン開幕！ ${TEAM[team].short}の${PEN.role==='スタメン'?`${POS_JP[PEN.slot]}・${PEN.order}番`:'控え（代打）'}としてスタート（年俸500万円・${babilTxt(PEN.babil)}）`); }
   penNotice(`ドラフト${dr.pick}位で${TEAM[team].name}に入団（${B?'野手':W?'二刀流':'投手'}・18歳）`);
+  penSetAbil0();   // 入団時の能力（伸びの表示用）
 }
 function penNotice(t){ PEN.notices.unshift({d:PEN.day,y:PEN.year,t}); if(PEN.notices.length>30) PEN.notices.length=30; }
 
 // 古いペナントのセーブを今の形に直す
+// 入団時の能力を覚えておく（古いセーブは1年目終了時の記録から）
+function penSetAbil0(){
+  const P=PEN; if(!P||P.abil0) return;
+  const s0=P.seasons&&P.seasons[0];
+  if(s0&&s0.abil){ P.abil0={...s0.abil}; P.babil0=s0.babil?{...s0.babil}:(P.babil?{...P.babil}:null); P.plev0={...(s0.plev||{})}; (s0.rep||[]).forEach(t=>{ if(P.plev0[t]==null) P.plev0[t]=t==='ストレート'?3:2; }); P.abil0est=true; }
+  else { P.abil0={...P.abil}; P.babil0=P.babil?{...P.babil}:null; P.plev0={}; (P.rep||[]).forEach(t=>P.plev0[t]=lvOf(t)); if(P.campY) P.abil0est=true; }
+}
 function penMigrate(){
+  if(PEN&&!PEN.abil0) penSetAbil0();
   if(!PEN) return;
   if(!PEN.abil){ PEN.abil={velo:146,control:55,stamina:70,budget:0}; PEN.rep=REP.slice(); PEN.plev={...PLEV}; }
   if(!PEN.teams){
@@ -294,10 +306,9 @@ function teamResult(o,m){
 // 自分が投げない日：自分のチームの試合も戦力どおりに決める
 function simTeamDay(){
   const op=oppOf(PEN.day), A=myT(), B=PEN.teams[op];
-  const eu=A.errUp>PEN.day?0.3:0;   // 慣れない起用でエラーが増えている
-  let o=poisson(Math.max(1.6,3.85+B.off-A.def+eu)), m=poisson(Math.max(1.6,3.85+A.off-B.def)); const res=teamResult(o,m);
-  if(res==='W'&&m<=o) m=o+1; if(res==='L'&&o<=m) o=m+1;
-  recordMyGame(res,[o,m],null);
+  if(!PEN.cs) csBackfill();
+  const g=simLeagueGame(PEN.team,op,{errA:A.errUp>PEN.day});   // 自分が出ない日も、選手1人ずつ試合を回す（慣れない起用でエラーが増えている日は守りが弱い）
+  recordMyGame(g.res,[g.rb,g.ra],null,true);
 }
 // 自分の登板機会（中継ぎ・抑えは、登板するまでの回を先に決めておく）
 function makePending(kind,oppId){   // oppId：ポストシーズンなど相手を指定するとき
@@ -667,11 +678,11 @@ function titleRace(){
   const hp=s.hld+(s.rw||0);
   const aw=ri(13,16), al=ri(2,6);
   const R={
-    era:{ai:{...who(),v:+(1.35+rnd()*0.95).toFixed(2)}, mine:ip>=143?s.runs*9/ip:null, low:true, fmt:v=>v.toFixed(2), unit:'', why:ip>=143?'':`規定投球回に届かず（${fmtIP(s.outs)}回）`},
-    win:{ai:{...who(),v:ri(12,17)}, mine:s.w, unit:'勝'},
+    era:{ai:csAI(lg,'era',x=>x.outs>=429,2)||{...who(),v:+(1.35+rnd()*0.95).toFixed(2)}, mine:ip>=143?s.runs*9/ip:null, low:true, fmt:v=>v.toFixed(2), unit:'', why:ip>=143?'':`規定投球回に届かず（${fmtIP(s.outs)}回）`},
+    win:{ai:csAI(lg,'win')||{...who(),v:ri(12,17)}, mine:s.w, unit:'勝'},
     pct:{ai:rnd()<0.85?{...who(),v:aw/(aw+al),wl:`${aw}勝${al}敗`}:null, mine:s.w>=13?s.w/(s.w+s.l):null, fmt:v=>v.toFixed(3).replace(/^0/,''), unit:'', why:s.w>=13?'':`13勝に届かず（${s.w}勝）`},
-    k:{ai:{...who(),v:ri(140,195)}, mine:s.k, unit:'個'},
-    sv:{ai:{...who(),v:ri(28,44)}, mine:s.sv, unit:'S'},
+    k:{ai:csAI(lg,'k')||{...who(),v:ri(140,195)}, mine:s.k, unit:'個'},
+    sv:{ai:csAI(lg,'sv')||{...who(),v:ri(28,44)}, mine:s.sv, unit:'S'},
     hp:{ai:{...who(),v:ri(28,42)}, mine:hp, unit:'HP'},
   };
   return TITLES.map(t=>{
@@ -880,14 +891,15 @@ function penNextSeason(){
 function seasonRollover(fin){
   const prevB = isBat()?PEN.ss : isTW()?PEN.bss : null;   // 去年の打撃成績（タイプの判定用）
   PEN.age=(PEN.age||22)+1;
-  PEN.year++; PEN.day=0; PEN.ss=isBat()?batStat():penStat(); PEN.days=[]; PEN.review=null;
+  const lastCS=PEN.cs||null;   // 去年のCPU選手の成績（成長に使う）
+  PEN.year++; PEN.day=0; PEN.ss=isBat()?batStat():penStat(); PEN.days=[]; PEN.review=null; PEN.cs={};
   if(typeof injuryRollover==='function') injuryRollover();
   if(typeof oddPlan==='function') oddPlan();   // 今年の変則出場（野手登板・代打投手）の予定
   if(isTW()) PEN.bss=batStat();
   if(isBat()) PEN.order=orderFor(PEN.role);
   const rv={fin};
   // 選手の成長・衰え・引退とドラフト（4＋順位 の人数）
-  const dr=rosterNewSeason(rv.fin);
+  const dr=rosterNewSeason(rv.fin,lastCS);
   // 打者タイプ：去年の成績でキャンプ前に決まる。そのあと全球団の野手にも付け直す（アスリートは自分を含めて4人まで）
   if(prevB){ const bt=btypeUpdate(prevB); if(bt){ penNotice(bt.t===bt.was ? `今年のタイプは引き続き「${bt.t}」（${BTYPE_INFO[bt.t].me}）` : `タイプが「${bt.was}」→「${bt.t}」に！ ${BTYPE_INFO[bt.t].me}${bt.cands.length>1?`（候補：${bt.cands.join('・')}）`:''}`); } }
   assignTypesAll();
@@ -1280,38 +1292,36 @@ function renderPennant(){
     const m={W:'○',L:'●',T:'△'}[g.res];
     const me=g.me&&g.me.note?`<span class="me">${g.me.note}</span>` : g.me&&g.me.bat?`<span class="me">${g.me.kind==='pinch'?'代打':g.me.kind==='defsub'?'守備固め':'スタメン'}${g.me.gp?' 🧤好プレー':''} ${g.me.bat.pa?`${g.me.bat.ab}打数${g.me.bat.h}安打${g.me.bat.hr?` ${g.me.bat.hr}本`:''}${g.me.bat.rbi?` ${g.me.bat.rbi}打点`:''}${g.me.bat.sb?` ${g.me.bat.sb}盗塁`:''}${g.me.bat.bb?` ${g.me.bat.bb}四死球`:''}`:'打席なし'}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`
       : g.me?`<span class="me">${{start:'先発',relief:'中継ぎ',closer:'抑え'}[g.me.kind]} ${fmtIP(g.me.outs)}回${g.me.runs}失点${g.me.dec!=='－'?' '+({勝:'勝',負:'負',S:'S',H:'H'}[g.me.dec]):''}${g.me.tb?`／${g.me.tb.ab}打数${g.me.tb.h}安打${g.me.tb.hr?` ${g.me.tb.hr}本`:''}${g.me.tb.rbi?` ${g.me.tb.rbi}打点`:''}`:''}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`:'';
-    return `<div class="dayr"><span class="rm ${g.res}">${m}</span> 第${g.d}試合 vs ${g.oid?tchip(g.oid):g.opp} ${g.score[1]}-${g.score[0]} ${me}</div>`}).join('')||'<div class="hint">まだ試合はありません</div>';
+    return `<div class="dayr"><span class="rm ${g.res}">${m}</span> ${gameMD(g.d-1)} 第${g.d}試合 vs ${g.oid?tchip(g.oid):g.opp} ${g.score[1]}-${g.score[0]} ${me}</div>`}).join('')||'<div class="hint">まだ試合はありません</div>';
   const rk=rankOf(P.team), st=standings(T.lg), gb=rk>1?((st[0].w-st[0].l)-(rec.w-rec.l))/2:0;
   el.innerHTML=`<div class="pen">
     <h2>🏆 ペナントモード　${P.year}年目</h2>
+    <div class="sh2">お知らせ</div><div class="notes">${P.notices.slice(0,6).map(n=>`<div>${n.y}年目 第${n.d}試合：${n.t}</div>`).join('')}</div>
     <div class="pcardx teamc" style="border-left:6px solid ${T.cap}">${tchip(P.team,true)}　${rec.w}勝${rec.l}敗${rec.t}分　${P.day?`<b>${LG_NAME[T.lg]}${rk}位</b>${rk>1&&gb>0?`<small>（首位と${gb.toFixed(1).replace(/\.0$/,'')}差）</small>`:''}`:`<b>${LG_NAME[T.lg]}</b>`}
-      <div class="hint">第${P.day}／${SEASON_GAMES}試合${P.day<SEASON_GAMES&&isInter(P.day)?'・交流戦中':''}</div>
+      <div class="hint">第${P.day}／${SEASON_GAMES}試合${P.day<SEASON_GAMES?`　📅 ${P.day?'次の試合':'開幕'} <b style="color:var(--ink)">${gameMD(P.day)}</b>`:''}${P.day<SEASON_GAMES&&isInter(P.day)?'・交流戦中':''}</div>
       <div class="pbar"><i style="width:${P.day/SEASON_GAMES*100}%"></i></div></div>
-    <div class="pcardx"><div class="prow"><span class="plink" data-pk="${plinkKey({isMe:true})}"><b style="font-size:17px">${P.pname}</b></span>${P.genius?' <span class="genius">✨ 天才</span>':''} ${B?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span> <span class="rbadge">${roleName(P.role)}${P.order?`・${P.order}番`:''}</span>${btypeBadge(P.btype)}`:`<span class="hb ${P.hand}">${P.hand==='L'?'左投':'右投'}</span> <span class="rbadge">${ROLE_NAME[P.role]}</span>`}</div>
-      <div class="hint" style="margin:4px 0">${P.age||22}歳　年俸 ${yen(P.salary)}　評価 ${Math.round(R)}点${P.ss.mOK||P.ss.mNG?`　ミッション ${P.ss.mOK||0}勝${P.ss.mNG||0}敗`:''}${P.draft?`　ドラフト${P.draft.pick}位入団`:''}</div>
-      ${P.talk&&P.talk.y===P.year&&P.day<=P.talk.untilDay?`<div class="pcardx hi">${managerSay(P.talk.text)}<div class="row" style="margin-top:6px"><button class="btn" id="talkClose" style="margin:0">わかった</button></div></div>`:''}
-      ${typeof wbcHTML==='function'&&P.wbc&&P.wbc.y===P.year&&(!P.wbc.done||P.day<3)?wbcHTML():''}
-      ${typeof injuryHTML==='function'?injuryHTML():''}
-      ${isFavMgr()?`<div class="pcardx" style="border-color:#2a9d4f"><b>💚 ${mgrName(myMgr())}のお気に入り度：${myMgr().fav||0}／100</b>　<small style="color:var(--mute)">評価 ${favBonus()>=0?'+':''}${Math.round(favBonus())}点</small><div class="hint">贔屓起用の監督だけの仕組み。ミッション達成で+8、失敗で−2、打診を断ると下がる。60以上で能力にかかわらず起用されやすく、伸び悩みを待ってくれる年数もお気に入り度で${stagLimit()}年（30未満2年・50未満3年・70未満4年・70以上5年）</div></div>`:''}
-      ${(B||isTW())&&P.btype?`<div class="hint" style="margin:0 0 4px">タイプ：<b style="color:var(--ink)">${P.btype}</b>　${BTYPE_INFO[P.btype]?BTYPE_INFO[P.btype].me:''}<details style="margin-top:2px"><summary>タイプ一覧と条件（毎年キャンプ前に去年の成績で決まる）</summary>${BTYPES.map(t=>`<div style="margin:3px 0"><b style="color:var(--ink)">${t}</b>：${BTYPE_INFO[t].cond}<br>→ ${BTYPE_INFO[t].me}</div>`).join('')}<div>複数の条件を満たしたときはランダムに1つ。上がる/下がる＝±5%、少し＝±2.5%、とても＝±7.5%</div></details></div>`:''}
-      <div class="hint" style="margin:0 0 4px">${B?`野手　${babilTxt(P.babil)}`:`${P.abil.velo}km/h・制球${P.abil.control}・スタミナ${P.abil.stamina}・${P.rep.length>1?P.rep.slice(1).map(t=>`${ptn(t)} ${lvTxt(t)}`).join('・'):'ストレートのみ'}`}</div>
-      <div style="font-size:13px;line-height:1.7">今年：${statLine(P.ss)}</div>
-      <div style="font-size:12px;color:var(--mute);line-height:1.6;margin-top:4px">通算：${statLine(P.career)}</div>
-      ${isTW()?`<div style="font-size:13px;line-height:1.7;margin-top:6px">⚾ 打撃（今年）：${batLine(P.bss||batStat())}</div><div class="hint">打撃の能力：${babilTxt(P.babil).replace(/・守備\d+/,'')}・${P.bhand==='L'?'左打':'右打'}</div>
-        <div class="hint">投げない日：${P.dh?`<b style="color:var(--ink)">指名打者（${P.dhOrder}番）で出場</b>`:'出場なし（指名打者の争いに負けている）'}　DH争い：あなた ${P.dhVal??'-'}${P.dhRival?` vs ${P.dhRival.n} ${P.dhRival.v}`:''}（10試合ごとに見直し）</div>`:''}
-      ${P.titles.length?`<div class="hint" style="margin-top:4px">🏅 ${titleList()}</div>`:''}
-      <div class="hint" style="margin-top:6px">${nextTxt}</div></div>
-    ${B?depthHTML():''}
+    ${P.talk&&P.talk.y===P.year&&P.day<=P.talk.untilDay?`<div class="pcardx hi">${managerSay(P.talk.text)}<div class="row" style="margin-top:6px"><button class="btn" id="talkClose" style="margin:0">わかった</button></div></div>`:''}
+    ${typeof wbcHTML==='function'&&P.wbc&&P.wbc.y===P.year&&!P.wbc.done?wbcHTML():''}
     ${prompt}${card}
     ${!P.pending&&!P.prompt?`<div class="row"><button class="btn main" id="penStep" style="margin:0">次の試合へ</button><button class="btn" id="penToMine">${B?'出番まで進める':'登板日まで進める'}</button></div>
     <details class="skipbox"><summary>⏩ まとめて飛ばす（出番は全部おまかせ）</summary><div class="hint" style="margin:6px 0 2px">ここで止める：${[['wbc','WBC選出'],['allstar','オールスター選出'],['cs','CS進出'],['js','日本シリーズ進出']].map(([k,n])=>`<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" data-stop="${k}" ${skipStop()[k]?'checked':''}> ${n}</label>`).join('')}</div><div class="row" style="margin-top:6px">${P.wbc&&!P.wbc.done?`<button class="btn" data-skipto="wbcend">レギュラーシーズン開始まで（WBCをまとめて）</button>`:''}${MILESTONES.filter(m=>m[1]>P.day||m[1]>=SEASON_GAMES).map(m=>`<button class="btn" data-skipto="${m[0]}">${m[2]}</button>`).join('')}</div><div class="hint">トレードや監督の打診が来たら、そこで止まります</div></details>`:''}
     ${P.contract&&P.contract.until>P.year?`<div class="hint">📝 ${P.contract.years}年契約（あと${P.contract.until-P.year}年・年俸固定）</div>`:''}
     ${P.role==='抑え'&&!P.prompt?`<button class="btn" id="penToSt" style="width:100%;margin-top:8px">先発（ローテーション）に戻る</button>`:''}
-    ${typeof allstarHTML==='function'?allstarHTML():''}
+    <div class="pcardx"><div class="prow"><span class="plink" data-pk="${plinkKey({isMe:true})}"><b style="font-size:17px">${P.pname}</b></span>${P.genius?' <span class="genius">✨ 天才</span>':''} ${B?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span> <span class="rbadge">${roleName(P.role)}${P.order?`・${P.order}番`:''}</span>${btypeBadge(P.btype)}`:`<span class="hb ${P.hand}">${P.hand==='L'?'左投':'右投'}</span> <span class="rbadge">${ROLE_NAME[P.role]}</span>`}</div>
+      <div class="hint" style="margin:4px 0">${P.age||22}歳　年俸 ${yen(P.salary)}　評価 ${Math.round(R)}点${P.ss.mOK||P.ss.mNG?`　ミッション ${P.ss.mOK||0}勝${P.ss.mNG||0}敗`:''}${P.draft?`　ドラフト${P.draft.pick}位入団`:''}</div>
+      ${typeof injuryHTML==='function'?injuryHTML():''}
+      ${isFavMgr()?`<div class="pcardx" style="border-color:#2a9d4f"><b>💚 ${mgrName(myMgr())}のお気に入り度：${myMgr().fav||0}／100</b>　<small style="color:var(--mute)">評価 ${favBonus()>=0?'+':''}${Math.round(favBonus())}点</small><div class="hint">贔屓起用の監督だけの仕組み。ミッション達成で+8、失敗で−2、打診を断ると下がる。60以上で能力にかかわらず起用されやすく、伸び悩みを待ってくれる年数もお気に入り度で${stagLimit()}年（30未満2年・50未満3年・70未満4年・70以上5年）</div></div>`:''}
+      ${(B||isTW())&&P.btype?`<div class="sh3">タイプ</div><div class="hint" style="margin:0 0 4px"><b style="color:var(--ink)">${P.btype}</b>　${BTYPE_INFO[P.btype]?BTYPE_INFO[P.btype].me:''}<details style="margin-top:2px"><summary>タイプ一覧と条件（毎年キャンプ前に去年の成績で決まる）</summary>${BTYPES.map(t=>`<div style="margin:3px 0"><b style="color:var(--ink)">${t}</b>：${BTYPE_INFO[t].cond}<br>→ ${BTYPE_INFO[t].me}</div>`).join('')}<div>複数の条件を満たしたときはランダムに1つ。上がる/下がる＝±5%、少し＝±2.5%、とても＝±7.5%</div></details></div>`:''}
+      <div class="sh3">能力 <small>（かっこ内は入団時からの伸び）</small></div>${myAbilHTML()}
+      <div class="sh3">成績</div>${myStatsHTML()}
+      ${isTW()?`<div class="hint">投げない日：${P.dh?`<b style="color:var(--ink)">指名打者（${P.dhOrder}番）で出場</b>`:'出場なし（指名打者の争いに負けている）'}　DH争い：あなた ${P.dhVal??'-'}${P.dhRival?` vs ${P.dhRival.n} ${P.dhRival.v}`:''}（10試合ごとに見直し）</div>`:''}
+      ${P.titles.length?`<div class="hint" style="margin-top:4px">🏅 ${titleList()}</div>`:''}
+      <div class="hint" style="margin-top:6px">${nextTxt}</div></div>
     <div class="sh2">監督</div>${mgrCard()}
+    ${B?depthHTML():''}
     <div class="sh2">順位表</div>${standingsHTML(T.lg)}${standingsHTML(otherLg(T.lg))}
-    ${P.day<20?draftNewsHTML():''}
-    <div class="sh2">お知らせ</div><div class="notes">${P.notices.slice(0,6).map(n=>`<div>${n.y}年目 第${n.d}試合：${n.t}</div>`).join('')}</div>
+    ${titleRaceHTML(T.lg)}
+    ${eventsHTML()}
     <div class="sh2">最近の試合</div>${recent}
     ${P.seasons.length?'<div class="sh2">過去のシーズン</div>'+seasonTable():''}
     <div class="hint" style="margin-top:12px">${B?'役割：スタメン（守備位置の争いに勝つか、指名打者）／控え（ときどき終盤に代打で1打席）。打順は能力で決まります。':'役割：エース＝中5日／ローテーション＝中7日／裏ローテ＝中10日／中継ぎ＝先発が降りたあと／抑え＝9回。'}評価は今年の成績を通算より重く見ます。成績が良くないと、トレードを打診されることがあります。</div>
@@ -1342,6 +1352,68 @@ function depthHTML(){
     <div class="hint" style="margin-top:4px">数字＝能力（打撃＋守備）＋監督の評価（成績・調子）。10試合ごとにスタメンを見直します。守れる位置が2つあるときは、チームにいちばん必要な位置で出場します。いまは<b style="color:var(--ink)">${P.role==='スタメン'?`${P.slot==='DH'?'指名打者':POS_JP[P.slot]}・${P.order}番`:'控え（代打）'}</b>${P.role!=='スタメン'?'。指名打者の枠でスタメンになることもあります':''}</div></div>`;
 }
 // 去年のオフのドラフト（自分のチーム）
+// 試合の日付（m/d）：3/28開幕・月曜は休み（休みの日は均等に入る）・交流戦は5/30〜6/19・オールスター休みは7月上旬・9/30最終戦
+let GAME_MD=null;
+function gameMD(day){
+  if(!GAME_MD){ GAME_MD=[];
+    const span=(m1,d1,m2,d2,n)=>{ const ds=[], d=new Date(2026,m1-1,d1), e=new Date(2026,m2-1,d2); while(d<=e){ if(d.getDay()!==1) ds.push(`${d.getMonth()+1}/${d.getDate()}`); d.setDate(d.getDate()+1); }
+      for(let i=0;i<n;i++) GAME_MD.push(ds[Math.round(i*(ds.length-1)/Math.max(1,n-1))]); };
+    span(3,28,5,29,50); span(5,30,6,19,18); span(6,23,7,6,7); span(7,11,9,30,SEASON_GAMES-75); }   // 交流戦（51〜68試合目）は5/30〜6/19、オールスターは7月上旬
+  return GAME_MD[clamp(day|0,0,GAME_MD.length-1)];
+}
+// 今年のイベント（終わったものをまとめる。タイトルを押すと結果が開く）
+function eventsHTML(){
+  const P=PEN, ev=[];
+  if(P.wbc&&P.wbc.y===P.year&&P.wbc.done&&typeof wbcHTML==='function') ev.push(['🌏 WBC',wbcHTML()]);
+  if(typeof allstarHTML==='function'&&P.allstar&&P.allstar.y===P.year){ const h=allstarHTML(); if(h) ev.push(['⭐ オールスター',h]); }
+  if(P.draftNews&&P.draftNews.y===P.year-1){ const h=draftNewsHTML(); if(h) ev.push(['📝 ドラフト会議',h]); }
+  if(!ev.length) return '';
+  return `<details class="cdet evbox"><summary class="sh2">今年のイベント（${ev.length}）</summary><div class="pcardx">
+    ${ev.map(([t,h])=>`<details class="evone"><summary><b>${t}</b></summary>${h}</details>`).join('')}</div></details>`;
+}
+// タイトル争い：各タイトルの1〜5位（名前を押すと詳しい成績・能力）
+const TR_LIST=[['avg','首位打者','打率',v=>f3(v)],['hr','本塁打王','本塁打',v=>v+'本'],['rbi','打点王','打点',v=>v+''],['sb','盗塁王','盗塁',v=>v+''],['hit','最多安打','安打',v=>v+''],['obp','最高出塁率','出塁率',v=>f3(v)],
+  ['era','最優秀防御率','防御率',v=>v.toFixed(2)],['win','最多勝','勝利',v=>v+'勝'],['k','最多奪三振','奪三振',v=>v+''],['sv','最多セーブ','セーブ',v=>v+'S']];
+function csProfObj(x){
+  if(x.me) return {isMe:true};
+  const T=PEN.teams[x.team]; if(!T) return {name:x.name};
+  const f=(T.F||[]).find(y=>y.id===x.key); if(f) return {...toBatter(f,0),name:f.n,cpuF:f,team:x.team,cs:PEN.cs[x.key]};
+  const p=(T.P||[]).find(y=>y.pid===x.key); if(p) return {...p,cpuP:true,team:x.team,cs:PEN.cs[x.key]};
+  return {name:x.name};
+}
+function titleRaceLg(lg){
+  return TR_LIST.map(([k,name,lab,fmt])=>{ const L=csSorted(lg,k).slice(0,5);
+    const rows=L.map((x,i)=>{ const rk=L.findIndex(y=>y.v===x.v)+1;
+      return `<div class="trrow${x.me?' me':''}">${crownBadge(rk)}<span class="trn">${plink(csProfObj(x),x.me?`${x.name}（あなた）`:x.name)}</span>${tchip(x.team)}<b>${fmt(x.v)}</b></div>`; }).join('');
+    return `<div class="trbox"><div class="trh">${name}<small>${lab}${k==='avg'||k==='obp'?'・規定打席以上':k==='era'?'・規定投球回以上':''}</small></div>${rows||'<div class="hint">該当者なし</div>'}</div>`; }).join('');
+}
+function titleRaceHTML(lg){
+  if(!PEN||!PEN.teams||!PEN.day) return '';
+  return `<details class="cdet"><summary class="sh2">タイトル争い</summary>
+    <div class="pcardx"><div class="hint" style="margin:0 0 6px">${LG_NAME[lg]}（第${PEN.day}試合まで）。名前を押すと詳しい成績と能力</div>${titleRaceLg(lg)}
+    <details class="evone"><summary><b>${LG_NAME[otherLg(lg)]}</b></summary>${titleRaceLg(otherLg(lg))}</details></div></details>`;
+}
+// 自分の能力（入団時からの伸びを+nで）と成績（今季｜通算）
+function growTxt(now,base,unit){ const d=r1((now||0)-(base??now??0)); return `${now}${unit||''}${d?` <small class="${d>0?'up':'dn'}">(${d>0?'+':''}${d})</small>`:''}`; }
+function myAbilHTML(){
+  const P=PEN, rows=[];
+  if(!isBat()){ const a=P.abil, a0=P.abil0||{};
+    rows.push(['球速',growTxt(a.velo,a0.velo,'km/h')],['コントロール',growTxt(a.control,a0.control)],['スタミナ',growTxt(a.stamina,a0.stamina)]);
+    rows.push(['持ち球',P.rep.map(t=>{ const l0=(P.plev0||{})[t], d=l0==null?null:lvOf(t)-l0; return `${ptn(t)} Lv.${lvOf(t)}${l0==null?' <small class="up">(新)</small>':d?` <small class="${d>0?'up':'dn'}">(${d>0?'+':''}${d})</small>`:''}`; }).join('<br>')]); }
+  if(hasBat()){ const b=P.babil, b0=P.babil0||{};
+    [['meet','ミート'],['power','パワー'],['speed','速度'],['eye','選球眼'],...(isBat()?[['def','守備']]:[])].forEach(([k,n])=>rows.push([n,growTxt(b[k]??50,b0[k])])); }
+  return `<table class="stt abtbl">${rows.map(([n,v])=>`<tr><th>${n}</th><td>${v}</td></tr>`).join('')}</table>${P.abil0est?'<div class="hint">（入団時の記録がない前のセーブなので、記録を始めた時点からの伸び）</div>':''}`;
+}
+function myStatsHTML(){
+  const P=PEN, f2=(n,o)=>o?(n*27/o).toFixed(2):'-.--';
+  const rowsP=s=>[['登板',s.g],['先発',s.gs],['勝利',s.w],['敗戦',s.l],['セーブ',s.sv],['ホールド',s.hld||0],['投球回',fmtIP(s.outs)],['奪三振',s.k],['四球',s.bb],['防御率',f2(s.runs,s.outs)],['WHIP',s.outs?((s.hits+s.bb)*3/s.outs).toFixed(2):'-.--']];
+  const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-']];
+  const tbl=(title,a,b)=>`<table class="stt sctbl"><thead><tr><th>${title}</th><th>今季</th><th>通算</th></tr></thead><tbody>${a.map((r,i)=>`<tr><th>${r[0]}</th><td>${r[1]}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
+  if(isBat()) return tbl('打撃',rowsB(P.ss),rowsB(P.career));
+  let h=tbl('投手',rowsP(P.ss),rowsP(P.career));
+  if(isTW()) h+=tbl('打撃',rowsB(P.bss||batStat()),rowsB(P.bcareer||batStat()));
+  return h;
+}
 function draftNewsHTML(){
   const d=PEN.draftNews; if(!d||d.y!==PEN.year-1) return '';
   const T=TEAM[PEN.team], mine=isBat()?PEN.bpos:null;

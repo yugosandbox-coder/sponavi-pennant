@@ -86,11 +86,12 @@ function renderAll(){
   }
 
   // チーム名・投手と打者・この打席の投球（写真の並びに合わせる）
+  const oppT=G.pen&&G.pen.opp, csOn=typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen&&!G.pen.wbc;
   setTeamBar(G.half||'top');   // 投手モードで自分が投げているときは表（相手の攻撃）
   $('plP').innerHTML=`<div class="lab">投手 ${MYNUM}・<b style="color:var(--accent)">投</b>・あなた</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname||'あなた')}</span> <span class="hb ${PHAND==='L'?'L':'R'}">${PHAND==='L'?'左投':'右投'}</span></div>
-    ${asTag(PEN&&PEN.team)}<div class="sub">防御率 ${fmtRate(C.runs,C.outs)}</div>`;
+    ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>`;
   $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
-    ${asTag(b.team)}<div class="sub">打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}</div>`;
+    ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||`打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}`}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
   $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
     : `<div class="empty">この打席の投球はまだありません</div>`;
@@ -506,9 +507,9 @@ function showPB(ev){
   const cls = ev.hit ? (ev.label.startsWith('四球')?'cb':'ch') : 'co';
   // 左の投手欄：守っている側の投手（野手モードの表は味方の投手、投手モードの裏は相手の投手）
   if(!G.bat&&ev.pitcher){ const op=ev.pitcher, tn=top?G.names.my.name:G.names.opp.name;
-    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`}</div>`; }
+    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(op.isMe?csLineP('ME',PEN.team):op.pid?csLineP(op.pid,op.team||(top?PEN.team:G.pen.opp)):null))||(op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`)}</div>`; }
   if(G.bat&&top&&G.ours&&G.ours.length){ const op=G.ours[ev.inning<=6?0:Math.min(G.ours.length-1,ev.inning-6)];
-    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${G.names.my.name}</div><div class="nm"><span class="nmt">${op.name}</span> <span class="hb ${op.hand}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.team)}<div class="sub">最速${op.velo}km/h・${op.types?op.types.length:'-'}球種</div>`; }
+    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${G.names.my.name}</div><div class="nm"><span class="nmt">${op.name}</span> <span class="hb ${op.hand}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&op.pid&&csLineP(op.pid,op.team||PEN.team))||`最速${op.velo}km/h・${op.types?op.types.length:'-'}球種`}</div>`; }
   if(ev.summary){   // 相手の攻撃（1イニングまとめて）
     setResult(ev.hit?'co':'ch', ev.label, `${ev.inning}回表 ${G.names.opp.name}の攻撃${ev.sub?'　'+ev.sub:''}`, 0);
     $('plB').innerHTML=`<div class="lab">${ev.inning}回表</div><div class="nm"><span class="nmt">${G.names.opp.name}の攻撃</span></div><div class="sub">味方の投手が投げています</div>`;
@@ -516,7 +517,7 @@ function showPB(ev){
   setResult(cls, ev.label, `${top?G.names.opp.name:G.names.my.name}の攻撃　${ev.order}番 ${ev.name}${ev.isMe?'（あなた）':''}`, ev.order);
   const bobj=ev.isMe?{isMe:true}:(top?G.lineup:G.myTeam.lineup).find(x=>x.name===ev.name)||ev;
   $('plB').innerHTML=`<div class="lab">打者　${ev.order}番</div><div class="nm"><span class="nmt">${plink(bobj,ev.name)}</span> <span class="hb ${ev.hand==='L'?'L':'R'}">${ev.hand==='L'?'左打':'右打'}</span></div>
-      ${asTag(ev.isMe?PEN.team:bobj.team)}<div class="sub">${ev.isMe?'あなた':`打率 ${ev.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(ev.hrRate*PA_SEASON)}`}</div>`;
+      ${asTag(ev.isMe?PEN.team:bobj.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(ev.isMe?(hasBat()?csLineB('ME',PEN.team):null):bobj.fid?csLineB(bobj.fid,bobj.team||(top?G.pen.opp:PEN.team)):null))||(ev.isMe?'あなた':`打率 ${ev.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(ev.hrRate*PA_SEASON)}`)}</div>`;
   }
   if(ev.pitcher){ const p=ev.pitcher;
     $('plP').innerHTML=`<div class="lab">投手 ${p.num}</div><div class="nm"><span class="nmt">${plink(p,p.name)}</span> <span class="hb ${p.hand}">${p.hand==='L'?'左投':'右投'}</span></div>${asTag(p.isMe?PEN.team:p.team)}<div class="sub">最速${p.velo}km/h・${p.types.length}球種</div>`; }
@@ -763,13 +764,17 @@ function showProfile(o){
       ${o.style?`<tr><th>配球の傾向</th><td>${PSTYLE_JP[o.style]}</td></tr>`:''}
       ${o.plv?`<tr><th>決め球</th><td>${kimeOf(o)||'なし'}</td></tr>`:''}
       <tr><th>コントロール</th><td>${bar10(o.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(o.stamina)}</td></tr>
-      <tr><th>総合</th><td>${o.q<0.92?'好投手':o.q<1.05?'標準':'打ちやすい'}</td></tr></table>`;
+      <tr><th>総合</th><td>${o.q<0.92?'好投手':o.q<1.05?'標準':'打ちやすい'}</td></tr>
+      ${o.cpuP?`<tr><th>球団・年齢</th><td>${o.team?tchip(o.team):''} ${o.age||'-'}歳</td></tr>`:''}
+      ${o.cs?`<tr><th>今季成績</th><td style="font-size:13px">${o.cs.g}登板（先発${o.cs.gs}） ${o.cs.w}勝${o.cs.l}敗${o.cs.sv?` ${o.cs.sv}S`:''}<br>防御率 <b>${o.cs.outs?(o.cs.er*27/o.cs.outs).toFixed(2):'-.--'}</b>　${fmtIP(o.cs.outs)}回　奪三振${o.cs.k}</td></tr>`:''}</table>`;
   }else{
     h=`<h2>${o.name}</h2><div class="prow"><span class="hb ${o.hand}">${o.hand==='L'?'左打':'右打'}</span>${o.type?`<span class="rbadge">${o.type}</span>`:''}${o.order?`<span class="hint">${o.order}番</span>`:''}</div>
-      <table><tr><th>打率</th><td>${o.avg!=null?o.avg.toFixed(3).replace(/^0/,''):'-'}</td></tr>
-      <tr><th>本塁打（年間ペース）</th><td>${o.hrRate!=null?Math.round(o.hrRate*PA_SEASON):'-'}本</td></tr>
+      <table><tr><th>${o.cpuF?"打率（能力の目安）":"打率"}</th><td>${o.avg!=null?o.avg.toFixed(3).replace(/^0/,''):'-'}</td></tr>
+      <tr><th>${o.cpuF?"本塁打（能力の目安・年間）":"本塁打（年間ペース）"}</th><td>${o.hrRate!=null?Math.round(o.hrRate*PA_SEASON):'-'}本</td></tr>
       ${o.power!=null?`<tr><th>パワー</th><td>${bar10(o.power)}</td></tr><tr><th>ミート</th><td>${bar10(o.contact)}</td></tr><tr><th>走力</th><td>${bar10(o.speed)}</td></tr><tr><th>選球眼</th><td>${bar10(o.eye)}</td></tr>`:''}
       ${o.good?`<tr><th>得意コース</th><td>${cellNames(o.good,o.hand)}</td></tr><tr><th>苦手コース</th><td>${cellNames(o.bad,o.hand)}</td></tr>`:''}
+      ${o.cpuF?`<tr><th>守備</th><td>${bar10(o.cpuF.d)}<br><small>${POS_JP[o.cpuF.pos]||o.cpuF.pos||''}</small></td></tr><tr><th>球団・年齢</th><td>${o.team?tchip(o.team):''} ${o.cpuF.age||'-'}歳</td></tr>`:''}
+      ${o.cs?`<tr><th>今季成績</th><td style="font-size:13px">${o.cs.g}試合　打率 <b>${o.cs.ab?f3(o.cs.h/o.cs.ab):'-'}</b>　${o.cs.hr}本塁打 ${o.cs.rbi}打点 ${o.cs.sb}盗塁<br>${o.cs.h}安打（二塁打${o.cs.d2}・三塁打${o.cs.d3}）　四球${o.cs.bb}　三振${o.cs.k}　出塁率 ${o.cs.pa?f3((o.cs.h+o.cs.bb)/o.cs.pa):'-'}</td></tr>`:''}
       ${o.res&&o.res.length?`<tr><th>今日の結果</th><td>${o.res.join(' / ')}</td></tr>`:''}</table>`;
   }
   $('profIn').innerHTML=`<div class="prof">${h}</div><button class="btn main" id="profBack">戻る</button>`;
