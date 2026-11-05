@@ -126,6 +126,8 @@ function tryoutAccept(){
   if(PEN.pos==='B'){ PEN.role='代打'; } else { PEN.role=isStarter(PEN.role)?'裏ローテ':'中継ぎ'; }
   PEN.salary=Math.max(10000000,Math.round(PEN.salary*0.6/1000000)*1000000);
   PEN.trades=PEN.trades||[]; PEN.trades.push({y:PEN.year+1,from,to:o.team,tryout:true});
+  { const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); A.bank=r1((A.bank||0)+5); A.log.push({y:PEN.year,name:'トライアウト合格',pts:5}); }   // トライアウト成功で持ち点+5（次のキャンプ）
+  awakeTransfer(from,o.team);
   t.stage='done'; PEN.tryoutDone=(PEN.tryoutDone||[]).concat(t.hist); PEN.tryout=null;
   seasonRollover(PEN.relFin||null);
   PEN.notices.unshift({d:0,y:PEN.year,t:`トライアウトを経て${TEAM[o.team].name}に入団（${roleName(PEN.role)}・年俸${yen(PEN.salary)}）`});
@@ -164,7 +166,7 @@ function hallRegister(yes){
   renderPennant(); save();
 }
 const hallSeasonLine=s=>{ const ss=s.ss||{}; return ss.pa!=null ? `${ss.g}試合 打率${ss.ab?f3(bAvg(ss)):'-'} ${ss.hr}本 ${ss.rbi}打点 ${ss.sb}盗塁 OPS${ss.pa?f3(bObp(ss)+bSlg(ss)):'-'}` : `${ss.g}登板 ${ss.w}勝${ss.l}敗${ss.sv}S${ss.hld}H 防${fmtRate(ss.runs,ss.outs)} ${fmtIP(ss.outs)}回 K${ss.k}`; };
-const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${t}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・速度${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
+const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${ptn(t)}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・速度${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
 /* ---- 戦力外のあとの画面 ---- */
 function renderReleased(el){
   const P=PEN, t=P.tryout, left=TRYOUT_MAX-(P.tryoutN||0), W=P.pos==='W', B=P.pos==='B';
