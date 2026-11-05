@@ -484,7 +484,7 @@ const BREAK={
 const ptn=(t,label)=>PDESC[t]?`<span class="ptn" data-pt="${t}">${label??t}</span>`:(label??t);
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
-const PIT_ADJ={sw:0.03,ct:0.06,q:0.03};   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+const PIT_ADJ={sw:0.03,ct:0.25,q:0,swNT:0.58,foul:0.05,oz:0.14,ctMin:0.38,qNT:0.2};   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
 let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
 // 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
 //  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
@@ -576,7 +576,7 @@ function simulatePitch(r,c,pt,note){
   if(inZone){
     if(protect) swingP=0.84;
     else if(strictTarget) swingP=0.92;
-    else swingP=0.28+(middle?0.12:0);           // 狙っていない → 甘くても見逃しやすい
+    else swingP=PIT_ADJ.swNT+(middle?0.12:0);   // 狙っていない → 甘くても見逃しやすい
     if(readCell) swingP=Math.max(swingP,0.9);   // 分析で張っていたコース
     if(abRead) swingP=Math.max(swingP,0.9);     // 打席の中で張っていたコース
     if(ab.balls===3&&ab.strikes===0) swingP*=0.45;
@@ -625,7 +625,7 @@ function simulatePitch(r,c,pt,note){
   let ct=0.52+b.contact/100*0.34;   // 相手打者のコンタクト率（少し低め）
   if(isGood) ct+=0.08;
   if(isBad) ct-=0.18;
-  if(!inZone) ct-=0.28+(corner?0.1:0);
+  if(!inZone) ct-=PIT_ADJ.oz+(corner?0.1:0);
   if(strictTarget) ct+=0.05;
   if(readCell&&inZone) ct+=0.05;
   if(abRead&&inZone) ct+=0.05;
@@ -662,11 +662,11 @@ function simulatePitch(r,c,pt,note){
   ct-=0.06*sp;                                  // 速いストレートは空振りが取れる／遅いと当てられる
   if(inZone) ct+=zoneHeavy*0.18;                // ストライクばかりだとタイミングを合わせられる
   if(showBall) ct-=0.05;                        // 見せ球が効いている
-  ct=clamp(ct,0.08,0.95);
+  ct=clamp(ct,PIT_ADJ.ctMin,0.95);
   if(rnd()>ct) return {...base,kind:'swing',text:'空振り'};
 
   // --- ファウル判定 ---
-  let foulP=0.40+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?0.16:0);   // 追い込まれるとファウルで粘る
+  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?0.16:0);   // 追い込まれるとファウルで粘る
   if(rnd()<foulP){
     if(rnd()<0.07){
       const f=wpick([['キャッチャー',5],['ファースト',2],['サード',2]]);
@@ -678,7 +678,7 @@ function simulatePitch(r,c,pt,note){
 
   // --- 打球の質 q ---
   let q=0;
-  if(strictTarget||readCell||abRead) q+=0.06+b.contact/100*0.24; else if(protect&&inZone) q-=0.08; else q-=0.3;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
+  if(strictTarget||readCell||abRead) q+=0.06+b.contact/100*0.24; else if(protect&&inZone) q-=0.08; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
   if(L==='少'){ q+=0.06; if(gMatch===0) q+=0.08; }
   if(L==='決'){ q-=0.08+0.03*lx; }
   if(pt==='ストレート') q-=0.025*stLv();   // 伸び：Lvが高いほど打球が弱い（被打率が少しずつ良くなる）
@@ -821,6 +821,28 @@ function shortRes(p,big){
   if(big==='ゲッツー！')return f[x.fielder]+'併殺';
   return f[x.fielder]+{GO:'ゴロ',LO:'直',PO:'飛',FO:'飛'}[x.res];
 }
+// CPUの盗塁（自分が投げているとき）：一塁の走者（足に自信のある選手）が投げる前に走るか決め、投げた球の球速とこちらの捕手の守備で成否が決まる
+const myCatcherDef=()=>typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen&&!G.pen.wbc&&!G.pen.allstar&&typeof catcherDef==='function'?catcherDef(PEN.teams[PEN.team]):50;
+function r1Update(done,b){
+  const onFirst=done.kind==='BB'||done.kind==='hbp'||(done.bip&&!done.bip.out&&(done.bip.res==='1B'||done.bip.res==='IFH'));
+  if(onFirst&&G.bases[0]) G.r1={spd:b.speed,name:b.name,tried:false}; else if(!G.bases[0]) G.r1=null;
+}
+function cpuStealDecide(){
+  const R=G.r1; if(!R||R.tried||!G.bases[0]||G.bases[1]||G.outs>=2||typeof cpuStealP!=='function') return null;
+  if(cpuStealP(R.spd,myCatcherDef(),136)<0.7) return null;   // 自信がなければ走らない
+  if(rnd()>(R.spd-60)*0.008) return null;
+  R.tried=true; return {R};
+}
+function cpuStealResolve(stl,p){
+  if(p.kind==='foul'||p.kind==='foulout'||!G.bases[0]||G.bases[1]) return '';
+  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0),0.05,0.97), ok=rnd()<pr;
+  G.bases[0]=0; G.r1=null;
+  let msg;
+  if(ok){ G.bases[1]=1; msg=`一塁走者 ${stl.R.name} が二盗成功`; }
+  else { G.outs++; G.st.outs++; C.outs++; msg=`一塁走者 ${stl.R.name} の盗塁を阻止！`; }   // 盗塁死のアウトも投球回に入れる
+  addLog(`<div>🏃 ${msg}（${p.speed}km/h・捕手の守備${Math.round(cd)}）</div>`);
+  return msg;
+}
 function endAB(p){
   const b=G.batter; G.abOver=true;
   const st0={...G.st}, outs0=G.outs, runs0=G.runs;
@@ -928,6 +950,7 @@ function resolvePitch(loc){
   const r=loc.r0, c=loc.c0; const ab=G.ab, b=G.batter;
   if(!ab||G.abOver) { renderAll(); return; }
   const sit=sitOf(ab);
+  const stl=cpuStealDecide();   // 一塁の走者が走るか（投げる前に決まる）
   const p=simulatePitch(loc.r,loc.c,ptype,loc.note);
   const rec={h:b.hand,s:sit,pt:ptype,r:p.r,c:p.c,z:p.inZone?1:0,who:vsKey(b)};
   G.phist.push(rec); aggAdd(C.agg,rec);   // 配球の記録（この試合＋通算）
@@ -947,10 +970,11 @@ function resolvePitch(loc){
   else {line+=p.bip.cls==='out'?p.bip.text:'<b>'+p.bip.big+'</b>';done=p}
   line+=` <span style="color:var(--mute);font-size:12px">［読み:${p.guess}${['','△','◎'][p.gMatch]}${p.readCell?(p.inZone?'・コースを張られた':'・見極められた'):''}${p.abRead?(p.inZone?'・打席内で張られた':'・打席内で見極められた'):''}］</span>`;
   addLog(`<div>${line}</div>`);
-  if(done) endAB(done);
+  if(done){ endAB(done); r1Update(done,b); }
   else{
+    const sm=stl?cpuStealResolve(stl,p):'';
     const cls={ball:'cb',hbp:'cb',look:'cs',swing:'cs',foul:'cf'}[p.kind];
-    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${ptype}、${courseName(p.r,p.c,b.hand)}${p.note}`,b.order);
+    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${ptype}、${courseName(p.r,p.c,b.hand)}${p.note}${sm?'／'+sm:''}`,b.order);
     renderAll();
     save();
   }
@@ -1016,6 +1040,10 @@ function simHalf(team,outs,bases,q,needToWin){
     else {label=POS1[ofF]+(sc?'犠飛':'飛');bip={kind:'fly',side,res:'FO',fielder:ofF}}
     if(special){ label=special; if(bip) bip.fielder=gb1?ifF:ofF; ev.push(`${b.order}番${b.name} ${special}`); }
     if(bip) bip.seed=rnd();
+    // 足に自信のあるCPUの走者は盗塁する（一塁に出た打者が、二塁が空いていて2アウト未満のとき）
+    if(!b.isMe&&(r==='1B'||r==='BB')&&bases[0]&&!bases[1]&&outs<2&&typeof cpuStealP==='function'&&cpuStealP(b.speed,50,136)>=0.7&&rnd()<(b.speed-60)*0.03){
+      if(rnd()<cpuStealP(b.speed,50,136)){ bases[0]=0; bases[1]=1; label+='・二盗成功'; ev.push(`${b.order}番${b.name} 二盗成功`); }
+      else { bases[0]=0; outs++; label+='・盗塁失敗'; ev.push(`${b.order}番${b.name} 盗塁失敗`); } }
     pas.push({order:b.order,name:b.name,hand:b.hand,avg:b.avg,hrRate:b.hrRate,label:label+(sc?`（${sc}点）`:''),hit,bip,outs:Math.min(outs,3),bases:bases.slice(),runsSoFar:runs});
     if(needToWin!=null&&runs>=needToWin){walkoff=true;break}
   }
