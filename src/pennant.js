@@ -414,6 +414,7 @@ function penGameDone(){
   const st=G.st, res=G.result?G.result.res:(myTot()>oppTot()?'W':myTot()<oppTot()?'L':'T');
   addLine(st,G.result.dec,p.kind==='start');
   mergeByType(PEN.ss.byType||(PEN.ss.byType={}),st.byType||{});
+  if(PEN.favTry) favTryRecord(((st.byType||{})[PEN.favTry.t]||{n:0}).n,true);   // 贔屓監督の試し投げ
   const tb=G.tw&&G.bst?G.bst:null; if(tb) addTwBat(tb);   // 二刀流の打撃成績
   if(G.mission) checkMission();
   afterAppearance();
@@ -478,6 +479,7 @@ function penSkip(){
   }
   addLine(line,dec,p.kind==='start');
   mergeByType(PEN.ss.byType||(PEN.ss.byType={}),estByType(line));
+  if(PEN.favTry){ const F=PEN.favTry; favTryRecord((line.pitches||0)>=F.n+8?F.n:Math.min(F.n-1,Math.floor((line.pitches||0)/3)),false); }   // おまかせは指示どおり投げる（短い登板だと届かない）
   const tb=isTW()&&p.kind==='start'?twSkipBat(line.outs):null; if(tb) addTwBat(tb);
   afterAppearance();
   recordMyGame(res,[so,sm],{kind:p.kind,outs:line.outs,runs:line.runs,k:line.k,dec,played:false,tb:tb?{ab:tb.ab,h:tb.h,hr:tb.hr,rbi:tb.rbi}:null});
@@ -790,6 +792,7 @@ function salaryExtra(){
   return {pct:Math.round(pct*1000)/1000,why};
 }
 function yearReview(){
+  if(PEN.favTry){ penNotice(`シーズンが終わったので${PEN.favTry.t}の試し投げは終わり`); favTryEnd(false); }
   const rt=isBat()?ratingB:rating, sp=stagPenalty(), yR0=rt(PEN.ss), yR=yR0==null?null:yR0-sp, cR0=rt(PEN.career), cR=cR0==null?null:cR0-sp, y=yR==null?35:yR, vol=PEN.ss.outs;
   const B=isBat(), W=isTW(), titles=B?titleRaceB():W?titleRace().concat(titleRaceB(PEN.bss)):titleRace(), nT=titles.filter(t=>t.won).length;
   let chg=B?salaryChgB(y):(y-52)/45 + PEN.ss.w*0.01 - PEN.ss.l*0.005 + PEN.ss.sv*0.006 + PEN.ss.hld*0.003;
@@ -829,13 +832,23 @@ function abilityChange(){
   if(starter){ const ipg=ss.gs?ss.outs/3/ss.gs:0; s= ipg>=8.5?3 : ipg>=8?2 : ipg>=7?1 : ipg>=6?0 : ipg>=5?-1 : -2; out.why.stamina=`1登板あたり ${ipg.toFixed(1)}回`; }
   else { s= ss.g>=60?3 : ss.g>=50?2 : ss.g>=40?1 : ss.g>=30?0 : ss.g>=20?-1 : -2; out.why.stamina=`${ss.g}登板`; }
   if(old) s-=2; out.stamina=clamp(s,old?-4:-2,old?1:3);
-  // 変化球：球種ごとに1段階ダウン〜1段階アップ（33歳を超えると2段階ダウン〜そのまま）
-  (PEN.rep||[]).slice(1).forEach(t=>{
+  // 変化球：成績で球種ごとに1段階ダウン〜1段階アップ
+  const rep=(PEN.rep||[]).filter(t=>!(PEN.favTry&&PEN.favTry.t===t));
+  rep.slice(1).forEach(t=>{
     const e=bt[t]||{n:0,k:0,wh:0,h:0}, need=starter?150:60; let d;
     if(e.n<need) d=0; else { const sc=(e.k+e.wh*0.25-e.h*0.7)/(e.n/20); d= sc>=1.2?1 : sc<=0.2?-1 : 0; }
-    if(old) d-=1;
-    out.brk[t]=clamp(d,old?-2:-1,old?0:1);
+    out.brk[t]=d;
   });
+  // 衰え：30代は全球種（ストレート含む）から1つが Lv0〜1 ダウン、40代は 1〜3 ダウン
+  const age=PEN.age||22;
+  if(age>=30){ const t=pick(rep), d=age>=40?ri(1,3):ri(0,1);
+    if(d){ out.brk[t]=(out.brk[t]||0)-d; out.aging={t,d}; } }
+  // 最低限：ストレートは Lv.1、変化球は少なくとも1つ Lv.1 で残る。Lv.1 を切った変化球は投げられなくなる
+  const nl=t=>lvOf(t)+(out.brk[t]||0);
+  if('ストレート' in out.brk) out.brk['ストレート']=Math.max(out.brk['ストレート'],1-lvOf('ストレート'));
+  const brks=rep.slice(1);
+  if(brks.length&&brks.every(t=>nl(t)<=0)){ const keep=brks.slice().sort((a,b)=>lvOf(b)-lvOf(a))[0]; out.brk[keep]=1-lvOf(keep); }
+  for(const t in out.brk) out.brk[t]=clamp(out.brk[t],-lvOf(t),LV_MAX-lvOf(t));
   return out;
 }
 function applyAbilityChange(ch){
@@ -845,6 +858,7 @@ function applyAbilityChange(ch){
   for(const t in ch.brk){
     if(!PEN.rep.includes(t)) continue;
     const nx=clamp(lvOf(t)+ch.brk[t],0,LV_MAX);
+    if(t==='ストレート'){ PEN.plev[t]=Math.max(1,nx); continue; }
     if(nx===0){ PEN.rep=PEN.rep.filter(x=>x!==t); delete PEN.plev[t]; penNotice(`${t}が投げられなくなった`); }
     else PEN.plev[t]=nx;
   }
@@ -895,7 +909,7 @@ function seasonRollover(fin){
 /* ---- 春季キャンプ：開幕前に持ち点で能力を上げる（野手0.5・投手と二刀流0.7 ＋ 覚醒でためた持ち点）／変化球を覚える・守備位置を増やす（持ち点全部） ---- */
 
 const campBase=()=>isBat()?2.0:2.8;   // 野手2.0・投手と二刀流2.8
-const campPts=()=>r1(campBase()+mgrCampBonus(myMgr())+((PEN&&PEN.awake&&PEN.awake.bank)||0));
+const campPts=()=>r1(campBase()+mgrCampBonus(myMgr())+((PEN&&PEN.awake&&PEN.awake.bank)||0)+((PEN&&PEN.carry)||0));   // 使い残した点数は翌年に繰り越し
 const COST_K=1;
 // 球団の特色：育ちやすい能力は必要点数が安い
 const TRAIT_JP={T:'パワーが育ちやすい（必要点数20%カット）',G:'オールラウンドに育ちやすい（全能力5%カット）',DB:'ミートが育ちやすい（20%カット）',C:'速度が育ちやすい（20%カット）',S:'コントロールが育ちやすい（20%カット）',D:'守備が育ちやすい（20%カット）',
@@ -918,9 +932,12 @@ function teamMult(k){
   return m;
 }
 const unitCost=k=>(k==='velo'?5:k==='power'?3:k==='meet'?2:1)*COST_K*teamMult(k);   // 能力1あたり：0.1上げるごとに0.1pt、ミートは0.2pt、パワーは0.3pt、球速は0.1km/hごとに0.5pt
-const lvCost=n=>LV_UP_COST(n)*COST_K*teamMult('lv');
+// キャンプでLvを1つ上げるポイント：変化球は Lv.1→2 が1点で、1つ上がるごとに0.5点ずつ増える（6→7は3.5点）。スライダー→スイーパーは1点。ストレートは今までどおり
+const lvStepCost=(n,t)=>t==='ストレート'?LV_UP_COST(n) : n>=LV_MAX ? 1 : r1(1+0.5*(n-1));
+const lvCost=(n,t)=>lvStepCost(n,t)*COST_K*teamMult('lv');
+const lvMaxOf=t=>LV_MAX+(t==='スライダー'&&!PEN.rep.includes('スイーパー')?1:0);   // スライダーはLv.7からもう1段上げるとスイーパーになる
 const fmtPt=v=>(+v).toFixed(2).replace(/\.?0+$/,'');
-const PDIR={'スライダー':'glove','カットボール':'glove','ツーシーム':'arm','シュート':'arm','シンカー':'arm','カーブ':'curve','ドロップカーブ':'curve','スローカーブ':'curve','チェンジアップ':'down','フォーク':'down','SFF':'down'};
+const PDIR={'高速スライダー':'glove','スライダー':'glove','スロースライダー':'glove','スイーパー':'glove','カットボール':'glove','ツーシーム':'arm','シュート':'arm','高速シュート':'arm','シンカー':'arm','高速シンカー':'arm','カーブ':'curve','ドロップカーブ':'curve','スローカーブ':'curve','パワーカーブ':'curve','チェンジアップ':'drop','フォーク':'drop','SFF':'drop'};
 const DIR_NAME={glove:'横（スライダー方向）',arm:'シュート方向（腕側）',curve:'カーブ方向（斜めに落ちる）',down:'縦に落ちる',fast:'ストレート系（変化球が少なかったため）'};
 const DIR_TYPES=d=>d==='fast'?['ツーシーム','カットボール']:Object.keys(PDIR).filter(t=>PDIR[t]===d);
 const needCamp=()=>!!(PEN&&!PEN.released&&!PEN.pending&&PEN.day===0&&!PEN.review&&PEN.campY!==PEN.year);
@@ -934,12 +951,20 @@ function campNew(){
 // コンバートの割引：左投げは外野・一塁、右投げは二塁・遊撃・三塁・捕手が0.2ポイント安い
 const posDisc=pos=>((PEN.hand==='L'&&(pos==='OF'||pos==='1B'))||(PEN.hand!=='L'&&['2B','SS','3B','C'].includes(pos)))?0.2:0;
 const learnDisc=c=>c&&c.learn&&c.learn.kind==='pos'?posDisc(c.learn.pos):0;
+// 変化球を覚えるポイント（系統ごと）
+const LEARN_COST={fast:1.0,slider:1.1,shoot:1.1,curve:1.3,sinker:1.5,fork:1.5};
+const LEARN_COST_T={'SFF':1.2,'スローカーブ':1.0,'スロースライダー':0.9,'高速シュート':0.9};   // 系統の中で強さが劣る球は安く
+// 持っている変化球1つにつき+0.2（入れ替えのときは外す球を数えない）
+const learnN=swap=>Math.max(0,ownBrk().length-(swap?1:0));
+const learnCost=(t,swap)=>r1(((LEARN_COST_T[t]??LEARN_COST[PFAM[t]]??1.2)+0.2*learnN(swap))*COST_K*teamMult('lv'));
+const isPLearn=c=>!!(c&&c.learn&&c.learn.kind!=='pos');                 // 変化球を覚える（決まったポイント）
+const fullLearn=c=>!!(c&&c.learn&&c.learn.kind==='pos'&&!learnDisc(c));  // 守備位置を覚える（持ち点全部）
 function campCost(c){
   const bc=(c.bconv?0.1:0)+(c.stretch?stretchCost():0);   // 打席のコンバートは0.1ポイント（ミートが5下がる）、ストレッチは持ち点の1/3
-  if(c.learn&&!learnDisc(c)) return r1(campPts()+bc);   // 変化球・守備位置を覚えるときは持ち点全部
-  let p=bc; if(c.learn) p+=campPts()-learnDisc(c);   // 割引ぶんは能力に使える
+  if(fullLearn(c)) return r1(campPts()+bc);   // 守備位置を覚えるときは持ち点全部
+  let p=bc; if(isPLearn(c)) p+=learnCost(c.learn.t,!!c.learn.base); else if(c.learn) p+=campPts()-learnDisc(c);   // 変化球は系統ごとのポイント／守備位置の割引ぶんは能力に使える
   for(const k in c.add) p+=unitCost(k)*c.add[k];     // 能力0.1上げるごとに0.1pt（球速は0.5pt）。球団の特色で安くなる
-  for(const t in c.lv){ const b=lvOf(t); for(let i=0;i<c.lv[t];i++) p+=lvCost(b+i); }
+  for(const t in c.lv){ const b=lvOf(t); for(let i=0;i<c.lv[t];i++) p+=lvCost(b+i,t); }
   return r1(p);
 }
 // 去年いちばん投げた変化の方向（ストレート以外）
@@ -951,20 +976,20 @@ function campDir(){
   if(!best||best[1]<30) return {dir:'fast',n:Math.round((bt['ストレート']||{n:0}).n),bt};
   return {dir:best[0],n:Math.round(best[1]),bt};
 }
+// 変化球を覚える：全球種から1つ（1キャンプに1球種まで）。変化球は5つまで、5つあるときは入れ替えだけ
+const ownBrk=()=>PEN.rep.slice(1).filter(t=>!(PEN.favTry&&PEN.favTry.t===t));   // 監督に試し投げを頼まれている球種は数えない
 function campLearnOpts(){
-  if(isBat()) return null;
-  const cd=campDir(); if(!cd) return null;
-  const n=t=>(cd.bt[t]||{n:0}).n;
-  const cands=DIR_TYPES(cd.dir).filter(t=>!PEN.rep.includes(t));
-  const base=cd.dir==='fast'?null:PEN.rep.slice(1).filter(t=>PDIR[t]===cd.dir).sort((a,b)=>n(b)-n(a))[0]||null;   // 入れ替え元：その方向でいちばん投げた持ち球
-  return {...cd,cands,base,canAdd:PEN.rep.length-1<MAX_BRK};
+  if(isBat()||PEN.year<2) return null;   // 変化球を増やせるのは2年目のキャンプから
+  const own=ownBrk();
+  const cands=LEARN_TYPES.filter(t=>!own.includes(t)&&!(t==='スライダー'&&own.includes('スイーパー')));
+  return {cands,own,canAdd:own.length<MAX_BRK};
 }
 // 1段階（0.1 または Lv.1）動かす。できたら true
 function campStep1(k,d){
-  const c=PEN.camp; if(!c||(c.learn&&!learnDisc(c))) return false;
-  if(c.learn&&k.startsWith('lv:')) return false;
+  const c=PEN.camp; if(!c||fullLearn(c)) return false;
+  if(isPLearn(c)&&k==='lv:'+c.learn.base) return false;   // 入れ替えで外す球種は上げられない
   if(k.startsWith('lv:')){
-    const t=k.slice(3), nv=(c.lv[t]||0)+d; if(nv<0||lvOf(t)+nv>LV_MAX) return false;
+    const t=k.slice(3), nv=(c.lv[t]||0)+d; if(nv<0||lvOf(t)+nv>lvMaxOf(t)) return false;
     if(campCost({...c,lv:{...c.lv,[t]:nv}})>campPts()+1e-6) return false;
     if(nv) c.lv[t]=nv; else delete c.lv[t];
   }else{
@@ -998,10 +1023,14 @@ function campReset(c){ for(const k in c.add) c.add[k]=0; c.lv={}; }
 const stretchCost=()=>r1(campPts()/3);
 function campStretch(){ const c=PEN.camp; if(!c) return; c.stretch=!c.stretch; if(campCost(c)>campPts()+1e-6){ campReset(c); if(campCost(c)>campPts()+1e-6) c.stretch=false; } renderPennant(); save(); }
 function campBconv(h){ const c=PEN.camp; if(!c) return; c.bconv = c.bconv===h ? null : h; if(campCost(c)>campPts()+1e-6){ campReset(c); if(campCost(c)>campPts()+1e-6) c.bconv=null; } renderPennant(); save(); }
-function campLearn(t,mode){
+function campLearn(t,mode,base){
   const c=PEN.camp; if(!c) return;
-  c.learn = c.learn&&c.learn.t===t&&c.learn.mode===mode ? null : {t,mode};
-  if(c.learn) campReset(c);   // 覚えるときは持ち点を全部使う
+  if(mode==='pick'){ c.pick=c.pick===t?null:t; if(c.learn&&c.learn.t!==t) c.learn=null; renderPennant(); save(); return; }   // 5つあるとき：まず覚える球種を選び、次に入れ替える球種を選ぶ
+  const nx = c.learn&&c.learn.t===t&&c.learn.mode===mode&&(c.learn.base||null)===(base||null) ? null : {t,mode,base:base||null};
+  if(nx){ const c2={...c,learn:nx,lv:{...c.lv}}; if(nx.base) delete c2.lv[nx.base];
+    if(campCost(c2)>campPts()+1e-6){ penNotice(`${t}を覚えるには${learnCost(t,!!nx.base)}ポイント必要です（ほかに振ったポイントを減らしてください）`); renderPennant(); return; }
+    if(nx.base) delete c.lv[nx.base]; }
+  c.learn=nx;
   renderPennant(); save();
 }
 // 野手：守れる位置を増やす／変える（持ち点5ポイント全部）
@@ -1021,22 +1050,26 @@ function campFinish(){
     else if(L.mode==='swap'&&have.includes(L.from)){ have[have.indexOf(L.from)]=L.pos; got.push(`${POS_JP[L.from]}から${POS_JP[L.pos]}にコンバート`); }
     PEN.bposs=have; PEN.bpos=have[0];
   }else if(c.learn){
-    const o=campLearnOpts(), t=c.learn.t;
+    const o=campLearnOpts(), t=c.learn.t, b=c.learn.base;
     if(o&&o.cands.includes(t)){
-      if(c.learn.mode==='swap'&&o.base){ PEN.rep=PEN.rep.map(x=>x===o.base?t:x); delete PEN.plev[o.base]; got.push(`${o.base}を${t}に変えた`); }
+      if(c.learn.mode==='swap'&&b&&o.own.includes(b)){ PEN.rep=PEN.rep.map(x=>x===b?t:x); delete PEN.plev[b]; got.push(`${b}を${t}に変えた`); }
       else if(o.canAdd){ PEN.rep.push(t); got.push(`${t}を覚えた`); }
       PEN.rep=PTYPES.filter(x=>PEN.rep.includes(x)); PEN.plev[t]=1;   // 新しく覚えた変化球は Lv.1
     }
   }
   if(c.bconv&&hasBat()){ const was=PEN.bhand; PEN.bhand=c.bconv; PEN.babil.meet=r1(clamp((PEN.babil.meet??50)-5,0,100)); got.push(`${bhandJP(was)}→${bhandJP(c.bconv)}にコンバート（ミート−5）`); }
-  if(!c.learn||learnDisc(c)){   // 能力アップ（コンバートの割引ぶんも）
+  const leftPts=r1(Math.max(0,campPts()-campCost(c)));   // 使い残し（来年に繰り越し）
+  if(!fullLearn(c)){   // 能力アップ（コンバートの割引ぶん・変化球を覚えた残りも）
     for(const k in c.add) if(c.add[k]){
       if(P_ABK.includes(k)) a[k]=r1(a[k]+c.add[k]); else PEN.babil[k]=r1((PEN.babil[k]??50)+c.add[k]);
       got.push(`${AB_LABEL[k]}+${c.add[k]}`); }
-    for(const t in c.lv){ PEN.plev[t]=Math.min(LV_MAX,lvOf(t)+c.lv[t]); got.push(`${t} Lv.${PEN.plev[t]}`); }
+    for(const t in c.lv){ if(!PEN.rep.includes(t)||!c.lv[t]) continue; const nl=lvOf(t)+c.lv[t];
+      if(t==='スライダー'&&nl>LV_MAX&&PEN.rep.includes(t)){ PEN.rep=PEN.rep.map(x=>x===t?'スイーパー':x); delete PEN.plev[t]; PEN.plev['スイーパー']=1; got.push('スライダーがスイーパーに進化（Lv.1から）'); continue; }   // スライダーLv.7からさらに上げるとスイーパー
+      PEN.plev[t]=Math.min(LV_MAX,nl); got.push(`${t} Lv.${PEN.plev[t]}`); }
   }
   if(isBat()) penCompete(true);
-  if(PEN.awake) PEN.awake.bank=0;   // 覚醒・オールスターの賞でためた持ち点はこのキャンプで使い切り
+  if(PEN.awake) PEN.awake.bank=0;   // 覚醒・タイトルでためた持ち点はこのキャンプの持ち点に入れた
+  PEN.carry=fullLearn(c)?0:leftPts; if(PEN.carry) got.push(`${PEN.carry}ポイントを来年に繰り越し`);
   PEN.campY=PEN.year; PEN.camp=null;
   if(typeof wbcYear==='function'&&wbcYear(PEN.year)&&!(PEN.wbc&&PEN.wbc.y===PEN.year)) wbcInit();   // 4年ごとのWBC（開幕前）
   penNotice(`春季キャンプ終了：${got.length?got.join('・'):'ポイントを使わなかった'}`);
@@ -1045,24 +1078,25 @@ function campFinish(){
 function renderCamp(el){
   const P=PEN; if(!P.camp||P.camp.y!==P.year) P.camp=campNew();
   if(!P.camp.learn&&campCost(P.camp)>campPts()+1e-6) campReset(P.camp);   // 以前のポイント制で振った途中データは振り直し
-  const c=P.camp, CP=campPts(), left=r1(CP-campCost(c)), a=P.abil, L=!!c.learn&&!learnDisc(c), bank=(P.awake&&P.awake.bank)||0;
+  const c=P.camp, CP=campPts(), left=r1(CP-campCost(c)), a=P.abil, L=fullLearn(c), bank=(P.awake&&P.awake.bank)||0;
   // 1行：能力名（必要点数）｜数値｜−ALL｜−0.1｜+0.1｜+0.5（能力が0.5上がる分）、2行目：バー（振れる範囲まで）
   const row=(k,name,cur,add,unit,cost,full)=>{ const can=!(L||full||cost>left+1e-6), isLv=k.startsWith('lv:'), cap=k==='velo'?165:100; /* バーは「いまの能力〜上限」の目盛り（ほかの行を動かしても位置が変わらない） */ return `<div class="crow"><span class="cn">${name}<small>${full?'MAX':fmtPt(cost)+'pt'}${!full&&teamMult(isLv?'lv':k)<1?'・特色':''}</small></span>
-    <span class="cv">${add?`${cur}→<b>${typeof cur==='number'?r1(cur+add):'Lv.'+(lvOf(k.slice(3))+add)}</b>`:cur}<small>${unit}</small></span>
+    <span class="cv">${add?`${cur}→<b>${typeof cur==='number'?r1(cur+add):(lvOf(k.slice(3))+add>LV_MAX?'スイーパー':'Lv.'+(lvOf(k.slice(3))+add))}</b>`:cur}<small>${unit}</small></span>
     <button class="cbtn sm" data-ck="${k}" data-d="all" ${!add||L?'disabled':''}>−ALL</button><button class="cbtn" data-ck="${k}" data-d="-1" ${!add||L?'disabled':''}>−</button><button class="cbtn" data-ck="${k}" data-d="1" ${can?'':'disabled'}>＋</button>${isLv?'<span></span>':`<button class="cbtn sm" data-ck="${k}" data-d="5" ${can?'':'disabled'}>+.5</button>`}
     ${isLv?'':(()=>{ const mn=k==='velo'?110:0, pb=((cur-mn)/(cap-mn)*100).toFixed(1), pc=((cur+(add||0)-mn)/(cap-mn)*100).toFixed(1); return `<input type="range" class="cbar" data-cb="${k}" data-base="${cur}" min="${mn}" max="${cap}" step="0.1" value="${r1(cur+(add||0))}" style="background:linear-gradient(90deg,#8d9a90 0 ${pb}%,#f5c542 ${pb}% ${pc}%,#243329 ${pc}% 100%)" ${L?'disabled':''}>`; })()}</div>`; };   // バー＝能力の棒グラフ（0〜100、球速は110〜165）。元の能力より下には戻せない
-  const brk=P.rep.map(t=>{ const add=c.lv[t]||0, nl=lvOf(t)+add; return row('lv:'+t,t==='ストレート'?'ストレート（伸び）':t,'Lv.'+lvOf(t),add,'',lvCost(nl),nl>=LV_MAX); }).join('');
+  const brk=P.rep.map(t=>{ const add=c.lv[t]||0, nl=lvOf(t)+add; return row('lv:'+t,t==='ストレート'?'ストレート（伸び）':t==='スライダー'&&lvOf(t)>=LV_MAX?'スライダー（＋1点でスイーパーに進化）':t,'Lv.'+lvOf(t),add,'',lvCost(nl,t),nl>=lvMaxOf(t)); }).join('');
   const o=campLearnOpts();
   let learn;
-  if(!o) learn=`<div class="hint">1年投げたあとのキャンプから、その年によく投げた変化の方向の変化球を覚えられます（1年目はなし）。</div>`;
+  if(!o) learn=`<div class="hint">新しい変化球は2年目のキャンプから覚えられます。</div>`;
   else{
-    const btn=(t,m,label)=>`<button class="btn ${c.learn&&c.learn.t===t&&c.learn.mode===m?'on':''}" data-lt="${t}" data-lm="${m}">${label}</button>`;
-    learn=`<div class="hint" style="margin-bottom:6px">去年いちばん投げた変化：<b style="color:var(--ink)">${DIR_NAME[o.dir]}</b>（${o.n}球）</div>`+
-      (o.cands.length ? o.cands.map(t=>`<div class="lrn"><b>${t}</b> <small>${PDESC[t]}</small>
-        <div class="row" style="margin-top:6px">${o.canAdd?btn(t,'add','＋ 追加する'):''}${o.base?btn(t,'swap',`${o.base}と入れ替え`):''}</div></div>`).join('')
-        +(o.canAdd?'':`<div class="hint">変化球は${MAX_BRK}つまでなので、入れ替えだけできます。</div>`)
-      : `<div class="hint">この方向の変化球はすべて持っています。</div>`)+
-      `<div class="hint">新しく覚えた変化球は Lv.1 から。入れ替えると元の変化球は投げられなくなります。</div>`;
+    const on=t=>c.learn&&c.learn.t===t||c.pick===t;
+    const chip=t=>`<button class="btn ${on(t)?'on':''}" style="margin:3px 4px 3px 0;padding:6px 10px;width:auto" data-lt="${t}" data-lm="${o.canAdd?'add':'pick'}">${t}<small style="opacity:.75"> ${learnCost(t,!o.canAdd)}</small></button>`;
+    const sel=c.learn?c.learn.t:c.pick;
+    learn=`<div class="hint" style="margin-bottom:6px">持っている変化球：${o.own.map(t=>`${t} Lv.${lvOf(t)}`).join('・')||'なし'}（${o.own.length}／${MAX_BRK}）</div>`+
+      (o.cands.length?Object.keys(PFAM_JP).map(f=>{ const ts=o.cands.filter(t=>PFAM[t]===f); return ts.length?`<div style="margin:2px 0"><small style="color:var(--mute);display:block;margin:4px 0 0">${PFAM_JP[f]}</small>${ts.map(chip).join('')}</div>`:''; }).join(''):`<div class="hint">覚えられる球種はもうありません。</div>`)+
+      (sel?`<div class="lrn" style="margin-top:6px"><b>${sel}</b> <small>${PDESC[sel]||''}</small>${o.canAdd?`<div class="hint">${c.learn?'このキャンプで覚えます（もう一度押すと取り消し）':''}</div>`:
+        `<div class="hint" style="margin-top:4px">変化球は${MAX_BRK}つまでなので、入れ替える球種を選んでください</div><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${o.own.map(b=>`<button class="btn ${c.learn&&c.learn.t===sel&&c.learn.base===b?'on':''}" style="flex:0 0 auto;margin:0;padding:6px 10px;white-space:nowrap;width:auto" data-lt="${sel}" data-lm="swap" data-lb="${b}">${b}と入れ替え</button>`).join('')}</div>`}</div>`:'')+
+      `<div class="hint">1キャンプで覚えられるのは1球種まで（ストレート系1.0・スライダー系1.1・シュート系1.1・カーブ系1.3・シンカー系1.5・フォーク系1.5ポイント。SFF1.2・スローカーブ1.0・スロースライダー0.9・高速シュート0.9。持っている変化球1つにつき+0.2、入れ替えは外す球を数えない）。新しく覚えた変化球は Lv.1 から。入れ替えると元の変化球は投げられなくなります。</div>`;
   }
   const B=isBat(), W=isTW(), ba=P.babil, LP=c.learn&&c.learn.kind==='pos';
   const bRow=k=>row(k,B_ABK[k],ba[k]??50,c.add[k]||0,'',unitCost(k)*0.1,(ba[k]??50)+(c.add[k]||0)>=100-1e-6);
@@ -1073,8 +1107,8 @@ function renderCamp(el){
   const trait=`<div class="hint" style="color:#f3dfa0">🏟 ${TEAM[P.team].short}の特色：${TRAIT_JP[P.team]}</div>`;
   const abRows = B ? Object.keys(B_ABK).map(bRow).join('')+`<div class="hint">0.1上げるごとに0.1pt（ミートは0.2pt・パワーは0.3pt、最大100）。「特色」のついた能力は球団の特色で安くなっています</div>`+trait
     : W ? pRows+`<div class="hint" style="margin-top:8px;color:var(--ink)">⚾ 打撃</div>`+BAT4.map(bRow).join('')+
-      `<div class="hint">球速0.1km/h＝0.5pt・ほかの能力は0.1で0.1pt・変化球のLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（覚醒でためた持ち点があれば）</div>`+trait
-    : pRows+`<div class="hint">球速0.1km/h＝0.5pt・コントロール0.1＝0.1pt・スタミナ0.1＝0.1pt・変化球のLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}。覚醒でためた持ち点があれば）</div>`+trait;
+      `<div class="hint">球速0.1km/h＝0.5pt・ほかの能力は0.1で0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait
+    : pRows+`<div class="hint">球速0.1km/h＝0.5pt・コントロール0.1＝0.1pt・スタミナ0.1＝0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait;
   // 野手：守れる位置を増やす・変える
   let posSec='';
   if(B){
@@ -1093,9 +1127,9 @@ function renderCamp(el){
     ${managerSay(P.year===1?`ようこそ${TEAM[P.team].short}へ。監督の${myMgr().sur}だ。開幕までのキャンプで何を鍛えるか、自分で決めてみろ。`:myMgr().y===P.year?`今年から監督になった${myMgr().sur}だ。${P.age}歳のシーズン、何を伸ばす？ 俺の見方は下に書いてある。`:`今年のキャンプだ。${P.age}歳のシーズン、何を伸ばす？`,true)}
     ${P.mgrNews&&P.mgrNews.length?`<div class="hint" style="margin:-2px 0 6px">他球団の監督交代：${P.mgrNews.join('／')}</div>`:''}
     ${mgrCard()}
-    <div class="pcardx"><div class="camppt">持ち点 <b>${CP.toFixed(1)}</b><small style="color:var(--mute)">（基本${campBase().toFixed(1)}＋監督${mgrCampBonus(myMgr()).toFixed(1)}${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); const aw=r1(L.filter(x=>x.kind!=='title').reduce((t,x)=>t+(x.pts||0),0)), tt=r1(L.filter(x=>x.kind==='title').reduce((t,x)=>t+(x.pts||0),0)); return `${aw?`＋覚醒${aw}`:''}${tt?`＋タイトル${tt}`:''}${bank&&!aw&&!tt?`＋持ち越し${bank}`:''}`; })()}）</small>　残り <b class="${left?'':'zero'}">${left.toFixed(1)}</b> ポイント</div>
+    <div class="pcardx"><div class="camppt">持ち点 <b>${CP.toFixed(1)}</b><small style="color:var(--mute)">（基本${campBase().toFixed(1)}＋監督${mgrCampBonus(myMgr()).toFixed(1)}${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); const aw=r1(L.filter(x=>x.kind!=='title').reduce((t,x)=>t+(x.pts||0),0)), tt=r1(L.filter(x=>x.kind==='title').reduce((t,x)=>t+(x.pts||0),0)); return `${aw?`＋覚醒${aw}`:''}${tt?`＋タイトル${tt}`:''}${bank&&!aw&&!tt?`＋持ち越し${bank}`:''}${P.carry?`＋去年からの繰り越し${P.carry}`:''}`; })()}）</small>　残り <b class="${left?'':'zero'}">${left.toFixed(1)}</b> ポイント</div>
       ${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); return L.length?`<div class="hint" style="color:#f3dfa0">去年の実績：${L.map(x=>`<div>${x.kind==='title'?'🏆':'✨'} ${x.name}${x.pts?`　+${x.pts}`:''}</div>`).join('')}</div>`:''; })()}
-      ${c.learn?`<div class="hint" style="color:#f3dfa0">「${LP?POS_JP[c.learn.pos]:c.learn.t}」を${LP?(c.learn.mode==='add'?'守れるようにする':'新しい守備位置にする'):'覚える'}ので、${learnDisc(c)?`${r1(CP-learnDisc(c))}ポイントを使います（${P.hand==='L'?'左投げ':'右投げ'}の割引で0.2ポイント安く、残りは能力に使えます）`:`${CP}ポイントすべてを使います`}</div>`:''}
+      ${c.learn?`<div class="hint" style="color:#f3dfa0">「${LP?POS_JP[c.learn.pos]:c.learn.t}」を${LP?(c.learn.mode==='add'?'守れるようにする':'新しい守備位置にする'):'覚える'}ので、${isPLearn(c)?`${learnCost(c.learn.t,!!c.learn.base)}ポイントを使います（残りは能力・Lvに使えます）`:learnDisc(c)?`${r1(CP-learnDisc(c))}ポイントを使います（${P.hand==='L'?'左投げ':'右投げ'}の割引で0.2ポイント安く、残りは能力に使えます）`:`${CP}ポイントすべてを使います`}</div>`:''}
       ${abRows}</div>
     <div class="sh2">🧘 ストレッチ（${stretchCost()}ポイント＝持ち点の1/3）</div><div class="pcardx">
       <div class="hint" style="margin-bottom:6px">来年のケガ率：<b style="color:var(--ink)">${injRateAt(P.age,P.injRed)}%</b>／出場試合${c.stretch?`　→ ストレッチ後 <b style="color:#9ad48a">${injRateAt(P.age,(P.injRed||0)+0.025)}%</b>`:`（ストレッチをすると ${injRateAt(P.age,(P.injRed||0)+0.025)}%）`}${P.injRed?`　<small>これまでの軽減 −${P.injRed}%</small>`:''}</div>
@@ -1104,13 +1138,13 @@ function renderCamp(el){
     ${hasBat()?`<details class="cdet" ${c.bconv?'open':''}><summary class="sh2">打席をコンバートする（0.1ポイント・ミートが5下がる）</summary><div class="pcardx"><div class="hint" style="margin-bottom:6px">いまは <b style="color:var(--ink)">${bhandJP(P.bhand)}</b>${P.bhand==='S'?'（打席ごとに左右を選べる）':''}</div>
       <div class="row">${['R','L','S'].filter(h=>h!==P.bhand).map(h=>`<button class="btn ${c.bconv===h?'on':''}" data-bc="${h}">${bhandJP(h)}にする</button>`).join('')}</div>
       <div class="hint">左打ちは右投手、右打ちは左投手に少し三振しづらい。両打ちは相手投手と逆の打席に入れる。</div></div></details>`:''}
-    ${B?posSec:`<details class="cdet" ${c.learn?'open':''}><summary class="sh2">新しい変化球を覚える・変える（${CP}ポイント全部）</summary>
+    ${B?posSec:`<details class="cdet" ${c.learn||c.pick?"open":""}><summary class="sh2">新しい変化球を覚える・変える（0.9〜2.3ポイント）</summary>
     <div class="pcardx">${learn}</div></details>`}
     <button class="btn main" id="campEnd">キャンプを終えて開幕へ${left>1e-6&&!L?`（残り${left}ptは消えます）`:''}</button>
   </div>`;
   el.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>campStep(b.dataset.ck,b.dataset.d==='all'?'all':+b.dataset.d));
   el.querySelectorAll('[data-cb]').forEach(s=>{ s.oninput=()=>{ if(+s.value<+s.dataset.base) s.value=s.dataset.base; }; s.onchange=()=>campSetAdd(s.dataset.cb,r1(Math.max(0,+s.value-(+s.dataset.base)))); });
-  el.querySelectorAll('[data-lt]').forEach(b=>b.onclick=()=>campLearn(b.dataset.lt,b.dataset.lm));
+  el.querySelectorAll('[data-lt]').forEach(b=>b.onclick=()=>campLearn(b.dataset.lt,b.dataset.lm,b.dataset.lb));
   el.querySelectorAll('[data-pp]').forEach(b=>b.onclick=()=>campPos(b.dataset.pp,b.dataset.pm,b.dataset.pf||null));
   el.querySelectorAll('[data-bc]').forEach(b=>b.onclick=()=>campBconv(b.dataset.bc));
   const sb=$('campStretch'); if(sb) sb.onclick=campStretch;
@@ -1234,8 +1268,10 @@ function renderPennant(){
   }else if(P.prompt&&P.prompt.kind==='fav'){
     prompt=`<div class="pcardx hi trade"><div class="sh2" style="margin-top:0">🧢 ${mgrName(myMgr())}からの打診</div>
       ${managerSay(favText(P.prompt))}
+      ${P.prompt.sub==='try'?`<div class="row" style="margin-top:8px"><button class="btn main" data-fav="ok" style="margin:0">わかった</button></div>
+      <div class="hint">5登板のあいだLv.1の${P.prompt.t}が使えます。1登板で${P.prompt.n}球以上投げるとお気に入り度+3、届かないと−6（大幅ダウン）。終わると投げられなくなります</div></div>`:`
       <div class="row" style="margin-top:8px"><button class="btn main" data-fav="ok" style="margin:0">引き受ける</button><button class="btn" data-fav="no">断る（お気に入り度 −5）</button></div>
-      <div class="hint">${P.prompt.sub==='order'?'引き受けると10試合のあいだ、全能力がそれぞれ±1〜10変わります':'引き受けると10試合のあいだ、チーム全体のエラーが増えます'}</div></div>`;
+      <div class="hint">${P.prompt.sub==='order'?'引き受けると10試合のあいだ、全能力がそれぞれ±1〜10変わります':'引き受けると10試合のあいだ、チーム全体のエラーが増えます'}</div></div>`}`;
   }else if(P.prompt){
     prompt=`<div class="pcardx hi"><b>中継ぎでの好投が評価されています。</b>どうしますか？
       <div class="row" style="margin-top:8px"><button class="btn" data-c="裏ローテ">先発（裏ローテ）へ</button><button class="btn" data-c="抑え">抑えへ</button><button class="btn" data-c="stay">中継ぎのまま</button></div></div>`;
@@ -1323,7 +1359,7 @@ function abilChangeHTML(ch){
   const rows=[['球速',a.velo,ch.velo,'km/h',ch.why.velo],['コントロール',a.control,ch.control,'',ch.why.control],['スタミナ',a.stamina,ch.stamina,'',ch.why.stamina]]
     .map(([n,v,d,u,w])=>`<tr><th>${n}</th><td>${v}${u} → <b>${clamp(v+d,0,n==='球速'?165:100)}${u}</b>（${f(d)}）<br><small style="color:var(--mute)">${w}</small></td></tr>`).join('');
   const br=Object.entries(ch.brk).filter(([t])=>PEN.rep.includes(t)).map(([t,d])=>{const cur=lvOf(t), nx=clamp(cur+d,0,LV_MAX);
-    return `<tr><th>${t}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）</td></tr>`}).join('');
+    return `<tr><th>${t}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）${ch.aging&&ch.aging.t===t?`<br><small style="color:var(--mute)">衰えで −${ch.aging.d}</small>`:''}</td></tr>`}).join('');
   return `<div class="sh2">能力の変化（来季に反映${(PEN.age||22)>33?'・33歳を超えたので衰えが大きい（マイナスは'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}${br}</table></div>`;
 }
 function seasonTable(){
