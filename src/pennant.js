@@ -536,6 +536,47 @@ function awakeCheck(){
   }
 }
 
+// 覚醒の持ち点を入れる（kind省略＝覚醒）
+function awakeGive(name,pts,extra){
+  const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]});
+  A.bank=r1((A.bank||0)+pts); A.log.push({y:PEN.year,name,pts});
+  penNotice(`✨ 覚醒！ ${name}${extra?`（${extra}）`:''}。次のキャンプの持ち点 +${pts}（ためている持ち点 ${A.bank}）`);
+}
+// 移籍したとき：10%で「恩返し」+5
+function awakeTransfer(from,to){
+  if(!PEN||from===to) return;
+  if(rnd()<0.10+(to==='M'?0.05:0)) awakeGive('恩返し',5,`${TEAM[from].short}への恩返しを誓う`);
+}
+// シーズン終了時の覚醒：25歳のシーズンまで。規定の半分以上で 打率.300／10本塁打／防御率3.00（各25%・一度覚醒したら終わり）
+const MR_NAME={H:'ホークス',L:'レオ',F:'ファイターズ',B:'バッファローズ',M:'マリーンズ',E:'イーグルス',T:'タイガース',G:'ジャイアンツ',DB:'ベイスターズ',C:'カープ',S:'スワローズ',D:'ドラゴンズ'};
+function awakeSeason(){
+  if(!PEN) return; const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}), pr=0.25+(PEN.team==='M'?0.05:0);
+  const b=isBat()?PEN.ss:isTW()?PEN.bss:null, p=isBat()?null:PEN.ss, halfPA=Math.ceil(QUAL_PA/2), halfOuts=Math.ceil(SEASON_GAMES*3/2);
+  if((PEN.age||99)<=25){
+    if(b&&b.pa>=halfPA){
+      if(!A.done.avg300&&bAvg(b)>=0.300){ if(rnd()<pr){ A.done.avg300=true; PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); awakeGive('安打製造機の覚醒',10,'ミート+5'); } else penNotice(`打率${bAvg(b).toFixed(3).replace(/^0/,'')}を達成！（今回は覚醒しなかった）`); }
+      if(!A.done.hr10&&b.hr>=10){ if(rnd()<pr){ A.done.hr10=true; PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); awakeGive('長距離砲の覚醒',10,'パワー+5'); } else penNotice(`${b.hr}本塁打を達成！（今回は覚醒しなかった）`); }
+    }
+    if(p&&(p.outs||0)>=halfOuts&&!A.done.era300){ const era=p.runs*27/p.outs;
+      if(era<=3.0){ if(rnd()<pr){ A.done.era300=true; awakeGive('エースピッチャーへの兆し',20); } else penNotice(`防御率${era.toFixed(2)}を達成！（今回は覚醒しなかった）`); } }
+    // 怪童への道：シーズンでストレートの奪三振50以上（33%）→ ストレートLv+1（最大なら持ち点+5）・球速+2〜5
+    const sk=p&&p.byType&&p.byType['ストレート']?p.byType['ストレート'].k||0:0;
+    if(p&&!A.done.kaido&&sk>=50){ if(rnd()<0.33+(PEN.team==='M'?0.05:0)){ A.done.kaido=true;
+        const lv=lvOf('ストレート'), dv=ri(2,5), a=PEN.abil; a.velo=r1(Math.min(165,a.velo+dv)); let ex=`球速+${dv}km/h`, pts=0;
+        if(lv<LV_MAX){ PEN.plev['ストレート']=lv+1; ex=`ストレートLv.${lv+1}・`+ex; } else pts=5;
+        if(pts) awakeGive('怪童への道',pts,ex); else { A.log.push({y:PEN.year,name:'怪童への道',pts:0}); penNotice(`✨ 覚醒！ 怪童への道（${ex}）`); } }
+      else penNotice(`ストレートで${sk}奪三振を達成！（今回は覚醒しなかった）`); }
+  }
+  // ミスター○○：同じ球団に10年、10年とも毎年スタメン（投手は登板）が1試合以上 → +20（球団ごとに1回）
+  const tm=PEN.team, key='mr_'+tm, S=PEN.seasons||[];
+  if(!A.done[key]&&MR_NAME[tm]){
+    const yrs=[]; for(let y=PEN.year-9;y<=PEN.year;y++) yrs.push(y);
+    const ok=yrs.every(y=>{ const s=S.find(x=>x.year===y); if(!s||s.team!==tm) return false;
+      const bs=s.pos==='B'?s.ss:s.bss, ps=s.pos==='B'?null:s.ss; return (bs&&(bs.gs||0)>=1)||(ps&&(ps.g||0)>=1); })
+      && !(PEN.trades||[]).some(t=>t.y>PEN.year-9||(t.y===PEN.year-9&&t.d!=null));
+    if(ok){ A.done[key]=true; awakeGive(`ミスター${MR_NAME[tm]}`,20,`${TEAM[tm].short}一筋10年`); }
+  }
+}
 /* ---- 配置転換 ---- */
 function setRole(r,msg){
   const old=PEN.role; PEN.role=r; PEN.roleApps=0; PEN.stayUntil=0;
@@ -578,12 +619,12 @@ function penTrade(c){
   if(pr.kind==='trade'){
     if(c==='stay'){ PEN.prompt=null; penNotice(`${TEAM[pr.to].short}へのトレードを断り、${TEAM[PEN.team].short}に残ることにした`); }
     else if(isBat()){   // 野手は新しいチームでスタメン争い
-      const from=PEN.team, to=pr.to; PEN.prompt=null; PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to});
+      const from=PEN.team, to=pr.to; PEN.prompt=null; PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to}); awakeTransfer(from,to);
       penNotice(`トレードで${TEAM[from].short}から${TEAM[to].name}へ移籍！ ${POS_JP[PEN.bpos]}のポジション争いから再出発`);
       rebuildTeam(from); PEN.role=null; penCompete();
     }
     else if(isTW()){   // 二刀流は先発のまま移籍。投げない日の指名打者は新しいチームで争う
-      const from=PEN.team, to=pr.to; PEN.prompt=null; PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to});
+      const from=PEN.team, to=pr.to; PEN.prompt=null; PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to}); awakeTransfer(from,to);
       rebuildTeam(from); rebuildTeam(to);
       const st=isStarter(PEN.role);
       setRole(st?PEN.role:'中継ぎ',`トレードで${TEAM[from].short}から${TEAM[to].name}へ移籍！ 二刀流（${st?'先発':'中継ぎ'}）として再出発`);
@@ -592,7 +633,7 @@ function penTrade(c){
     else PEN.prompt={kind:'tradeRole',to:pr.to,from:PEN.team};
   }else if(pr.kind==='tradeRole'){
     const from=PEN.team, to=pr.to; PEN.prompt=null;
-    PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to});
+    PEN.team=to; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year,d:PEN.day,from,to}); awakeTransfer(from,to);
     const B=isBat(), nr=c==='start'?(B?'下位':'ローテ'):(B?'代打':'中継ぎ');
     setRole(nr,`トレードで${TEAM[from].short}から${TEAM[to].name}へ移籍！ ${B?(c==='start'?'スタメン（下位打線）':'代打'):(c==='start'?'先発（ローテーション）':'中継ぎ')}として再出発`);
     if(c==='start'&&!B) PEN.nextStart=PEN.day+ri(1,3);
@@ -688,7 +729,10 @@ function postSeason(fin){
 const faEligible=()=>!!(PEN&&PEN.year-(PEN.faY||0)>=(PEN.faY?4:7));
 function faOffers(rv){
   const y=rv.yR, base=Math.max(10000000,rv.newSal), round=v=>Math.max(10000000,Math.round(v/1000000)*1000000);
-  const list=[{team:PEN.team,salary:round(base*1.03),years:ri(1,3),own:true}];
+  // 元の球団：年俸は元の1.5倍が最低ライン。評価が見合わないと思われると残留要請がないこともある（評価42以下で0%〜60以上で100%）
+  const list=[], ownP=clamp((y-42)/18,0,1);
+  if(rnd()<ownP) list.push({team:PEN.team,salary:round(Math.max(PEN.salary*1.5,base*1.03)),years:ri(1,3),own:true});
+  rv.ownNo=!list.length;
   const cands=[];
   for(const t of NPB){ if(t.id===PEN.team) continue; const T=PEN.teams[t.id];
     const need=isBat()?teamNeedB(T):isTW()?Math.max(teamNeedP(T),teamNeedB(T)):teamNeedP(T);
@@ -696,11 +740,14 @@ function faOffers(rv){
   cands.sort((a,b)=>b.interest-a.interest).slice(0,3).forEach(c=>list.push({team:c.team,salary:round(base*(1.08+c.interest/150)),years:2+(y>=60?ri(1,2):ri(0,1)),need:c.need}));
   return list;
 }
-function faAnswer(use){ const rv=PEN.review; if(!rv) return; rv.faAns=use?'use':'no'; if(use) rv.offers=faOffers(rv); renderPennant(); save(); window.scrollTo(0,0); }
+function faAnswer(use){ const rv=PEN.review; if(!rv) return; rv.faAns=use?'use':'no';
+  if(use){ rv.offers=faOffers(rv);
+    if(!rv.offers.length){ rv.faNone=true; rv.released=true; rv.newSal=0; rv.abil=null; rv.ct=false; PEN.contract=null; PEN.faY=PEN.year; } }   // どこからも声がかからない → その場でトライアウト行き
+  renderPennant(); save(); window.scrollTo(0,0); }
 function faSign(i){
   const rv=PEN.review, o=rv&&rv.offers&&rv.offers[i]; if(!o) return;
   const from=PEN.team;
-  if(o.team!==from){ PEN.team=o.team; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year+1,from,to:o.team,fa:true}); try{ rebuildTeam(from); rebuildTeam(o.team); }catch(e){}
+  if(o.team!==from){ PEN.team=o.team; PEN.joinY=PEN.year+1; PEN.trades.push({y:PEN.year+1,from,to:o.team,fa:true}); awakeTransfer(from,o.team); try{ rebuildTeam(from); rebuildTeam(o.team); }catch(e){}
     if(isBat()) PEN.role='代打'; else if(PEN.role==='抑え') PEN.role='中継ぎ'; }
   PEN.contract={team:o.team,salary:o.salary,years:o.years,until:PEN.year+1+o.years};
   PEN.faY=PEN.year; rv.newSal=o.salary; rv.faDone=o; rv.ct=o.years>1;
@@ -714,13 +761,15 @@ function faHTML(rv){
     <div class="row" style="margin-top:8px"><button class="btn main" data-fa="use" style="margin:0">FA権を使う</button><button class="btn" data-fa="no">使わない（${T.short}に残る）</button></div>
     <div class="hint">使わなくても権利は残り、来年また聞かれます。移籍しても使ったことになり、次のFA権は4年後です。</div></div>`;
   if(rv.faAns==='no') return `<div class="pcardx">FA権は使わず、${T.short}に残ることにした（来年また選べます）</div>`;
+  if(rv.faNone) return `<div class="pcardx bad"><div class="sh2" style="margin-top:0">📞 FA交渉</div>FA宣言したが、${TEAM[PEN.team].short}からの残留要請も、他球団からの声もなかった……。<b>トライアウトを受けることに</b>なりました。</div>`;
   if(rv.faDone){ const o=rv.faDone; return `<div class="pcardx hi">${o.team===PEN.team&&o.own?`${T.short}と再契約`:`${TEAM[o.team].name}へ移籍`}：${o.years}年契約・年俸${yen(o.salary)}（契約中は年俸が固定で、戦力外もありません）</div>`; }
   const cards=rv.offers.map((o,i)=>{ const tm=TEAM[o.team], mg=mgrOf(o.team);
     return `<div class="pcardx ${o.own?'':'hi'}"><div class="row" style="align-items:center;gap:8px">${tchip(o.team,true)}<small>${o.own?'元の球団':`${LG_NAME[tm.lg]}${rankOf(o.team)}位`}</small></div>
       <div class="msay sm"><div class="mimg">${svgManager(tm,mg)}<div class="mlab">${mgrName(mg)}<br>${mgrBadges(mg)}</div></div><div class="bub r">${o.own?`${PEN.pname}、うちに残ってくれ。${o.years}年・${yen(o.salary)}で頼む。`:`${PEN.pname}、うちに来てくれ。${o.need>8?'お前の力がどうしても必要なんだ。':'お前が加われば戦力がぐっと上がる。'}${o.years}年契約、年俸${yen(o.salary)}でどうだ。`}</div></div>
       <div style="font-size:15px;margin:4px 0"><b>${o.years}年契約</b>　年俸 <b style="color:var(--accent)">${yen(o.salary)}</b>　<small>（総額 ${yen(o.salary*o.years)}）</small></div>
       <button class="btn ${o.own?'':'main'}" data-fasign="${i}" style="width:100%;margin:0">${o.own?`${tm.short}に残る`:`${tm.short}に入団する`}</button></div>`; }).join('');
-  return `<div class="sh2">📞 FA交渉：${rv.offers.length-1?`${rv.offers.length-1}球団が獲得に名乗り`:'他球団からの声はなかった'}</div>${cards}`;
+  const nOther=rv.offers.filter(o=>!o.own).length;
+  return `<div class="sh2">📞 FA交渉：${nOther?`${nOther}球団が獲得に名乗り`:'他球団からの声はなかった'}</div>${rv.ownNo?`<div class="pcardx bad">${TEAM[PEN.team].short}からの残留要請はなかった（元の年俸の1.5倍に見合わないと判断された）</div>`:''}${cards}`;
 }
 // 査定の上乗せ：ポジション（投手は投手陣）の中での順位、スタメン・先発の出場数、チームに必要かどうか
 function salaryExtra(){
@@ -807,6 +856,7 @@ function penNextSeason(){
   PEN.seasons.push({year:PEN.year,age:PEN.age,role:PEN.role,team:PEN.team,pos:PEN.pos,ss:PEN.ss,bss:isTW()?PEN.bss:undefined,rec:{...myRec()},rank:rankOf(PEN.team),salary:PEN.salary,newSal:rv.newSal,chg:rv.chg,titles:won,feats:seasonFeats(),
     abil:{...PEN.abil},babil:PEN.babil?{...PEN.babil}:null,rep:PEN.rep.slice(),plev:{...PEN.plev},bposs:PEN.bposs?PEN.bposs.slice():null,hand:PEN.hand,bhand:PEN.bhand});   // その年の能力も残す（歴代選手・マイチーム用）
   won.forEach(n=>PEN.titles.push({y:PEN.year,name:n}));
+  awakeSeason();   // シーズンの節目の覚醒（打率.300・10本塁打・防御率3.00／ミスター○○）
   if(rv.released){ PEN.released=true; PEN.review=null; PEN.relFin=rv.fin||null; renderPennant(); save(); return; }
   if(isBat()) applyAbilityChangeB(rv.abil); else { applyAbilityChange(rv.abil); if(isTW()&&rv.abil&&rv.abil.bat) applyAbilityChangeB(rv.abil.bat); }
   PEN.salary=rv.newSal;
@@ -844,7 +894,7 @@ function seasonRollover(fin){
 
 /* ---- 春季キャンプ：開幕前に持ち点で能力を上げる（野手0.5・投手と二刀流0.7 ＋ 覚醒でためた持ち点）／変化球を覚える・守備位置を増やす（持ち点全部） ---- */
 
-const campBase=()=>isBat()?1.0:1.4;   // 野手1.0・投手と二刀流1.4
+const campBase=()=>isBat()?2.0:2.8;   // 野手2.0・投手と二刀流2.8
 const campPts=()=>r1(campBase()+mgrCampBonus(myMgr())+((PEN&&PEN.awake&&PEN.awake.bank)||0));
 const COST_K=1;
 // 球団の特色：育ちやすい能力は必要点数が安い
@@ -1138,15 +1188,15 @@ function renderPennant(){
       return;
     }
     const faBlock=rv.fa?faHTML(rv):'';
-    const faOpen=rv.fa&&(rv.faAns==null||(rv.faAns==='use'&&!rv.faDone));
+    const faOpen=rv.fa&&!rv.faNone&&(rv.faAns==null||(rv.faAns==='use'&&!rv.faDone));
     el.innerHTML=`<div class="pen">${head}
       ${faBlock}
       ${faOpen?'':`<div class="sh2">年俸査定</div>
-      <div class="pcardx ${rv.released?'bad':''}">${rv.released?`今年も通算も成績が悪く、<b>戦力外通告</b>を受けました（年俸0円）`:
+      <div class="pcardx ${rv.released?'bad':''}">${rv.faNone?`FAで行き先が見つからず、<b>自由契約</b>になりました（年俸0円）`:rv.released?`今年も通算も成績が悪く、<b>戦力外通告</b>を受けました（年俸0円）`:
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）`}
         <div class="hint">今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%${rv.chg>=0.5?'（上限+50%）':''}`:''}</div>${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
       ${rv.abil?(isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
-      <button class="btn main" id="penNext">${rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
+      <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
     on2('penNext',penNextSeason);
     el.querySelectorAll('[data-fa]').forEach(b=>b.onclick=()=>faAnswer(b.dataset.fa==='use'));
