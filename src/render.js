@@ -933,7 +933,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ dGenius=rnd()<0.001; AB={budget:dGenius?170:Math.round(ri(50,120)*0.65+ri(50,120)*0.35),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は50〜120（平均85。2つの乱数を65:35で混ぜるので、平均で割るより散らばりが大きい）。0.1%で「天才」（持ち点170）
+  if(MODE==='pennant'){ dGenius=rnd()<0.01; AB={budget:dGenius?155:ri(60,120),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜120の中で一様にランダム。1%で「天才」（持ち点155）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
