@@ -147,8 +147,10 @@ function rotOrderByRank(T){ const R=T.rankS||[], ids=T.rotIds||[]; return R.filt
 // ローテ外の先発候補：ロングリリーフのほか、ときどき先発する（成績が良いほど多く、最大でローテ最下位の2/3）
 //  防御率2.50以下で最大、5.00以上で最小（最大の1割）。まだあまり投げていないときは4割
 function spotF(era,outs){ if(!outs||outs<15) return 0.4; return clamp((5.0-era)/2.5,0.1,1); }
+// ローテ外の先発候補：先発ができる投手のうちローテに入っていない投手（ブルペンの勝ちパターン＝クローザー・セットアッパー・3番手は除く）
+function outIds(T){ const p3=(T.penIds||[]).slice(0,3); return (T.rankS||[]).filter(x=>!(T.rotIds||[]).includes(x)&&!p3.includes(x)); }
 function rotSpots(T,IN){
-  const out=(T.rankS||[]).filter(x=>!(T.rotIds||[]).includes(x)), L=out.slice(0,3); if(out.includes('ME')&&!L.includes('ME')) L.push('ME');
+  const out=outIds(T), L=out.slice(0,3); if(out.includes('ME')&&!L.includes('ME')) L.push('ME');
   return L.map(id=>{ let era=null,outs=0; if(id==='ME'){ const s=PEN.ss; outs=s.outs; era=outs?s.runs*0.9*27/outs:null; } else { const c=PEN.cs&&PEN.cs[id]; outs=c?c.outs:0; era=outs?c.er*27/outs:null; }
     return {id,w:(2/3)/IN*spotF(era,outs)}; });
 }

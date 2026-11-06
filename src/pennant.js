@@ -373,7 +373,7 @@ function pitRerank(quiet,was){
   const N=T.rotIds.length; was=was||PEN.role; let r;
   PEN.rotRank=PEN.outRank=PEN.penRank=null;
   if(cat==='rot'){ PEN.rotRank=rotOrderByRank(T).indexOf('ME')+1; r=PEN.rotRank===1?'エース':'ローテ'; }
-  else if(cat==='out'){ PEN.outRank=T.rankS.filter(x=>!T.rotIds.includes(x)).indexOf('ME')+1; r='裏ローテ'; }
+  else if(cat==='out'){ PEN.outRank=outIds(T).indexOf('ME')+1; r='裏ローテ'; }
   else { PEN.penRank=T.penIds.indexOf('ME')+1; r=cat==='close'?'抑え':'中継ぎ'; }
   PEN.sRank=PEN.rotRank||PEN.outRank;
   if(r!==PEN.role) PEN.roleApps=0;
@@ -1747,15 +1747,15 @@ function pitDepthHTML(){
     return `防${era}　${w}勝${l}敗　${h}H　${sv}S`; };
   const row=(id,lab,sub)=>`<tr class="${id==='ME'?'me':''}"><td>${lab}</td><td>${nm(id)}　<small>${ag(id)}歳</small><br><small style="color:var(--mute)">${line(id)}${sub?`　${sub}`:''}</small></td><td class="v">${T.pSc[id]??'-'}</td></tr>`;
   const SP=rotSpots(T,I[N-1]), sh=saveShare(T);
-  const rot=rotOrderByRank(T), out=T.rankS.filter(x=>!T.rotIds.includes(x)), outShow=out.slice(0,3).concat(out.indexOf('ME')>=3?['ME']:[]);
+  const rot=rotOrderByRank(T), out=outIds(T), outShow=out.slice(0,Math.max(3,out.indexOf('ME')+1));   // 自分が4番目より下でも、間の投手も出して番手が飛ばないように
   const pen=T.penIds.filter(x=>!(x==='ME'&&PEN.pgrp==='start')), penShow=pen.slice(0,8).concat(pen.indexOf('ME')>=8?['ME']:[]);
   return `<div class="pcardx"><div class="sh2" style="margin-top:0">投手陣（先発起用：${MGR_JP(m&&m.r||'six','r')[1]}・${N}人ローテ）</div>
     <div class="hint" style="margin-top:4px;color:var(--ink)"><b>先発</b>${PEN.pgrp==='start'?'（あなたの配置）':''}</div>
     <table class="depth pd2">${rot.map((id,i)=>row(id,i===0?'エース':`${i+1}番手`,`約${I[i].toFixed(1)}試合ごと`)).join('')}</table>
-    ${outShow.length?`<div class="hint" style="margin-top:4px">ローテ外の先発候補（ロングリリーフ＋ときどき先発）</div><table class="depth pd2">${outShow.map(id=>{ const sp=SP.find(o=>o.id===id); return row(id,`外${out.indexOf(id)+1}`,sp&&sp.w?`先発 約${Math.round(1/sp.w)}試合に1回`:''); }).join('')}</table>`:''}
+    ${outShow.length?`<div class="hint" style="margin-top:4px">ローテ外の先発候補（ロングリリーフ＋ときどき先発）</div><table class="depth pd2">${outShow.map(id=>{ const sp=SP.find(o=>o.id===id); return row(id,`外${out.indexOf(id)+1}`,sp&&sp.w?`先発 約${Math.round(1/sp.w)}試合に1回`:'ロングリリーフ'); }).join('')}</table>`:''}
     <div class="hint" style="margin-top:6px;color:var(--ink)"><b>ブルペン</b>${PEN.pgrp==='relief'?'（あなたの配置）':''}</div>
-    <table class="depth pd2">${penShow.map(id=>{ const i=pen.indexOf(id); return row(id,i===0?'クローザー':i===1?'セットアッパー':`${i+1}番手`,i===0?`セーブ機会 ${Math.round((1-sh)*10)}割`:i===1?(sh>0?`セーブ機会 ${Math.round(sh*10)}割`:'勝ちパターン'):i===2?'勝ちパターン':''); }).join('')}</table>
-    <div class="hint" style="margin-top:4px">右の数字＝総合評価（投手の力・今季と通算の成績・監督の見方）。10試合ごとに見直します。先発は上位${N}人がローテーションで、1番手（エース）ほど登板間隔が短く、${N}番手は1番手の2倍。ローテ外の先発はロングリリーフのほか、成績しだいでときどき先発（最大でローテ最下位の2/3）。ブルペンは1番手がクローザー、2番手がセットアッパー（評価が近いほどセーブ機会を分け合う・最大6:4）、3番手まで勝ちパターン</div></div>`;
+    <table class="depth pd2">${penShow.map(id=>{ const i=pen.indexOf(id); return row(id,i===0?'クローザー':i===1?'セットアッパー':`${i+1}番手`,i===0?`セーブ機会 ${Math.round((1-sh)*10)}割`:i===1?(sh>0?`セーブ機会 ${Math.round(sh*10)}割`:'勝ちパターン'):i===2?'勝ちパターン':out.includes(id)?`ローテ外${out.indexOf(id)+1}番手（ロングリリーフ）`:''); }).join('')}</table>
+    <div class="hint" style="margin-top:4px">右の数字＝総合評価（投手の力・今季と通算の成績・監督の見方）。10試合ごとに見直します。先発は上位${N}人がローテーションで、1番手（エース）ほど登板間隔が短く、${N}番手は1番手の2倍。ローテ外の先発候補（ブルペンの勝ちパターン3人は除く）はロングリリーフのほか、上位3人と自分は成績しだいでときどき先発（最大でローテ最下位の2/3）。ブルペンは1番手がクローザー、2番手がセットアッパー（評価が近いほどセーブ機会を分け合う・最大6:4）、3番手まで勝ちパターン</div></div>`;
 }
 // 去年のオフのドラフト（自分のチーム）
 // 試合の日付（m/d）：3/28開幕・月曜は休み（休みの日は均等に入る）・交流戦は5/30〜6/19・オールスター休みは7月上旬・9/30最終戦

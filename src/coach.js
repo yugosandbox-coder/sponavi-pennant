@@ -276,7 +276,7 @@ function cbDo(D,st,arg){
 /* ---- 合同自主トレ ---- */
 function jtFind(id){ for(const t of NPB){ const T=PEN.teams[t.id]; if(!T) continue; const f=(T.F||[]).find(x=>x.id===id); if(f) return {kind:'F',o:f,team:t.id}; const p=(T.P||[]).find(x=>x.pid===id); if(p) return {kind:'P',o:p,team:t.id}; } return null; }
 function jtCands(){
-  if(OFF_JT&&OFF_JT.y===PEN.year&&OFF_JT.n===(PEN.jtLog||[]).length) return OFF_JT.list;
+  if(OFF_JT&&OFF_JT.pen===PEN&&OFF_JT.y===PEN.year&&OFF_JT.n===(PEN.jtLog||[]).length) return OFF_JT.list;
   const map=new Map(), add=(id,src)=>{ if(!id) return; const r=jtFind(id); if(!r) return; const e=map.get(id)||{id,kind:r.kind,team:r.team,src:[]}; if(!e.src.includes(src)) e.src.push(src); map.set(id,e); };
   const T=myT(); (T.F||[]).forEach(f=>add(f.id,'チーム')); (T.P||[]).forEach(p=>add(p.pid,'チーム'));
   const A=PEN.asMates; if(A&&A.y===PEN.year-1){ A.F.forEach(x=>add(x.id,'オールスター')); A.P.forEach(x=>add(x.id,'オールスター')); }
@@ -286,7 +286,7 @@ function jtCands(){
     return {...e,name:e.kind==='F'?o.n:o.name,age:o.age,num:o.num,pos:e.kind==='F'?POS_JP[o.pos]||o.pos:'投手',sc,
       ab:e.kind==='F'?`ミ${Math.round(o.m)} パ${Math.round(o.p)} 速${Math.round(o.s)} 眼${Math.round(o.e)} 守${Math.round(o.d)}`:`${Math.round(o.velo)}km/h 制${Math.round(o.control)} ス${Math.round(o.stamina)}`}; })
     .sort((a,b)=>(b.src.length>1||b.src[0]!=='チーム')-(a.src.length>1||a.src[0]!=='チーム')||b.sc-a.sc);
-  OFF_JT={y:PEN.year,n:(PEN.jtLog||[]).length,list}; return list;
+  OFF_JT={pen:PEN,y:PEN.year,n:(PEN.jtLog||[]).length,list}; return list;
 }
 const JT_F={m:['meet','ミート'],p:['power','パワー'],s:['speed','速度'],e:['eye','選球眼'],d:['def','守備']};
 const JT_P={velo:['velo','球速',147,6],control:['control','コントロール',50,12],stamina:['stamina','スタミナ',86,12]};
