@@ -1159,8 +1159,8 @@ function abilityChange(){
   if(enough&&ip>0){
     const sk9=st.k*9/ip; let v = sk9>=7?2 : sk9>=5?1 : sk9>=3.5?0 : -1;
     if(old) v-=1; out.velo=clamp(v,old?-2:-1,old?1:2);
-    out.why.velo=`ストレートの奪三振率 ${sk9.toFixed(2)}（ストレート${st.n}球）`;
-  }else{ out.velo=old?-1:0; out.why.velo=`ストレートの投球数が基準に届かず（${st.n}球${starter&&tot?`・割合${Math.round(st.n/tot*100)}%`:''}）`; }
+    out.why.velo=`ストレートの奪三振率 ${sk9.toFixed(2)}（ストレート${Math.round(st.n)}球）`;
+  }else{ out.velo=old?-1:0; out.why.velo=`ストレートの投球数が基準に届かず（${Math.round(st.n)}球${starter&&tot?`・割合${Math.round(st.n/tot*100)}%`:''}）`; }
   // コントロール：与四球率（平均2.5）
   if(ip>=10){
     const bb9=ss.bb*9/ip; let c = bb9<=1.0?3 : bb9<=1.8?2 : bb9<=2.5?1 : bb9<=3.5?0 : -1;
@@ -1196,8 +1196,20 @@ function abilityChange(){
 }
 // 18〜22歳：球速+1.5・制球+3.5・スタミナ+3／23〜25歳：+1.2・+3・+3／26〜28歳：+0.8・+2・+2／29歳：+0.4・+1・+1
 const P_YOUTH=age=>age<=22?{velo:1.5,control:3.5,stamina:3}:age<=25?{velo:1.2,control:3,stamina:3}:age<=28?{velo:0.8,control:2,stamina:2}:age<=29?{velo:0.4,control:1,stamina:1}:null;
+// 変化球の下限：成績で下がるのは Lv.1 まで（年齢の衰えのぶんだけは Lv.0＝投げられなくなることがある）。前の版で作った査定にも当てはめる
+function brkFloor(ch){
+  if(!ch||!ch.brk) return ch;
+  for(const t in ch.brk){
+    if(t==='ストレート'||!PEN.rep.includes(t)) continue;
+    const lv=lvOf(t), ag=ch.aging&&ch.aging.t===t?ch.aging.d:0;
+    const perf=Math.max(ch.brk[t]+ag,1-lv);   // 成績のぶんは Lv.1 まで
+    ch.brk[t]=clamp(perf-ag,-lv,LV_MAX-lv);
+  }
+  return ch;
+}
 function applyAbilityChange(ch){
   if(!ch) return;
+  brkFloor(ch);
   const a=PEN.abil;
   a.velo=r1(clamp(a.velo+ch.velo,110,165)); a.control=r1(clamp(a.control+ch.control,0,100)); a.stamina=r1(clamp(a.stamina+ch.stamina,0,100));
   for(const t in ch.brk){
@@ -1806,9 +1818,10 @@ function titleList(){
   return Object.entries(m).map(([n,ys])=>`${n}${ys.length>1?'×'+ys.length:''}（${ys.join('・')}年目）`).join('　');
 }
 function abilChangeHTML(ch){
+  if(ch&&ch.brk&&!isBat()) brkFloor(ch);
   const a=PEN.abil, f=v=>v>0?`<span class="up">+${v}</span>`:v<0?`<span class="dn">${v}</span>`:'±0';
   const rows=[['球速',a.velo,ch.velo,'km/h',ch.why.velo],['コントロール',a.control,ch.control,'',ch.why.control],['スタミナ',a.stamina,ch.stamina,'',ch.why.stamina]]
-    .map(([n,v,d,u,w])=>`<tr><th>${n}</th><td>${v}${u} → <b>${r1(clamp(v+d,0,n==='球速'?165:100))}${u}</b>（${f(r1(d))}）<br><small style="color:var(--mute)">${w}</small></td></tr>`).join('');
+    .map(([n,v,d,u,w])=>(w=String(w||'').replace(/(\d+\.\d+)球/g,(m,x)=>Math.round(+x)+'球'),`<tr><th>${n}</th><td>${v}${u} → <b>${r1(clamp(v+d,0,n==='球速'?165:100))}${u}</b>（${f(r1(d))}）<br><small style="color:var(--mute)">${w}</small></td></tr>`)).join('');
   const br=Object.entries(ch.brk).filter(([t])=>PEN.rep.includes(t)).map(([t,d])=>{const cur=lvOf(t), nx=clamp(cur+d,0,LV_MAX);
     return `<tr><th>${ptn(t)}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）${ch.aging&&ch.aging.t===t?`<br><small style="color:var(--mute)">衰えで −${ch.aging.d}</small>`:''}</td></tr>`}).join('');
   return `<div class="sh2">能力の変化（来季に反映${(PEN.age||22)>33?'・33歳を超えたので衰えが大きい（マイナスは'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}${br}</table></div>`;
