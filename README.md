@@ -21,6 +21,8 @@
   - `injury.js` 怪我
   - `odd.js` 野手登板・代打投手
   - `wbc.js` WBC
+  - `coachsvg.js` コーチのキャラクター
+  - `coach.js` 所持金・年俸の上限・オフのコーチ
   - `render.js` 画面描画・ユニフォーム
 
 ## ビルド
