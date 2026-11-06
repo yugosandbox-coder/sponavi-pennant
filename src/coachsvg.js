@@ -1,0 +1,167 @@
+/* ========= コーチのキャラクター（メンタリスト・スポーツアナリスト・パーソナルトレーナー・代理人・不動産屋） =========
+   各5案。COACH_LOOK[kind][i] の見た目の設定から svgCoach(kind,i) で描く（自分・監督と同じ大きさ 100×130） */
+const CSK=['#f6d2b4','#ecc19c','#d9a77d','#b9825a','#8a5a3a'];
+const COACH_LOOK={
+  mental:[
+    {lab:'振り子の催眠術師',skin:1,outfit:'suit',top:'#1b1b22',shirt:'#6b3fa0',tie:'#111',hair:'slick',hc:'#1a1a1a',face:'calm',acc:['mustache','pendulum']},
+    {lab:'トランプの心理学者',skin:0,outfit:'turtle',top:'#16161a',inner:'#f4f4f4',hair:'pony',hc:'#2b1d14',face:'smirk',acc:['roundglass','cards']},
+    {lab:'やさしいカウンセラー',skin:0,outfit:'cardigan',top:'#b9a3d9',shirt:'#ffffff',hair:'long',hc:'#3a2418',face:'smile',acc:['earring','notebook']},
+    {lab:'座禅の老師',skin:2,outfit:'samue',top:'#26324f',hair:'bald',hc:'#cfcfcf',face:'closed',acc:['beard','beads']},
+    {lab:'セミナー講師',skin:1,outfit:'hoodie',top:'#2b2b33',hair:'mash',hc:'#3b2a1e',face:'grin',acc:['headset']},
+  ],
+  analyst:[
+    {lab:'タブレット片手の分析官',skin:1,outfit:'polo',top:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'smile',acc:['glass','tablet']},
+    {lab:'ノートPCの女性アナリスト',skin:0,outfit:'vest',top:'#24365e',shirt:'#ffffff',hair:'bob',hc:'#2a1a12',face:'smile',acc:['laptop']},
+    {lab:'ヘッドセットのデータ班',skin:2,outfit:'track',top:'#5f6670',stripe:'#e8e8e8',hair:'capback',hc:'#1a1a1a',cap:'#1f3c7a',face:'grin',acc:['headset','clip']},
+    {lab:'白衣の研究者',skin:0,outfit:'labcoat',top:'#f6f6f6',shirt:'#9ec3e6',tie:'#24365e',hair:'messy',hc:'#4a3a2a',face:'calm',acc:['roundglass','papers']},
+    {lab:'スマートなデータ参謀',skin:1,outfit:'suit',top:'#3a3f4a',shirt:'#e9eef6',tie:null,hair:'side',hc:'#1a1a1a',face:'smirk',acc:['glass','bigtab']},
+  ],
+  trainer:[
+    {lab:'筋肉自慢のトレーナー',skin:3,outfit:'tank',top:'#111111',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['whistle','muscle','clipboard']},
+    {lab:'ヨガのインストラクター',skin:0,outfit:'track',top:'#2aa198',stripe:'#ffffff',hair:'pony',hc:'#2b1d14',face:'smile',acc:['hairband','yogamat']},
+    {lab:'赤ジャージの鬼コーチ',skin:2,outfit:'track',top:'#c0392b',stripe:'#ffffff',hair:'buzz',hc:'#1a1a1a',face:'shout',acc:['towel','stopwatch']},
+    {lab:'日焼けのフィジカル担当',skin:4,outfit:'polo',top:'#f2f2f2',hair:'short',hc:'#1a1a1a',face:'grin',acc:['sunglassup','dumbbell']},
+    {lab:'ベテラントレーナー',skin:1,outfit:'track',top:'#22344f',stripe:'#f5c542',hair:'short',hc:'#9a9a9a',face:'smile',acc:['mustache','clipboard']},
+  ],
+  agent:[
+    {lab:'サングラスのやり手代理人',skin:1,outfit:'suit',top:'#111111',shirt:'#ffffff',tie:'#c0392b',hair:'slick',hc:'#1a1a1a',face:'smirk',acc:['sunglass','briefcase']},
+    {lab:'スマホ片手の女性代理人',skin:0,outfit:'suit',top:'#5a5f6a',shirt:'#f4f4f4',tie:null,hair:'bob',hc:'#1a1a1a',face:'smile',acc:['phone']},
+    {lab:'金髪の敏腕エージェント',skin:0,outfit:'suit',top:'#1d2e57',shirt:'#ffffff',tie:'#d4a52a',hair:'side',hc:'#e2c26a',face:'grin',acc:['contract']},
+    {lab:'金時計の大物代理人',skin:2,outfit:'suit',top:'#2f2f3a',shirt:'#ffffff',tie:'#7a1f2b',hair:'bald',hc:'#555',face:'smile',acc:['mustache','pinstripe','watch','calc']},
+    {lab:'若手のインテリ代理人',skin:1,outfit:'suit',top:'#2c3e50',shirt:'#dfe8f2',tie:'#2a7ab8',hair:'mash',hc:'#2b1d14',face:'calm',acc:['glass','tablet']},
+  ],
+  realtor:[
+    {lab:'鍵を持った笑顔の営業',skin:1,outfit:'suit',top:'#b49a6c',shirt:'#ffffff',tie:'#2a7ab8',hair:'side',hc:'#1a1a1a',face:'smile',acc:['nametag','key']},
+    {lab:'間取り図の女性スタッフ',skin:0,outfit:'suit',top:'#22325a',shirt:'#ffffff',tie:null,hair:'bun',hc:'#2a1a12',face:'smile',acc:['nametag','file']},
+    {lab:'法被（はっぴ）の店長',skin:2,outfit:'happi',top:'#d35400',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['hachimaki','house']},
+    {lab:'メガネの老舗の社長',skin:1,outfit:'vest',top:'#6b4f2a',shirt:'#ffffff',tie:'#8b1e1e',hair:'bald',hc:'#aaaaaa',face:'smile',acc:['glass','plan']},
+    {lab:'青スーツの新人営業',skin:0,outfit:'suit',top:'#1f6fd6',shirt:'#ffffff',tie:'#f5c542',hair:'short',hc:'#2b1d14',face:'grin',acc:['nametag','house']},
+  ],
+};
+const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋'};
+let CSVG_N=0;
+function svgCoach(kind,i){
+  const L=(COACH_LOOK[kind]||COACH_LOOK.mental)[i||0]||COACH_LOOK.mental[0];
+  const sk=CSK[L.skin||0], has=a=>(L.acc||[]).includes(a), dark=c=>c;
+  const top=L.top, hc=L.hc;
+  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('stopwatch')&&false;
+  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab');
+  let back='', body='', arms='', hands='', head='', hair='', face='', front='', held='';
+  // ---- 後ろ髪（頭より先に描く）
+  if(L.hair==='long') back+=`<path d="M29 54 Q27 80 34 88 L66 88 Q73 80 71 54 Z" fill="${hc}"/>`;
+  if(L.hair==='bob') back+=`<path d="M29 54 Q28 74 34 76 L66 76 Q72 74 71 54 Z" fill="${hc}"/>`;
+  if(L.hair==='pony') back+=`<path d="M66 44 Q84 50 78 76 Q74 64 66 56 Z" fill="${hc}"/>`;
+  if(L.outfit==='hoodie') back+=`<path d="M28 84 Q30 66 50 66 Q70 66 72 84 Z" fill="${top}"/>`;
+  // ---- 胴
+  const torso=`M24 128 L26 92 Q50 82 74 92 L76 128 Z`;
+  if(L.outfit==='tank'){
+    body+=`<path d="M30 128 L31 90 Q50 84 69 90 L70 128 Z" fill="${top}"/><path d="M40 86 Q50 96 60 86" fill="${sk}"/>`;
+  }else if(L.outfit==='happi'){
+    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M38 86 L50 128 M62 86 L50 128" stroke="#1a1a1a" stroke-width="5"/>
+      <path d="M44 86 L50 100 L56 86 Z" fill="#f4f4f4"/><text x="38" y="112" font-size="7" fill="#fff" font-weight="900" font-family="sans-serif" transform="rotate(-62 38 112)">不動産</text>
+      <path d="M20 122 L80 122" stroke="#fff" stroke-width="2" opacity=".8"/>`;
+  }else{
+    body+=`<path d="${torso}" fill="${top}"/>`;
+    if(has('pinstripe')) body+=[30,36,42,58,64,70].map(x=>`<path d="M${x} 90 L${x} 128" stroke="#ffffff" stroke-width=".5" opacity=".35"/>`).join('');
+  }
+  if(L.outfit==='suit'||L.outfit==='labcoat'){
+    body+=`<path d="M41 85 L50 104 L59 85 Z" fill="${L.shirt||'#fff'}"/>`;
+    if(L.tie) body+=`<path d="M48.6 88 L51.4 88 L53.4 106 L50 111 L46.6 106 Z" fill="${L.tie}"/><path d="M48 86 L52 86 L51.4 89 L48.6 89 Z" fill="${L.tie}"/>`;
+    else body+=`<path d="M45 86 L50 92 L55 86" fill="none" stroke="#0003" stroke-width="1"/>`;
+    body+=`<path d="M41 85 L47 106 L44 92 Z" fill="#0005"/><path d="M59 85 L53 106 L56 92 Z" fill="#0005"/>`;
+    if(L.outfit==='labcoat') body+=`<path d="M50 106 L50 128" stroke="#cfd6dd" stroke-width="1.2"/><rect x="58" y="108" width="10" height="7" rx="1" fill="none" stroke="#cfd6dd"/><path d="M60 106 L60 112" stroke="#2a7ab8" stroke-width="1.4"/>`;
+    else body+=`<circle cx="50" cy="114" r="1.2" fill="#0007"/><circle cx="50" cy="121" r="1.2" fill="#0007"/>`;
+  }
+  if(L.outfit==='vest'){
+    body=`<path d="${torso}" fill="${L.shirt||'#fff'}"/><path d="M30 128 L31 92 Q42 86 44 86 L50 104 L56 86 Q58 86 69 92 L70 128 Z" fill="${top}"/>`;
+    if(L.tie) body+=`<path d="M48.6 88 L51.4 88 L53 102 L50 106 L47 102 Z" fill="${L.tie}"/>`;
+    body+=`<circle cx="50" cy="112" r="1.2" fill="#0007"/><circle cx="50" cy="119" r="1.2" fill="#0007"/>`;
+  }
+  if(L.outfit==='turtle') body+=`<path d="M41 82 Q50 86 59 82 L59 88 Q50 92 41 88 Z" fill="${L.inner||top}"/><path d="M38 88 L44 128 M62 88 L56 128" stroke="#ffffff22" stroke-width="2"/>`;
+  if(L.outfit==='cardigan') body+=`<path d="M42 85 L50 100 L58 85 L58 128 L42 128 Z" fill="${L.shirt||'#fff'}"/><path d="M42 85 L44 128 M58 85 L56 128" stroke="#0003" stroke-width="1.5"/>${[96,106,116].map(y=>`<circle cx="45" cy="${y}" r="1.1" fill="#fff"/>`).join('')}`;
+  if(L.outfit==='polo') body+=`<path d="M42 84 L50 92 L58 84 L56 82 L50 86 L44 82 Z" fill="${L.collar||'#ffffff'}" opacity=".9"/><path d="M50 88 L50 100" stroke="#0004" stroke-width="1.2"/><circle cx="50" cy="94" r=".9" fill="#0006"/><circle cx="50" cy="98" r=".9" fill="#0006"/>`;
+  if(L.outfit==='track') body+=`<path d="M50 84 L50 128" stroke="#ddd" stroke-width="1.4"/><path d="M42 83 L50 90 L58 83 L58 80 L42 80 Z" fill="${top}" stroke="#0003"/>`;
+  if(L.outfit==='samue') body+=`<path d="M40 84 L58 112 M60 84 L46 104" stroke="#e8e0cc" stroke-width="2.4"/><path d="M26 112 L74 112" stroke="#1a2238" stroke-width="3"/>`;
+  if(L.outfit==='hoodie') body+=`<path d="M44 86 L45 100 M56 86 L55 100" stroke="#ddd" stroke-width="1.2"/><path d="M36 112 L64 112 L62 124 L38 124 Z" fill="#0003"/>`;
+  // ---- 腕（右手に物を持つと腕を上げる）
+  const armC=L.outfit==='tank'?sk:L.outfit==='vest'?(L.shirt||'#fff'):top, aw=L.outfit==='tank'?(has('muscle')?13:10):10;
+  const lArm=both?`M26 94 Q18 104 34 110`:`M26 94 Q14 104 17 119`, rArm=(raise||both)?`M74 94 Q86 102 ${both?'66 110':'82 106'}`:`M74 94 Q86 104 83 119`;
+  arms+=`<path d="${lArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/><path d="${rArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/>`;
+  if(L.outfit==='track') arms+=`<path d="${lArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(-3 0)"/><path d="${rArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(3 0)"/>`;
+  if(L.outfit==='happi') arms+=`<path d="M24 92 L10 112 L22 116 L30 100 Z" fill="${top}"/><path d="M76 92 L90 112 L78 116 L70 100 Z" fill="${top}"/>`;
+  const lh=both?[34,110]:[17,120], rh=both?[66,110]:raise?[82,106]:[83,120];
+  if(has('muscle')) arms+=`<path d="M18 102 Q22 98 26 102" fill="none" stroke="#0003" stroke-width="1.5"/><path d="M82 102 Q78 98 74 102" fill="none" stroke="#0003" stroke-width="1.5"/>`;
+  hands+=`<circle cx="${lh[0]}" cy="${lh[1]}" r="5" fill="${sk}"/><circle cx="${rh[0]}" cy="${rh[1]}" r="5" fill="${sk}"/>`;
+  if(has('watch')) hands+=`<rect x="${lh[0]-4}" y="${lh[1]-8}" width="8" height="3" rx="1" fill="#e2b33a"/>`;
+  // ---- 首と頭
+  head+=`<rect x="44" y="72" width="12" height="12" fill="${sk}"/><circle cx="30.5" cy="58" r="3.5" fill="${sk}"/><circle cx="69.5" cy="58" r="3.5" fill="${sk}"/><circle cx="50" cy="56" r="20" fill="${sk}"/>`;
+  if(has('earring')) head+=`<circle cx="30" cy="63" r="1.6" fill="#e2b33a"/><circle cx="70" cy="63" r="1.6" fill="#e2b33a"/>`;
+  // ---- 髪
+  const H={
+    slick:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q67 41 50 40 Q33 41 30 52 Z" fill="${hc}"/><path d="M38 36 Q50 39 62 36 M36 40 Q50 42 64 40" stroke="#ffffff33" stroke-width="1" fill="none"/>`,
+    short:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q66 42 58 42 Q50 38 42 42 Q34 42 30 52 Z" fill="${hc}"/>`,
+    side:`<path d="M30 54 Q29 33 50 32 Q71 33 70 52 Q60 44 46 44 Q36 46 30 54 Z" fill="${hc}"/><path d="M46 33 Q42 38 46 44" stroke="#0004" stroke-width="1" fill="none"/>`,
+    long:`<path d="M29 56 Q28 33 50 32 Q72 33 71 56 Q66 42 54 40 Q46 46 34 46 Q30 50 29 56 Z" fill="${hc}"/>`,
+    bob:`<path d="M29 58 Q28 33 50 32 Q72 33 71 58 Q68 46 62 44 L38 44 Q32 46 29 58 Z" fill="${hc}"/><path d="M36 44 L64 44 L64 47 L36 47 Z" fill="${hc}"/>`,
+    pony:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q66 41 50 41 Q34 41 30 52 Z" fill="${hc}"/>`,
+    bun:`<circle cx="50" cy="30" r="7" fill="${hc}"/><path d="M30 54 Q30 33 50 33 Q70 33 70 54 Q66 42 50 42 Q34 42 30 54 Z" fill="${hc}"/>`,
+    bald:`<path d="M30 58 Q30 50 32 48 L33 60 Z" fill="${hc}"/><path d="M70 58 Q70 50 68 48 L67 60 Z" fill="${hc}"/><path d="M42 38 Q50 35 56 37" stroke="#ffffff55" stroke-width="2" fill="none"/>`,
+    buzz:`<path d="M30 52 Q30 34 50 33 Q70 34 70 52 Q66 44 50 43 Q34 44 30 52 Z" fill="${hc}" opacity=".75"/>`,
+    mash:`<path d="M29 56 Q28 32 50 31 Q72 32 71 56 Q70 50 66 50 L34 50 Q30 50 29 56 Z" fill="${hc}"/>`,
+    messy:`<path d="M30 54 L28 44 L34 46 L33 36 L40 40 L42 31 L48 37 L52 29 L56 37 L62 31 L63 40 L70 37 L67 46 L72 45 L70 54 Q60 44 50 44 Q40 44 30 54 Z" fill="${hc}"/>`,
+    capback:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 50 Q22 50 18 46 L20 42 Q26 46 31 45 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 52 L70 52" stroke="#0004" stroke-width="1.5"/>`,
+  };
+  hair+=H[L.hair]||'';
+  if(has('hairband')) hair+=`<path d="M30 49 Q50 36 70 49" fill="none" stroke="#f5c542" stroke-width="3"/>`;
+  if(has('hachimaki')) hair+=`<path d="M29 48 Q50 42 71 48 L71 52 Q50 46 29 52 Z" fill="#ffffff"/><path d="M70 49 L78 44 M70 50 L79 52" stroke="#fff" stroke-width="2"/>`;
+  if(has('headset')) hair+=`<path d="M29 56 Q29 30 50 30 Q71 30 71 56" fill="none" stroke="#222" stroke-width="2.4"/><rect x="26" y="53" width="6" height="10" rx="2" fill="#222"/><path d="M29 62 Q32 70 42 69" fill="none" stroke="#222" stroke-width="1.6"/><circle cx="43" cy="69" r="1.8" fill="#222"/>`;
+  if(has('sunglassup')) hair+=`<rect x="36" y="40" width="12" height="5" rx="2" fill="#111"/><rect x="52" y="40" width="12" height="5" rx="2" fill="#111"/><path d="M48 42 L52 42" stroke="#111" stroke-width="1.5"/>`;
+  // ---- 顔
+  const eyes={calm:`<path d="M39 59 Q43 56 47 59 M53 59 Q57 56 61 59" stroke="#222" stroke-width="1.8" fill="none"/>`,
+    closed:`<path d="M39 59 Q43 62 47 59 M53 59 Q57 62 61 59" stroke="#222" stroke-width="1.8" fill="none"/>`,
+    smile:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/>`,
+    grin:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/>`,
+    smirk:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/><path d="M39 54 L46 55 M54 55 L61 53" stroke="#222" stroke-width="1.4"/>`,
+    shout:`<path d="M39 55 L47 58 M53 58 L61 55" stroke="#222" stroke-width="1.8"/><circle cx="43" cy="60" r="2" fill="#222"/><circle cx="57" cy="60" r="2" fill="#222"/>`}[L.face]||'';
+  const mouth={calm:`<path d="M45 68 Q50 70 55 68" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    closed:`<path d="M46 68 Q50 70 54 68" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    smile:`<path d="M44 66 Q50 71 56 66" stroke="#a0522d" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    grin:`<path d="M43 65 Q50 74 57 65 Z" fill="#7a2a1a"/><path d="M44 65.5 L56 65.5" stroke="#fff" stroke-width="1.6"/>`,
+    smirk:`<path d="M45 68 Q52 69 56 65" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    shout:`<ellipse cx="50" cy="68" rx="5" ry="4" fill="#7a2a1a"/>`}[L.face]||'';
+  face+=eyes+mouth;
+  if(has('glass')) face+=`<rect x="36.5" y="54.5" width="12" height="9" rx="2" fill="#ffffff22" stroke="#222" stroke-width="1.6"/><rect x="51.5" y="54.5" width="12" height="9" rx="2" fill="#ffffff22" stroke="#222" stroke-width="1.6"/><path d="M48.5 58 L51.5 58" stroke="#222" stroke-width="1.4"/>`;
+  if(has('roundglass')) face+=`<circle cx="43" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><circle cx="57" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><path d="M48 58 L52 58" stroke="#7a5a2a" stroke-width="1.3"/>`;
+  if(has('sunglass')) face+=`<rect x="35" y="54" width="13" height="8" rx="3" fill="#111"/><rect x="52" y="54" width="13" height="8" rx="3" fill="#111"/><path d="M48 57 L52 57" stroke="#111" stroke-width="2"/>`;
+  if(has('mustache')) face+=`<path d="M42 65 Q46 62 50 64 Q54 62 58 65 Q54 66 50 65 Q46 66 42 65 Z" fill="${L.hair==='bald'?'#666':hc}"/>`;
+  if(has('beard')) face+=`<path d="M34 62 Q36 80 50 82 Q64 80 66 62 Q62 72 50 73 Q38 72 34 62 Z" fill="${hc}"/><path d="M44 66 Q50 69 56 66" stroke="#7a3b22" stroke-width="1.6" fill="none"/>`;
+  // ---- 首まわり・胸の小物
+  if(has('whistle')) front+=`<path d="M44 84 L50 100 L56 84" fill="none" stroke="#e74c3c" stroke-width="1.2"/><rect x="47" y="99" width="7" height="4" rx="2" fill="#bdc3c7"/>`;
+  if(has('stopwatch')) front+=`<path d="M44 84 L48 100 M56 84 L52 100" stroke="#333" stroke-width="1"/><circle cx="50" cy="104" r="5" fill="#eee" stroke="#333" stroke-width="1.4"/><path d="M50 104 L50 101" stroke="#c0392b" stroke-width="1.2"/>`;
+  if(has('towel')) front+=`<path d="M40 82 Q50 90 60 82 L62 86 L58 104 L54 104 L56 88 Q50 92 44 88 L46 104 L42 104 L38 86 Z" fill="#f4f4f4"/>`;
+  if(has('beads')) front+=`${Array.from({length:9},(_,k)=>{ const a=Math.PI*(0.1+k*0.1); return `<circle cx="${(50-14*Math.cos(a)).toFixed(1)}" cy="${(86+12*Math.sin(a)).toFixed(1)}" r="1.8" fill="#6b3a1e"/>`; }).join('')}`;
+  if(has('nametag')) front+=`<rect x="56" y="96" width="12" height="6" rx="1" fill="#fff" stroke="#0003"/><path d="M58 99 L66 99" stroke="#2a7ab8" stroke-width="1.2"/>`;
+  if(has('clip')) front+=`<rect x="57" y="96" width="9" height="6" rx="1" fill="#eaeaea"/>`;
+  // ---- 手に持つ物
+  const [hx,hy]=rh;
+  if(has('pendulum')) held+=`<path d="M${hx} ${hy+2} L${hx-1} ${hy+18}" stroke="#d9c27a" stroke-width=".8"/><circle cx="${hx-1}" cy="${hy+21}" r="3.6" fill="#d4a52a" stroke="#9a7a1a"/><circle cx="${hx-1}" cy="${hy+21}" r="1.1" fill="${top}"/>`;
+  if(has('cards')) held+=`<g transform="translate(${hx-6} ${hy-14})"><rect x="0" y="2" width="8" height="11" rx="1" fill="#fff" stroke="#999" transform="rotate(-15 4 12)"/><rect x="3" y="0" width="8" height="11" rx="1" fill="#fff" stroke="#999"/><rect x="6" y="2" width="8" height="11" rx="1" fill="#fff" stroke="#999" transform="rotate(15 10 12)"/><text x="7" y="9" font-size="6" fill="#c0392b" text-anchor="middle">♥</text></g>`;
+  if(has('notebook')) held+=`<rect x="${hx-8}" y="${hy-12}" width="12" height="15" rx="1" fill="#8e6bbf" stroke="#5b3f86"/>`;
+  if(has('tablet')) held+=`<rect x="${hx-9}" y="${hy-16}" width="15" height="21" rx="2" fill="#222"/><rect x="${hx-7.5}" y="${hy-14}" width="12" height="16" fill="#4ea1ff"/><path d="M${hx-6} ${hy-2} L${hx-3} ${hy-6} L${hx} ${hy-4} L${hx+3} ${hy-10}" stroke="#fff" stroke-width="1" fill="none"/>`;
+  if(has('phone')) held+=`<rect x="${hx-4}" y="${hy-14}" width="7" height="12" rx="1.5" fill="#222"/><rect x="${hx-3}" y="${hy-12.5}" width="5" height="8.5" fill="#7fe0a2"/>`;
+  if(has('key')) held+=`<circle cx="${hx}" cy="${hy-10}" r="3.2" fill="none" stroke="#e2b33a" stroke-width="1.8"/><path d="M${hx} ${hy-7} L${hx} ${hy+2} M${hx} ${hy-1} L${hx+3} ${hy-1} M${hx} ${hy+1.5} L${hx+2.4} ${hy+1.5}" stroke="#e2b33a" stroke-width="1.6"/>`;
+  if(has('contract')) held+=`<rect x="${hx-10}" y="${hy-14}" width="12" height="16" fill="#fff" stroke="#bbb"/><path d="M${hx-8} ${hy-10} L${hx-1} ${hy-10} M${hx-8} ${hy-7} L${hx} ${hy-7} M${hx-8} ${hy-4} L${hx-2} ${hy-4}" stroke="#999" stroke-width=".8"/><path d="M${hx-3} ${hy-1} L${hx+6} ${hy-12}" stroke="#d4a52a" stroke-width="1.6"/>`;
+  if(has('papers')) held+=`<rect x="${hx-10}" y="${hy-14}" width="13" height="16" fill="#fff" stroke="#bbb" transform="rotate(-8 ${hx} ${hy})"/><path d="M${hx-8} ${hy-6} L${hx-5} ${hy-9} L${hx-2} ${hy-7} L${hx+1} ${hy-11}" stroke="#2a7ab8" stroke-width="1" fill="none"/>`;
+  if(has('calc')) held+=`<rect x="${hx-8}" y="${hy-14}" width="11" height="15" rx="1.5" fill="#333"/><rect x="${hx-6.5}" y="${hy-12.5}" width="8" height="3.5" fill="#bfe6a8"/>${[0,1,2].map(r=>[0,1,2].map(c=>`<rect x="${hx-6.5+c*2.8}" y="${hy-7.5+r*2.6}" width="2" height="1.8" fill="#aaa"/>`).join('')).join('')}`;
+  if(has('plan')||has('file')) held+=`<rect x="${hx-11}" y="${hy-15}" width="15" height="17" fill="${has('file')?'#2a7ab8':'#fff'}" stroke="#999"/>${has('plan')?`<path d="M${hx-9} ${hy-13} L${hx+2} ${hy-13} L${hx+2} ${hy} L${hx-9} ${hy} Z M${hx-9} ${hy-7} L${hx-3} ${hy-7} L${hx-3} ${hy}" fill="none" stroke="#2a7ab8" stroke-width=".9"/>`:`<rect x="${hx-9}" y="${hy-12}" width="11" height="3" fill="#fff"/>`}`;
+  if(has('briefcase')) held+=`<rect x="76" y="114" width="20" height="14" rx="2" fill="#3b2412"/><path d="M82 114 L82 111 L90 111 L90 114" fill="none" stroke="#3b2412" stroke-width="1.8"/><path d="M76 120 L96 120" stroke="#e2b33a" stroke-width="1"/>`;
+  if(has('dumbbell')) held+=`<path d="M${hx-9} ${hy} L${hx+9} ${hy}" stroke="#555" stroke-width="2.4"/><rect x="${hx-12}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/><rect x="${hx+8}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/>`;
+  if(has('yogamat')) held=`<rect x="6" y="96" width="9" height="30" rx="4.5" fill="#9b59b6"/><ellipse cx="10.5" cy="96" rx="4.5" ry="2" fill="#b07cc6"/>`+held;
+  if(has('laptop')) held+=`<path d="M34 114 L66 114 L70 122 L30 122 Z" fill="#9aa3ad"/><rect x="36" y="98" width="28" height="16" rx="1.5" fill="#2b2f36"/><rect x="38" y="100" width="24" height="12" fill="#4ea1ff"/><path d="M40 110 L45 105 L50 108 L56 102 L60 104" stroke="#fff" stroke-width="1" fill="none"/>`;
+  if(has('clipboard')) held+=`<rect x="38" y="98" width="24" height="28" rx="2" fill="#8a5a2b"/><rect x="41" y="102" width="18" height="22" fill="#fff"/><rect x="45" y="96" width="10" height="4" rx="1" fill="#bbb"/><path d="M43 107 L57 107 M43 111 L57 111 M43 115 L53 115" stroke="#999" stroke-width="1"/>`;
+  if(has('bigtab')) held+=`<rect x="33" y="92" width="34" height="34" rx="3" fill="#1d1f24"/><rect x="36" y="95" width="28" height="27" fill="#4ea1ff"/><path d="M38 118 L44 110 L50 113 L56 104 L62 100" stroke="#fff" stroke-width="1.4" fill="none"/><rect x="39" y="98" width="10" height="3" fill="#ffffffaa"/><circle cx="50" cy="124" r="1" fill="#666"/>`;
+  if(has('house')) held+=`<path d="M38 112 L50 100 L62 112 L62 126 L38 126 Z" fill="#f4e3c1" stroke="#8a5a2b" stroke-width="1"/><path d="M35 113 L50 98 L65 113" fill="none" stroke="#c0392b" stroke-width="3" stroke-linejoin="round"/><rect x="47" y="116" width="6" height="10" fill="#8a5a2b"/><rect x="40" y="114" width="5" height="5" fill="#9ec3e6"/><rect x="55" y="114" width="5" height="5" fill="#9ec3e6"/>`;
+  const handsTop=both||raise;   // 物を持っている手は物の上に描く
+  return `<svg viewBox="0 0 100 130" width="92" height="120" aria-hidden="true">
+  <ellipse cx="50" cy="126" rx="30" ry="4" fill="#0006"/>${back}${body}${front}${arms}${handsTop?held+hands:hands+held}${head}${hair}${face}</svg>`;
+}
