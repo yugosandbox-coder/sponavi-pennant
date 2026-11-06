@@ -409,6 +409,25 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .msay .mimg svg{width:68px;height:88px;display:block}
 .msay.sm .mimg svg{width:54px;height:70px}
 .msay .bub{animation:none;margin:0 0 26px 8px;max-width:none;flex:1}
+.msay.me{flex-direction:row-reverse}.msay.me .bub{margin:0 8px 26px 0}.msay.me .bub::after{left:auto;right:-10px;border:10px solid transparent;border-left-color:#fff;border-right:0}
+.cbl{margin-top:6px}.cbtier{font-size:11.5px;color:var(--accent);font-weight:900;margin:10px 0 3px}
+.cbrow{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;margin:4px 0}
+.cbrow.on{border-color:var(--accent);background:#2a2410}.cbrow.dis,.cbrow.lock{opacity:.45}
+.cbchk{flex:0 0 28px;height:28px;border-radius:7px;border:2px solid var(--accent);background:transparent;color:var(--accent);font-weight:900;font-size:15px;padding:0;line-height:1;font-family:inherit}
+.cbrow.on .cbchk{background:var(--accent);color:#111}.cbrow.lock .cbchk{border-color:var(--line);font-size:12px}.cbchk:disabled{border-color:var(--line)}
+.cbt{flex:1;text-align:left;background:none;border:0;color:var(--ink);font-family:inherit;font-size:13px;font-weight:700;padding:3px 0;line-height:1.35}
+.cbt small{display:block;font-weight:400;color:var(--mute);font-size:10.5px}
+.cbp{font-size:12.5px;font-weight:900;white-space:nowrap}.cbp.ng{color:#f0a0a0}
+.cbd{font-size:12px;line-height:1.55;background:#14231b;border:1px dashed var(--line);border-radius:8px;padding:6px 9px;margin:-2px 0 6px 34px;color:var(--ink)}
+.offm{font-size:14px}.offdays{display:flex;gap:5px;margin:4px 0 8px}.offdays span{flex:1;text-align:center;font-size:11.5px;padding:5px 2px;border-radius:8px;background:var(--panel);border:1px solid var(--line);line-height:1.3}
+.offdays span.on{border-color:var(--accent);color:var(--accent);font-weight:900}.offdays span.done{opacity:.55}.offdays small{font-size:9.5px;color:var(--mute);font-weight:400}
+.cbch{margin:4px 0 8px}.cbch .btn.sm{margin:2px 3px 2px 0;padding:5px 8px;width:auto;font-size:12px}.cbch .btn.on{border-color:var(--accent);background:#2a2410}
+.cbeff{font-size:13px;line-height:1.55}
+.jtl{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto}
+.jtc{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 8px;color:var(--ink);font-family:inherit;font-size:12.5px;line-height:1.45}
+.jtc.on{border-color:var(--accent);background:#2a2410}.jts{font-style:normal;font-size:9.5px;background:#1f3c7a;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px}
+.cbbuf{font-size:12px;line-height:1.5;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 8px;margin:0 0 6px}.cbbuf>div{margin:2px 0}
+.salx summary{list-style:none}.salx summary::-webkit-details-marker{display:none}
 .msay .mimg{position:relative}.msay .mlab{font-size:10px;color:var(--mute);text-align:center;margin-top:-2px;white-space:nowrap;line-height:1.5}
 .mcard{display:flex;gap:8px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;margin:6px 0}
 .mcard .mimg svg{width:60px;height:78px;display:block}
@@ -590,7 +609,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div id="bposWrap"><div class="sh">守備位置</div>
     <div class="seg3" id="bposcards"></div>
     <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで増やせます（数の上限なし。増えるほど覚えるコストが上がる）</div></div>
-    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="bReroll"></div>
+    <div class="sh">能力　持ち点 <span id="bBudget"></span><span id="bRange"></span></div><div id="bReroll"></div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
     <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
@@ -607,14 +626,14 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   </div>
   <!-- ペナント：持ち点で能力を決める -->
   <div id="abilSec" style="display:none">
-    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="abReroll"></div>
+    <div class="sh">能力　持ち点 <span id="abBudget"></span><span id="abRange"></span></div><div id="abReroll"></div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
     <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>
     <div class="abrow"><span class="abn">コントロール</span><input type="range" id="abCtl" min="0" max="100" step="0.1"><b id="abCtlV"></b></div>
     <div class="abhint">0〜100。1ごとに1ポイント（低いと狙ったマスからずれやすい）</div>
     <div class="abrow"><span class="abn">スタミナ</span><input type="range" id="abSta" min="0" max="100" step="0.1"><b id="abStaV"></b></div>
-    <div class="abhint">0〜100。1ごとに1ポイント（低いと早く疲れ、球数で交代される）</div>
+    <div class="abhint">0〜100。1ごとに0.5ポイント（低いと早く疲れ、球数で交代される）</div>
     <div class="sh">変化球（ストレート以外に0〜2つ）</div>
     <div class="abhint">少し曲がる（Lv.1）＝1ポイント／普通（Lv.2）＝2ポイント／決め球（Lv.3）＝5ポイント。プロ入り後はキャンプなどでLv.7まで上がります</div>
     <div id="abBreak"></div>
@@ -814,6 +833,7 @@ function staNew(S){ S=clamp(S??50,1,100); const m=Math.max(3,r1(S-ri(0,15))); re
 const staF=st=>st?clamp((0.5-st.cur/st.max)/0.5,0,1.5):0;   // 0＝半分以上残っている、1＝空っぽ、1.5＝使い切ったあと
 function mySta(){ if(!G||!G.abil) return null; if(!G.sta){ G.sta=staNew(G.abil.stamina); if(G.st&&G.st.pitches) G.sta.cur=r1(G.sta.cur-G.st.pitches*G.sta.S/(G.sta.S+staN(G.sta.S))); } return G.sta; }
 const myStaF=()=>staF(mySta());
+const myStaFx=()=>myStaF()*(typeof cbStaMul==='function'?cbStaMul():1);   // コーチの効果（粘り勝つ・体力トレーニング）で疲れの影響を緩和
 // スタミナの残量バー（半分を切ると黄、2割を切ると赤）
 function staBarHTML(st){ if(!st) return ''; const r=clamp(st.cur/st.max,0,1), col=r<0.2?'#ff5a52':r<0.5?'#f5c542':'#3fb96b';
   return `<div class="stab"><span>スタミナ</span><i><b style="width:${(r*100).toFixed(0)}%;background:${col}"></b></i><small>${Math.max(0,Math.round(st.cur))}/${Math.round(st.max)}</small></div>`; }
@@ -1114,7 +1134,7 @@ function locFamShare(r,c,hand){
 function decideLoc(r,c){
   const r0=r,c0=c; let note='';
   const ctl=G.abil?G.abil.control:null;
-  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+myStaF()*0.15+(inPinch(G.bases)?PINCH.ctl:0),0.03,0.6) : ($('optCtrl').checked?0.22:0);   // 疲れると制球が乱れる
+  const pMiss = ctl!=null ? clamp(0.45-ctl*0.0042+myStaFx()*0.15+((typeof pinchMe==='function'?pinchMe(G.bases):inPinch(G.bases))?PINCH.ctl:0),0.03,0.6) : ($('optCtrl').checked?0.22:0);   // 疲れると制球が乱れる
   if(rnd()<pMiss){
     const far = ctl!=null && ctl<30 && rnd()<0.3;   // コントロールが悪いと2マスずれることも
     const dr=pick([-1,0,1])*(far?2:1), dc=pick([-1,0,1])*(far?2:1);
@@ -1136,7 +1156,7 @@ const BREAK={
   'カーブ':[-1,1],'ドロップカーブ':[-1,2],'スローカーブ':[-2,2],'パワーカーブ':[-1,1],'フォーク':[0,2],'SFF':[0,1],
 };
 // 球種名をタップすると説明が出る（render.js の ptipShow）
-const ptn=(t,label)=>PDESC[t]?`<span class="ptn" data-pt="${t}">${label??t}</span>`:(label??t);
+const ptn=(t,label)=>{ const sp=typeof cbSpark==='function'&&cbSpark()===t?'✨':''; return PDESC[t]?`<span class="ptn" data-pt="${t}">${sp}${label??t}</span>`:sp+(label??t); };
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
 // ピンチ（ランナーが2塁か3塁）：投手の制球と球威がごくわずかに悪化
@@ -1203,7 +1223,7 @@ function simulatePitch(r,c,pt,note){
   fam=Math.min(fam,0.2);
   // 球種の読み
   // 相手ベンチの分析（前のイニングまでの配球）
-  const rd=scoutRead(b.hand,sitOf(ab));
+  const rd=(typeof cbG==='function'&&cbG('data')&&rnd()<0.4)?null:scoutRead(b.hand,sitOf(ab));   // データ解析：相手ベンチの分析が外れることがある
   const readCell=!!(rd&&rd.cells.has(key));
   // 打席の中での読み：多いコースを張る／来ていないコースを読む
   const abCells=abReadCells(b,ab);
@@ -1263,14 +1283,14 @@ function simulatePitch(r,c,pt,note){
     if(ab.balls===3) swingP-=0.05;
     swingP*= (1+zoneHeavy*0.6)*(1-ballHeavy*1.2);   // ストライクばかりだと振ってくる／ボールばかりだと見極められる
     if(lureBall) swingP+=0.08;
-    swingP*=1-0.3*Math.min(1,myStaF());   // 疲れた球は見切られやすい
+    swingP*=1-0.3*Math.min(1,myStaFx());   // 疲れた球は見切られやすい
     swingP*=1-0.25*gKeikP();                // 警戒：研究されていてボール球を振ってくれない
     if(sp>0&&r<=1) swingP+=0.04*sp;             // 速い高めの釣り球
   }
   if(fooled&&!protect) swingP=Math.max(swingP,0.8);   // 狙っていたマスに来たように見えて振ってしまう
   swingP=clamp(swingP,0.02,0.97);
   const swing=rnd()<swingP;
-  const fT=myStaF(), slowest=Math.min(...REP.map(t=>myVelo()+VOFF[t]));
+  const fT=myStaFx(), slowest=Math.min(...REP.map(t=>myVelo()+VOFF[t]));
   const speed=jitterSpd(tiredSpd(myVelo()+VOFF[pt],myVelo(),slowest,fT));   // 球速（km/h・小数第1位まで）。疲れると全球種の球速が近づく
   const base={r,c,sr,sc,pt,inZone,note,guess,gMatch,readCell,abRead,speed,fooled,sb:fx.sb,bs:fx.bs};
 
@@ -1295,6 +1315,8 @@ function simulatePitch(r,c,pt,note){
   const L=lev(pt);
   if(L==='少'){ ct+=0.07; if(gMatch===0) ct+=0.1; }
   if(L==='決'){ ct-=0.1+0.04*lx; if(ab.strikes===2) ct-=0.05; }
+  const spk=G.pen&&typeof cbSpark==='function'&&cbSpark()===pt&&!G.pen.tryout;   // モーショントラッキングで磨いた✨の球
+  if(spk) ct-=0.05;
   const vf=clamp((myVelo()-128)/18,0.25,1);   // 球速が遅いと、伸び（Lv）があっても効きにくい
   if(pt==='ストレート') ct-=0.03*stLv()*(stLv()>0?vf:1);   // 球威：Lvが高いほど当てにくい
   // 粘り・対応：追い込まれたら当てにいく。球数を見るほど目が慣れる
@@ -1322,7 +1344,7 @@ function simulatePitch(r,c,pt,note){
   ct+=0.0;    // （全体の当てやすさの調整値）
   ct+=0.04*gKeikP();   // 警戒：研究されていて当てられやすい
   // 自分の能力：球速が速いほど当てにくい／スタミナ切れで当てられやすい
-  if(G.abil){ ct-=(G.abil.velo-PVELO)*0.0025; ct+=myStaF()*0.10;   // 球速：速いほど当てにくい
+  if(G.abil){ ct-=(G.abil.velo-PVELO)*0.0025; ct+=myStaFx()*0.10;   // 球速：速いほど当てにくい
     if(G.abil.velo<PVELO&&(pt==='ストレート'||pt==='ツーシーム'||pt==='カットボール')) ct+=(PVELO-G.abil.velo)*0.004*(pt==='ストレート'?1:0.5); }   // 遅い直球系は当てられやすい
   if(G.lastMiss&&inZone) ct+=0.05;   // 失投は当てられやすい   // 疲れると球の質が落ちて当てられやすい
   ct-=0.06*sp;                                  // 速いストレートは空振りが取れる／遅いと当てられる
@@ -1347,6 +1369,8 @@ function simulatePitch(r,c,pt,note){
   if(strictTarget||readCell||abRead) q+=PIT_ADJ.qT+b.contact/100*0.24; else if(protect&&inZone) q-=PIT_ADJ.qP; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
   if(L==='少'){ q+=0.085; if(gMatch===0) q+=0.11; }
   if(L==='決'){ q-=0.11+0.04*lx; }
+  if(spk) q-=0.06;
+  if(typeof cbG==='function'&&cbG('nebari')&&G.inning>=5&&myTot()>oppTot()) q-=0.04;   // 粘り勝つメンタル：勝っている5回以降は球威が増す
   if(pt==='ストレート') q-=0.0375*stLv()*(stLv()>0?vf:1);   // 伸び：Lvが高いほど打球が弱い（球速が遅いと効きにくい）
   q+=Math.min(0.1,ab.pitches.length*0.02);   // 粘って球を見るほど捉えやすくなる
   if(readCell&&inZone&&strictTarget) q+=0.08;
@@ -1357,7 +1381,7 @@ function simulatePitch(r,c,pt,note){
   if(!inZone) q-=0.38;
   q+=PT_Q[pt]||0;
   if(low) q-=PT_LOWQ[pt]||0;
-  q+=fx.q+PIT_ADJ.q+(inPinch(G.bases)?PINCH.q:0)+0.06*gKeikP();   // ピンチでは球威がわずかに落ちる／警戒されていると捉えられやすい
+  q+=fx.q+PIT_ADJ.q+((typeof pinchMe==='function'?pinchMe(G.bases):inPinch(G.bases))?PINCH.q:0)+0.06*gKeikP();   // ピンチでは球威がわずかに落ちる／警戒されていると捉えられやすい
   if(fooled) q-=PFX_K.fool;
   if(pt==='スローカーブ'&&(gMatch===2||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
   q+=[-0.12,0,0.16][gMatch];   // 読みが当たると強い打球
@@ -1368,7 +1392,7 @@ function simulatePitch(r,c,pt,note){
   if(pt==='カットボール'&&!away&&dIn<=2) q-=0.06;   // 打者の手元に食い込むカットで芯を外す
   q+=fam*0.8;
   q+=locShare*0.08;
-  if(G.abil){ q-=(G.abil.velo-PVELO)*0.0025; q+=myStaF()*0.12;
+  if(G.abil){ q-=(G.abil.velo-PVELO)*0.0025; q+=myStaFx()*0.12;
     if(G.abil.velo<PVELO&&(pt==='ストレート'||pt==='ツーシーム'||pt==='カットボール')) q+=(PVELO-G.abil.velo)*0.006*(pt==='ストレート'?1:0.5); }   // 遅い直球系は伸びがあっても打たれやすい
   if(G.lastMiss&&inZone) q+=0.12;   // 失投（狙いからずれて入った球）はヒット性になりやすい   // 疲れると球威が落ちてヒット性になりやすい
   q-=0.07*sp;
@@ -1831,7 +1855,7 @@ function runRest(){
    残りの自分の登板を今の成績に応じて自動で決め、そのあとは観戦（runRest）へ */
 function myQ(){
   // 1より小さいほど打たれにくい。ペナントは評価から、通常モードは通算防御率から
-  if(typeof PEN!=='undefined'&&PEN&&G.pen&&typeof effERA==='function') return clamp((typeof skipERA==='function'?skipERA():effERA())/3.9,0.6,1.7);
+  if(typeof PEN!=='undefined'&&PEN&&G.pen&&typeof effERA==='function') return clamp((typeof skipERA==='function'?skipERA(G.pen.opp):effERA())/3.9,0.6,1.7);
   if(C.outs>=30) return clamp((C.runs*27/C.outs)/3.9*0.5+0.5,0.75,1.3);
   return 1;
 }
@@ -1851,7 +1875,7 @@ function skipMyOuting(){
   while(true){
     if(G.outs<3){
       const i=G.inning-1, base=G.score.opp[i]||0, hb=G.st.hits+G.hitsOpp, o0=G.outs;
-      const r=simHalf(T,G.outs,G.bases,q*(1+myStaF()*0.12),null);   // 疲れていると打たれやすい
+      const r=simHalf(T,G.outs,G.bases,q*(1+myStaFx()*0.12),null);   // 疲れていると打たれやすい
       // 自分の成績に加える
       const cnt=f=>r.pas.filter(f).length;
       const add={outs:3-o0,runs:r.runs,hits:r.hits,hr:cnt(x=>/本塁打/.test(x.label)),bb:cnt(x=>x.label==='四球'),k:cnt(x=>/三振/.test(x.label)),bf:r.pas.length};
@@ -2137,13 +2161,15 @@ function recordMyGame(res,score,me,simmed){
    全能力−10（投手は球速・コントロール・スタミナ−10、変化球とストレートの伸びのLvも−1）。自分が出場した5試合で終わるが、
    その5試合の成績が悪すぎると（野手：打率.150未満／投手：防御率6.00以上）5試合延長（最大10試合）。終わると能力は元に戻る */
 const SLUMP_P=0.01;
+// 36歳以上（35歳を超えた選手）はシーズン後半（72試合目から）にスランプがとても起きやすい：36歳6%・1歳ごとに+1%（最大12%）
+const slumpP=()=>{ const age=PEN.age||22, p=age>35&&PEN.day>=Math.ceil(SEASON_GAMES/2)?Math.min(0.12,0.06+0.01*(age-36)):SLUMP_P; return typeof cbOn==='function'&&cbOn('antei')?p/5:p; };   // 安定した戦い方：1/5
 const slumpSnap=()=>{ const s=PEN.ss||{}, b=isBat()?PEN.ss:isTW()?(PEN.bss||{}):null; return {outs:isBat()?0:(s.outs||0),runs:isBat()?0:(s.runs||0),ab:b?(b.ab||0):0,h:b?(b.h||0):0}; };
 function slumpAfterGame(me){
   if(!PEN||PEN.day>=SEASON_GAMES) return;
   const pit=!isBat()&&me.outs!=null&&me.runs!=null, bat=!!(me.bat&&me.bat.pa>0), tw=!!(me.tb&&me.tb.ab>0);
   if(PEN.slump){ if(pit||bat||tw){ const S=PEN.slump; S.n++; if(S.n>=S.len) slumpCheckEnd(); } return; }
   const trig=(pit&&me.runs>0)||(bat&&me.bat.ab>0&&me.bat.h===0)||(tw&&me.tb.h===0);
-  if(trig&&rnd()<SLUMP_P) slumpStart(pit?'失点した登板':'無安打の試合');
+  if(trig&&rnd()<slumpP()) slumpStart((pit?'失点した登板':'無安打の試合')+(slumpP()>SLUMP_P*(typeof cbOn==='function'&&cbOn('antei')?0.2:1)+1e-9?'（35歳を超え、後半戦で疲れが出てきた）':''));
 }
 function slumpStart(why){
   const d={abil:{},babil:{},lv:{}};
@@ -2223,6 +2249,7 @@ function newPennant(startRole,abil,rep,plev,teamId,pos,babil,bhand){
   rebuildAll(); if(typeof oddPlan==='function') oddPlan(); if(W) twCompete(true);
   if(!B){ initPcat(startRole); pitRerank(true); penNotice(`1年目のシーズン開幕！ ${TEAM[team].short}の${W?'二刀流・':''}${roleName(PEN.role)}としてスタート（年俸500万円・${PEN.abil.velo}km/h・制球${PEN.abil.control}・スタミナ${PEN.abil.stamina}）`); }
   if(B){ penCompete(true); penNotice(`1年目のシーズン開幕！ ${TEAM[team].short}の${PEN.role==='スタメン'?`${POS_JP[PEN.slot]}・${PEN.order}番`:'控え（代打）'}としてスタート（年俸500万円・${babilTxt(PEN.babil)}）`); }
+  PEN.money=2500000; penNotice(`💴 1年目の年俸500万円を受け取った（寮費として半分の250万円を引かれ、250万円）。所持金 250万円`);
   penNotice(`ドラフト${dr.pick}位で${TEAM[team].name}に入団（${B?'野手':W?'二刀流':'投手'}・18歳）`);
   penSetAbil0();   // 入団時の能力（伸びの表示用）
 }
@@ -2320,7 +2347,7 @@ const eraOfR=R=>clamp(5.15-(R-55)*0.1,1.5,8);          // 投手の力 → 防�
 const k9OfR=R=>clamp(8.1+(R-72.5)*0.1,3,13);          // 投手の力 → 奪三振率（CPUの平均8.1）
 const effERA=()=>clamp((100-evalR())/12,1.5,9)*0.45+3.8*0.55;
 // スキップした登板の防御率は能力で決める（能力55点で約5.3、75点で約3.3、85点で約2.3）
-const skipERA=()=>clamp(eraOfR(abilityR())+1.0*keikai(false),1.6,8);   // 警戒されていると最大で+1.0
+const skipERA=opp=>{ opp=opp??(PEN&&PEN.pending&&PEN.pending.opp); return clamp(eraOfR(abilityR())+1.0*keikai(false)-(typeof cbEraAdj==='function'?cbEraAdj(opp):0),1.6,8); };   // 警戒されていると最大で+1.0／コーチの効果で少し良くなる
 /* ---- 警戒：前年いい成績を残すと、今年は相手に研究されて難しくなる（0〜1） ----
    投手：防御率3.20で0 → 1.50で最大（30回以上。60回未満は割り引き）／野手：OPS .780で0 → 1.030で最大（150打席以上。400打席未満は割り引き）
    前年のタイトル1つにつき+0.1 */
@@ -2334,6 +2361,7 @@ function keikai(bat){
   if(bat){ if(!s.pa||s.pa<150) return 0; v=clamp((bObp(s)+bSlg(s)-0.78)/0.25,0,1)*Math.min(1,s.pa/400); }
   else { if(!s.outs||s.outs<90) return 0; v=clamp((3.2-s.runs*27/s.outs)/1.7,0,1)*Math.min(1,s.outs/180); }
   v=clamp(v+((L.titles||[]).length)*0.1,0,1);
+  if(typeof cbOn==='function'&&cbOn('data')) v*=0.5;   // データ解析：研究されにくい
   return Math.round(v*100)/100;
 }
 const keikLabel=v=>v<0.05?'なし':v<0.35?'小':v<0.7?'中':'大';
@@ -2575,7 +2603,7 @@ function penPlay(){
   newGame(true,{OPP:{pattern:op.pattern,hand:op.hand}, lineup,
     myTeam:{name:LINEUPS[me.pattern].name,hand:HANDS[me.hand].name,lineup:myL,order:-1},
     names:{my:{name:TEAM[PEN.team].short,s:TEAM[PEN.team].s,id:PEN.team},opp:{name:TEAM[p.opp].short,s:TEAM[p.opp].s,id:p.opp}},
-    pname:PEN.pname, pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})}, pre:p.pre||null, abil:p.odd?p.oddAbil:PEN.abil,
+    pname:PEN.pname, pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})}, pre:p.pre||null, abil:p.odd?p.oddAbil:(typeof cbAbil==='function'?cbAbil(PEN.abil):PEN.abil),
     ...(()=>{ const o=gamePitchers(p.opp,p.day), m=gamePitchers(PEN.team,p.day); return {oppPitcher:{...o.sp},oppPen:o.pen.map(x=>({...x})),bullpen:m.bull.map(x=>({...x}))}; })(),
     mission: p.odd?null:(rnd()<(p.ps?EV_MP:0.35) ? genMission(p.kind) : null)});   // ポストシーズンは出やすい
   if(tw){ twSetup(myL); if(typeof showTitle==='function') showTitle(); }   // 二刀流：DHなしで打席にも立つ
@@ -2637,7 +2665,7 @@ function penSkip(){
   if(p.odd){ oddSkip(p); renderPennant(); save(); return; }
   if(gameIsPending()) closePenGame();   // 途中の試合があれば閉じる（同じ試合を後から続けられないように）
   if(isBat()||(isTW()&&p.kind==='bat')){ penSkipB(); renderPennant(); save(); return; }
-  const R=evalR(), era=skipERA(), A=myT(), B=PEN.teams[p.opp]||A; let line, dec='－', res, so, sm;
+  const R=evalR(), era=skipERA(p.opp), A=myT(), B=PEN.teams[p.opp]||A; let line, dec='－', res, so, sm;
   const oRate=Math.max(2.4,3.6+B.off-A.def*0.5), mRate=Math.max(1.8,3.9+A.off-B.def);   // 味方のリリーフの失点・味方打線の得点
   if(p.kind==='start'){
     const S0=clamp(PEN.abil.stamina,1,100), cap=staNew(S0).max*(S0+staN(S0))/S0;   // その日のスタミナで投げられる球数
@@ -3072,16 +3100,17 @@ function postSeason(fin){
 /* ---- FA制度：7年目（取得後は4年ごと）の終わりに監督から聞かれる ---- */
 const faEligible=()=>!!(PEN&&PEN.year-(PEN.faY||0)>=(PEN.faY?4:7));
 function faOffers(rv){
-  const y=rv.yR, base=Math.max(10000000,rv.newSal), round=v=>Math.max(10000000,Math.round(v/1000000)*1000000);
+  const mm=typeof cbOn==='function'&&cbOn('money'), capS=Math.min(typeof SAL_MAX!=='undefined'?SAL_MAX:3e9,Math.max(rv.cap||3e9,PEN.salary)*(mm?1.1:1));   // 上限（実績で決まる・最高15億）。マネーマネジメントで+10%
+  const y=rv.yR, base=Math.max(10000000,rv.newSal), round=v=>Math.max(10000000,Math.min(capS,Math.round(v*(mm?1.1:1)/1000000)*1000000));
   // 元の球団：年俸は元の1.5倍が最低ライン。評価が見合わないと思われると残留要請がないこともある（評価42以下で0%〜60以上で100%）
   const list=[], ownP=clamp((y-42)/18,0,1);
-  if(rnd()<ownP) list.push({team:PEN.team,salary:round(Math.max(PEN.salary*1.5,base*1.03)),years:ri(1,3),own:true});
+  if(rnd()<ownP) list.push({team:PEN.team,salary:round(Math.max(PEN.salary*1.5,base*1.03)),years:ri(1,3)+(mm&&rnd()<0.6?1:0),own:true});
   rv.ownNo=!list.length;
   const cands=[];
   for(const t of NPB){ if(t.id===PEN.team) continue; const T=PEN.teams[t.id];
     const need=isBat()?teamNeedB(T):isTW()?Math.max(teamNeedP(T),teamNeedB(T)):teamNeedP(T);
     const interest=(y-45)*1.5+need*0.8+rnd()*20; if(interest>=22) cands.push({team:t.id,interest,need}); }
-  cands.sort((a,b)=>b.interest-a.interest).slice(0,3).forEach(c=>list.push({team:c.team,salary:round(base*(1.08+c.interest/150)),years:2+(y>=60?ri(1,2):ri(0,1)),need:c.need}));
+  cands.sort((a,b)=>b.interest-a.interest).slice(0,3).forEach(c=>list.push({team:c.team,salary:round(base*(1.08+c.interest/150)),years:2+(y>=60?ri(1,2):ri(0,1))+(mm&&rnd()<0.6?1:0),need:c.need}));
   return list;
 }
 function faAnswer(use){ const rv=PEN.review; if(!rv) return; rv.faAns=use?'use':'no';
@@ -3138,13 +3167,14 @@ function yearReview(){
   if(PEN.btrial){ PEN.btrial=null; penNotice('シーズンが終わり、打順・守備位置のお試しは打ち切り'); }
   if(PEN.slump){ slumpEnd(true); penNotice('シーズンが終わり、スランプは解消（能力は元に戻った）'); }
   if(PEN.favTry){ penNotice(`シーズンが終わったので${PEN.favTry.t}の試し投げは終わり`); favTryEnd(false); }
+  if(typeof cbSeasonEnd==='function') cbSeasonEnd();   // コーチの効果のうち、能力・タイプを元に戻す
   const rt=isBat()?ratingB:rating, sp=stagPenalty(), yR0=rt(PEN.ss), yR=yR0==null?null:yR0-sp, cR0=rt(PEN.career), cR=cR0==null?null:cR0-sp, y=yR==null?35:yR, vol=PEN.ss.outs;
   const B=isBat(), W=isTW(), titles=B?titleRaceB():W?titleRace().concat(titleRaceB(PEN.bss)):titleRace(), nT=titles.filter(t=>t.won).length;
   let chg=B?salaryChgB(y):(y-52)/45 + PEN.ss.w*0.01 - PEN.ss.l*0.005 + PEN.ss.sv*0.006 + PEN.ss.hld*0.003;
   if(B?PEN.ss.pa<60:vol<45) chg=Math.min(chg,0)-0.15;   // ほとんど出ていなければ減額
   if(W&&PEN.bss&&PEN.bss.pa){ const b=PEN.bss; chg+=clamp((bObp(b)+bSlg(b)-0.650)*0.5,-0.1,0.15)*Math.min(1,b.pa/60)+b.hr*0.01; }   // 二刀流：打撃も少し評価
   const ex=salaryExtra(); chg+=ex.pct;   // ポジションの順位・スタメン（先発）出場数・チームに必要か
-  chg=clamp(chg+nT*TITLE_BONUS,-0.5,0.5);   // タイトルを取ると少し上がる
+  chg=clamp(chg+nT*TITLE_BONUS,-0.5,typeof salMaxUp==='function'?salMaxUp(PEN.salary):0.5);   // タイトルを取ると少し上がる（1年の上限：年俸3,000万未満+150%・1億未満+100%・1億以上+60%）
   const devP=B?(PEN.year<4&&(PEN.age||18)<23):(PEN.year<6&&(PEN.age||18)<24);   // 若い選手は育成期間（野手は3年目まで、投手は伸びるのが遅いので5年目まで戦力外にしない）
   let released = !nT && !devP && PEN.year>=2 && y<38 && (cR==null?y:cR)<42;   // 2年目以降、今年も通算も悪すぎると戦力外
   let newSal = released?0:Math.max(1000000,Math.round(PEN.salary*(1+chg)/100000)*100000);
@@ -3188,7 +3218,7 @@ function abilityChange(){
   });
   // 衰え：30代は全球種（ストレート含む）から1つが Lv0〜1 ダウン、40代は 1〜3 ダウン
   const age=PEN.age||22;
-  if(age>=30){ const t=pick(rep), d=age>=40?ri(1,3):ri(0,1);
+  if(age>=30&&!(typeof cbOn==='function'&&cbOn('anti'))){ const t=pick(rep), d=age>=40?ri(1,3):ri(0,1);   // アンチエイジング中は年齢で下がらない
     if(d){ out.brk[t]=(out.brk[t]||0)-d; out.aging={t,d}; } }
   // 最低限：ストレートは Lv.1、変化球は少なくとも1つ Lv.1 で残る。Lv.1 を切った変化球は投げられなくなる
   const nl=t=>lvOf(t)+(out.brk[t]||0);
@@ -3229,6 +3259,7 @@ function applyAbilityChange(ch){
 }
 function penNextSeason(){
   const rv=PEN.review;
+  if(typeof salaryFinalize==='function') salaryFinalize(rv);
   const won=(rv.titles||[]).filter(t=>t.won).map(t=>t.name);
   stagUpdate(rv.yR==null?null:rv.yR+stagPenalty());   // 来年に向けて伸び悩みを数える（ペナルティ前の素の評価で）
   PEN.seasons.push({year:PEN.year,age:PEN.age,role:PEN.role,rl:isBat()?undefined:pitRoleLabel(),team:PEN.team,pos:PEN.pos,ss:PEN.ss,bss:isTW()?PEN.bss:undefined,rec:{...myRec()},rank:rankOf(PEN.team),salary:PEN.salary,newSal:rv.newSal,chg:rv.chg,titles:won,feats:seasonFeats(),
@@ -3238,6 +3269,7 @@ function penNextSeason(){
   if(rv.released){ PEN.released=true; PEN.review=null; PEN.relFin=rv.fin||null; renderPennant(); save(); return; }
   if(isBat()) applyAbilityChangeB(rv.abil); else { applyAbilityChange(rv.abil); if(isTW()&&rv.abil&&rv.abil.bat) applyAbilityChangeB(rv.abil.bat); }
   PEN.salary=rv.newSal;
+  if(typeof salaryPay==='function') salaryPay(rv.newSal,`${PEN.year+1}年目の年俸`);   // 来季の年俸を先にもらう（寮生活中は半分）
   seasonRollover(rv.fin);
 }
 // 年をまたぐ（年齢・年数・成績のリセット・選手の成長とドラフト・監督交代・日程）。トライアウトからの復帰でも使う
@@ -3246,6 +3278,7 @@ function seasonRollover(fin){
   PEN.age=(PEN.age||22)+1;
   const lastCS=PEN.cs||null;   // 去年のCPU選手の成績（成長に使う）
   PEN.year++; PEN.day=0; PEN.ss=isBat()?batStat():penStat(); PEN.days=[]; PEN.review=null; PEN.cs={};
+  PEN.jtPerf=(typeof jointYear==='function'&&jointYear(PEN.year)&&lastCS)?jtPerfMap(lastCS):null;   // 合同自主トレ（WBCのあった年のオフ）：去年の成績
   PEN.bAssign=null; PEN.btrial=null;   // 打診で決まった打順・守備位置はそのシーズンかぎり
   if(PEN.psMB){ PEN.ss.mBonus=Math.min(15,PEN.psMB); PEN.psMB=0; }   // ポストシーズンのミッション達成は翌年の評価に持ち越し
   if(typeof injuryRollover==='function') injuryRollover();
@@ -3271,6 +3304,7 @@ function seasonRollover(fin){
   if(!isBat()) pitRerank(true);   // 投手陣の順位（ローテ・ブルペン）
   penNotice(`${PEN.year}年目のシーズン開幕！ ${TEAM[PEN.team].short}の${roleName(PEN.role)}・年俸${yen(PEN.salary)}`);
   { const kp=isBat()?0:keikai(false), kb=hasBat()?keikai(true):0, v=Math.max(kp,kb); if(v>=0.05) penNotice(`🔍 去年の活躍で他球団に研究されている（警戒度：${keikLabel(v)}）。今年は相手も本気で対策してくる`); }
+  if(typeof offInit==='function') offInit();   // キャンプ前のオフ（コーチを呼ぶ）
   renderPennant(); save();
 }
 
@@ -3302,7 +3336,7 @@ function teamMult(k){
   }
   return m;
 }
-const unitCost=k=>(k==='velo'?5:k==='power'?3:k==='meet'?2:1)*COST_K*teamMult(k);   // 能力1あたり：0.1上げるごとに0.1pt、ミートは0.2pt、パワーは0.3pt、球速は0.1km/hごとに0.5pt
+const unitCost=k=>(k==='velo'?5:k==='power'?3:k==='meet'?2:k==='stamina'?0.5:1)*COST_K*teamMult(k);   // スタミナは半分（0.1で0.05pt）   // 能力1あたり：0.1上げるごとに0.1pt、ミートは0.2pt、パワーは0.3pt、球速は0.1km/hごとに0.5pt
 // キャンプでLvを1つ上げるポイント：変化球は Lv.1→2 が1点で、1つ上がるごとに0.5点ずつ増える（6→7は3.5点）。スライダー→スイーパーは1点。ストレートは今までどおり
 const lvStepCost=(n,t)=>t==='ストレート'?LV_UP_COST(n) : n>=LV_MAX ? 1 : r1(1+0.5*(n-1));
 const lvCost=(n,t)=>lvStepCost(n,t)*COST_K*teamMult('lv');
@@ -3482,8 +3516,8 @@ function renderCamp(el){
   const trait=`<div class="hint" style="color:#f3dfa0">🏟 ${TEAM[P.team].short}の特色：${TRAIT_JP[P.team]}</div>`;
   const abRows = B ? Object.keys(B_ABK).map(bRow).join('')+`<div class="hint">0.1上げるごとに0.1pt（ミートは0.2pt・パワーは0.3pt、最大100）。「特色」のついた能力は球団の特色で安くなっています</div>`+trait
     : W ? pRows+`<div class="hint" style="margin-top:8px;color:var(--ink)">⚾ 打撃</div>`+BAT4.map(bRow).join('')+
-      `<div class="hint">球速0.1km/h＝0.5pt・ほかの能力は0.1で0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait
-    : pRows+`<div class="hint">球速0.1km/h＝0.5pt・コントロール0.1＝0.1pt・スタミナ0.1＝0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait;
+      `<div class="hint">球速0.1km/h＝0.5pt・スタミナは0.1で0.05pt・ほかの能力は0.1で0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait
+    : pRows+`<div class="hint">球速0.1km/h＝0.5pt・コントロール0.1＝0.1pt・スタミナ0.1＝0.05pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait;
   // 野手：守れる位置を増やす・変える
   let posSec='';
   if(B){
@@ -3564,6 +3598,7 @@ function renderPennant(){
     $('penMode').onclick=()=>showScreen('mode');
     return;
   }
+  if(typeof needOff==='function'&&needOff()){ renderOff(el); return; }   // キャンプ前のオフ（コーチ）
   if(needCamp()){ renderCamp(el); return; }   // 開幕前はキャンプ
   if(P.day>=SEASON_GAMES && !P.pending){
     if(!P.review) P.review=yearReview();
@@ -3596,6 +3631,7 @@ function renderPennant(){
       $('penAward').onclick=()=>{ rv.stage='salary'; rv.psStage=2; renderPennant(); save(); window.scrollTo(0,0); };
       return;
     }
+    if(typeof salaryFinalize==='function') salaryFinalize(rv);   // 上限・逓減・マネーマネジメント（表彰が終わってから）
     const faBlock=rv.fa?faHTML(rv):'';
     const faOpen=rv.fa&&!rv.faNone&&(rv.faAns==null||(rv.faAns==='use'&&!rv.faDone));
     el.innerHTML=`<div class="pen">${head}
@@ -3603,7 +3639,7 @@ function renderPennant(){
       ${faOpen?'':`<div class="sh2">年俸査定</div>
       <div class="pcardx ${rv.released?'bad':''}">${rv.faNone?`FAで行き先が見つからず、<b>自由契約</b>になりました（年俸0円）`:rv.released?`今年も通算も成績が悪く、<b>戦力外通告</b>を受けました（年俸0円）`:
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）`}
-        <div class="hint">今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%${rv.chg>=0.5?'（上限+50%）':''}`:''}</div>${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
+        <div class="hint">今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
       ${rv.abil?(isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
@@ -3680,6 +3716,7 @@ function renderPennant(){
     <div class="pcardx"><div class="prow"><span class="plink" data-pk="${plinkKey({isMe:true})}"><b style="font-size:17px">${P.pname}</b></span>${P.genius?' <span class="genius">✨ 天才</span>':''} ${B?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span> <span class="rbadge">${roleName(P.role)}${P.order?`・${P.order}番`:''}</span>${btypeBadge(P.btype)}`:`<span class="hb ${P.hand}">${P.hand==='L'?'左投':'右投'}</span> <span class="rbadge">${ROLE_NAME[P.role]}</span>`}</div>
       <div class="hint" style="margin:4px 0">${P.age||22}歳　年俸 ${yen(P.salary)}　評価 ${Math.round(R)}点${P.ss.mOK||P.ss.mNG?`　ミッション ${P.ss.mOK||0}勝${P.ss.mNG||0}敗`:''}${P.draft?`　ドラフト${P.draft.pick}位入団`:''}</div>
       ${typeof injuryHTML==='function'?injuryHTML():''}
+      ${typeof cbCardHTML==='function'?cbCardHTML():''}
       ${isFavMgr()?`<div class="pcardx" style="border-color:#2a9d4f"><b>💚 ${mgrName(myMgr())}のお気に入り度：${myMgr().fav||0}／100</b>　<small style="color:var(--mute)">評価 ${favBonus()>=0?'+':''}${Math.round(favBonus())}点</small><div class="hint">贔屓起用の監督だけの仕組み。ミッション達成で+8、失敗で−2、打診を断ると下がる。60以上で能力にかかわらず起用されやすく、伸び悩みを待ってくれる年数もお気に入り度で${stagLimit()}年（30未満2年・50未満3年・70未満4年・70以上5年）</div></div>`:''}
       ${(B||isTW())&&P.btype?`<div class="sh3">タイプ</div><div class="hint" style="margin:0 0 4px"><b style="color:var(--ink)">${P.btype}</b>　${BTYPE_INFO[P.btype]?BTYPE_INFO[P.btype].me:''}<details style="margin-top:2px"><summary>タイプ一覧と条件（毎年キャンプ前に去年の成績で決まる）</summary>${BTYPES.map(t=>`<div style="margin:3px 0"><b style="color:var(--ink)">${t}</b>：${BTYPE_INFO[t].cond}<br>→ ${BTYPE_INFO[t].me}</div>`).join('')}<div>複数の条件を満たしたときはランダムに1つ。上がる/下がる＝±5%、少し＝±2.5%、とても＝±7.5%</div></details></div>`:''}
       <div class="sh3">能力 <small>（かっこ内は入団時からの伸び）</small></div>${myAbilHTML()}
@@ -4473,7 +4510,8 @@ function btypeUpdate(s){
 // 代打男：通常時は全能力−10、代打のときはミート・パワー+10
 // 返り値は試合で使う内部値（abPerf）
 function effBabil(a,kind){
-  if(!a) return a; if(myBtype()!=='代打男') return perfB(a);
+  if(!a) return a; if(typeof cbBab==='function'&&a===PEN.babil) a=cbBab(a);   // コーチの効果（後半戦・研究した球団）
+  if(myBtype()!=='代打男') return perfB(a);
   const o={...a};
   if(kind==='pinch'){ o.meet=Math.min(110,(a.meet??50)+10); o.power=Math.min(110,(a.power??50)+10); }
   else for(const k of ['meet','power','speed','eye','def']) o[k]=Math.max(1,(a[k]??50)-10);
@@ -4594,7 +4632,7 @@ function pitAI(pit){
       let w=(r===2&&c===2)?(sty==='mix'?0.8:0.5):(r!==2&&c!==2)?1.4:1;
       if(SINKERS.has(pt)) w*= r===3?1.8:r===1?0.5:1;
       w*=styW(r,c);
-      w/=1+(hot.get(r+','+c)||0)*(0.12+0.15*kb);   // よく狙われているマスは避ける
+      w/=1+(hot.get(r+','+c)||0)*(0.12+0.15*kb)*(typeof cbG==='function'&&cbG('data')?0.5:1);   // データ解析：読みが半分   // よく狙われているマスは避ける
       cand.push([[r,c],w]);
     }
   }else{
@@ -4666,7 +4704,7 @@ function batResolve(p){
   }else if(mode==='late'){ wh=clamp(0.40-meet*0.2-eye*0.05,0.12,0.45); fo=0.32+meet*0.1; q=-0.22+meet*0.12+noise(0.2); }
   else if(mode==='fooled'){ wh=inZ?0.4-meet*0.1:0.55-meet*0.15; fo=inZ?0.3:0.25; q=(inZ?-0.3:-0.45)+noise(0.15); }
   else if(mode==='cut'){   // 追い込まれて、狙っていない球をカットで逃げる
-    if(rnd()<clamp(0.5+eye*0.3+meet*0.2,0.45,0.92)) return {...base,kind:'foul',text:'ファウル（カット）',cut:true};
+    if(rnd()<clamp(0.5+eye*0.3+meet*0.2+(typeof cbG==='function'&&cbG('nebari')?0.08:0),0.45,0.95)) return {...base,kind:'foul',text:'ファウル（カット）',cut:true};
     if(rnd()<0.5) return {...base,kind:'swing',text:'空振り（カットし損ねた）'};
     wh=0; fo=0; q=-0.3+noise(0.15);
   }else if(mode==='chaseZ'){ wh=0.3; fo=0.35; q=-0.15+noise(0.18); }
@@ -4674,6 +4712,7 @@ function batResolve(p){
   wh=clamp(wh+fx.wh*(1-sure)+BAT_ADJ.wh,0,0.9); q+=fx.q+BAT_ADJ.q;   // 球種の特徴（＋全体のバランス調整）
   { const m=A.meet, pw=A.power; q+=eqQMeet(m)-(pw>50?EQ.qp*Math.pow((pw-50)/50,EQ.qe)*meetHrK(m)+EQ.qx*Math.max(0,(m-75)/25)*(pw-50)/50:0); if(m<60) wh=clamp(wh-(60-m)*EQ.wh,0,0.9); }   // 同じ能力のCPUと成績が近くなるように（ミートが低いと打てなさすぎ・高いと打てすぎるのをならす）
   { const kb=gKeikB(); if(kb){ wh=clamp(wh+0.04*kb,0,0.9); q-=0.07*kb; } }   // 警戒：研究されていて打ちにくい
+  if(typeof cbG==='function'){ if(two&&cbG('nebari')){ wh*=0.85; q+=0.04; } if(cbG('yosho')&&inPinch(G.bases)){ wh*=0.9; q+=0.05; } }   // コーチ：粘り勝つ（2ストライク後）・要所（得点圏）
   if(platoon) wh*=0.88;
   { const BT=myBtype(); wh=clamp(wh+btFx(BT,'k'),0,0.9); fo=clamp(fo+btFx(BT,'foul'),0,0.9); }   // タイプ：フルスイングは三振↑ファウル↓、ヒットメーカーはファウル↑
   const x=rnd();
@@ -4905,7 +4944,7 @@ function doSteal(){
 //  能力（内部値）から CPUと同じ形の打者データを作り、リーグの試合と同じ simPA＋調整値（LG_K）で1打席を決める
 const LG_QAVG=1.05;   // リーグの平均的な投手の打たれやすさ（投手の質×リーグの調整×疲れ）
 function meCpuB(A){ return {avg:clamp(0.172+A.meet*0.00135+A.speed*0.00035,.180,.365),hrRate:cpuHrRate(A.power),contact:A.meet,power:A.power,speed:A.speed,eye:A.eye,type:myBtype()}; }
-function autoKind(A,pit){
+function autoKind(A,pit,risp){
   const kb=typeof keikai==='function'?keikai(true):0;   // 前年の活躍で警戒されている：打ちにくくなる
   let q=(pit&&pit.q?pit.q*LG_K.q:LG_QAVG)*(1-0.1*kb);
   if(pit&&G&&((G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L'))) q*=1.02;   // 左打ち×右投手、右打ち×左投手
@@ -4914,10 +4953,11 @@ function autoKind(A,pit){
   if((r==='GO'||r==='FO')&&rnd()<0.04*kb) r='K';
   if(r==='FO'&&rnd()<0.25) r='LO';
   if(r==='1B'&&rnd()<A.speed*0.0012) r='IFH';
+  if(typeof cbOn==='function'){ if(cbOn('nebari')&&r==='K'&&rnd()<0.15) r=rnd()<0.4?'1B':'FO'; if(cbOn('yosho')&&risp&&(r==='GO'||r==='FO'||r==='K')&&rnd()<0.06) r='1B'; }   // コーチの効果（おまかせの打席）
   return r;
 }
 function autoMyPA(pit){
-  const kind=autoKind(G.babil,pit), st=G.st; st.pa++;
+  const kind=autoKind(G.babil,pit,inPinch(G.bases)), st=G.st; st.pa++;
   { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*S.S/(S.S+staN(S.S))); }
   const adv=bAdvance(G.bases,kind,2,G.outs); G.bases=adv.b; G.outs+=adv.o;
   const runs=adv.sc.length; G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs; if(adv.sc.includes(2)) st.run++;
@@ -4981,7 +5021,7 @@ function twBatEval(){ const r=ratingB(PEN.bss||batStat()); return r==null?abilit
 // 試合を二刀流用にする（newGame のあと）
 function twSetup(lineup){
   const me=lineup.find(b=>b.isMe);
-  Object.assign(G,{tw:true,babil:perfB(PEN.babil),babilRaw:{...PEN.babil},bhand:PEN.bhand==='S'?'L':PEN.bhand,sw:PEN.bhand==='S',bst:{...batStat(),g:1},me:{isMe:true,name:G.pname,hand:PEN.bhand==='S'?'L':PEN.bhand,order:me.order,num:MYNUM,res:[]},
+  Object.assign(G,{tw:true,babil:perfB(typeof cbBab==='function'?cbBab(PEN.babil):PEN.babil),babilRaw:{...PEN.babil},bhand:PEN.bhand==='S'?'L':PEN.bhand,sw:PEN.bhand==='S',bst:{...batStat(),g:1},me:{isMe:true,name:G.pname,hand:PEN.bhand==='S'?'L':PEN.bhand,order:me.order,num:MYNUM,res:[]},
     target:{spd:null,cells:[]},reads:[],pits:[G.oppPitcher,...G.oppPen].slice(0,4),meActive:true,pinch:null,meUp:false,autoMe:false,walk:false,stealAsk:null,halfPA:0});
   while(G.pits.length<4) G.pits.push(G.oppPitcher);
   G.myTeam.lineup=lineup.map(b=>({...b,res:[]}));
@@ -5040,7 +5080,7 @@ function twAutoRec(r,sc,dp){
 }
 // スキップのとき：先発した日の打撃（打順なりの打席数）
 function twSkipBat(outs){
-  const A=perfB(PEN.babil), st=batStat(), npa=Math.max(1,Math.round(3.6*Math.min(1,outs/18+0.4)+(rnd()-.5)));
+  const A=perfB(typeof cbBab==='function'?cbBab(PEN.babil):PEN.babil), st=batStat(), npa=Math.max(1,Math.round(3.6*Math.min(1,outs/18+0.4)+(rnd()-.5)));
   for(let i=0;i<npa;i++){ const k=autoKind(A); st.pa++;
     if(k==='BB'||k==='HBP') st[k==='BB'?'bb':'hbp']++; else st.ab++;
     if(k==='K') st.k++;
@@ -5335,12 +5375,11 @@ function penSkipB(){
   const npa = p.kind==='pinch' ? 1 : Math.max(2,Math.round((p.order<=2?4.6:p.order<=5?4.3:3.9)+(rnd()-.5)*1.6));
   const st=batStat(); let bases=[0,0,0];
   for(let i=0;i<npa;i++){
-    const k=autoKind(A); st.pa++;
+    const on=rnd()<0.42?ri(1,2):0, k=autoKind(A,null,on&&rnd()<0.6); st.pa++;
     if(k==='BB') st.bb++; else if(k==='HBP') st.hbp++; else st.ab++;
     if(k==='K') st.k++;
     if(['1B','IFH','2B','3B','HR'].includes(k)){ st.h++; if(k==='2B') st.d2++; if(k==='3B') st.d3++; if(k==='HR') st.hr++; }
     // 打点・得点・盗塁のおおよそ
-    const on=rnd()<0.42?ri(1,2):0;
     if(k==='HR'){ st.rbi+=1+Math.min(on,poisson(0.6)); st.run++; st.tl=(st.tl||0)+1; }
     else if(['1B','IFH','2B','3B'].includes(k)){ if(on&&rnd()<(k==='1B'||k==='IFH'?0.45:0.7)){ st.rbi+=1; st.tl=(st.tl||0)+1; } if(rnd()<0.35+A.speed*0.002) st.run++;
       if((k==='1B'||k==='IFH')&&A.speed>=55&&rnd()<0.1+(A.speed-55)*0.006){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
@@ -5781,6 +5820,7 @@ function tryoutAccept(){
   { const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); A.bank=r1((A.bank||0)+5); A.log.push({y:PEN.year,name:'トライアウト合格',pts:5}); }   // トライアウト成功で持ち点+5（次のキャンプ）
   awakeTransfer(from,o.team);
   t.stage='done'; PEN.tryoutDone=(PEN.tryoutDone||[]).concat(t.hist); PEN.tryout=null;
+  if(typeof salaryPay==='function') salaryPay(PEN.salary,`${PEN.year+1}年目の年俸`);
   seasonRollover(PEN.relFin||null);
   PEN.notices.unshift({d:0,y:PEN.year,t:`トライアウトを経て${TEAM[o.team].name}に入団（${roleName(PEN.role)}・年俸${yen(PEN.salary)}）`});
   renderPennant(); save();
@@ -6412,6 +6452,7 @@ function allstarFinalize(){
     me:S.sel?{sel:true,role:isBat()?'野手':isTW()?'二刀流':'投手',line:meT?line(meT):'出場なし',rank:meT?rank.indexOf(meT)+1:null,ev:myRole,mis:myEv&&myEv.mok+myEv.mng?`${myEv.mok}/${myEv.mok+myEv.mng}`:''}:{sel:false}};
   if(mvp&&mvp.me){ titleAward('オールスターMVP',1,1); res.me.award='MVP（持ち点+1）'; }
   else if(fs&&fs.me){ titleAward('オールスター敢闘賞',0.5,1); res.me.award='敢闘賞（持ち点+0.5）'; }
+  { const X=asMine(S); PEN.asMates={y:PEN.year,F:X.F.filter(x=>!x.me&&x.f).map(x=>({id:x.f.id,team:x.id})),P:X.P.filter(x=>!x.me&&x.p).map(x=>({id:x.p.pid,team:x.id}))}; if(!S.sel) PEN.asMates=null; }   // 合同自主トレで呼べる仲間
   PEN.allstar=res; PEN.asState=null; PEN.pending=null;
   const g1=res.games[0], g2=res.games[1];
   penNotice(`⭐ オールスター：第1戦 セ${g1.sc[0]}−${g1.sc[1]}パ、第2戦 セ${g2.sc[0]}−${g2.sc[1]}パ。MVP ${res.mvp?`${res.mvp.name}（${TEAM[res.mvp.team].short}）${res.mvp.line}`:'-'}／敢闘賞 ${res.fs?`${res.fs.name}（${TEAM[res.fs.team].short}）`:'-'}`);
@@ -6595,7 +6636,7 @@ function psBind(el){
 /* ---- 33歳を超えてからの衰え：年々大きくなる（34歳で5倍、1歳ごとに+1倍、最大20倍。マイナスの変化だけ） ---- */
 function agingAmplify(ab){
   if(!PEN||!ab) return ab; const age=PEN.age; if(age<=33) return ab;
-  const m=clamp(4+(age-33),5,20);
+  const m=clamp(4+(age-33),5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
   const amp=o=>{ if(!o) return; for(const k of ['velo','control','stamina','meet','power','speed','eye','def']) if(typeof o[k]==='number'&&o[k]<0) o[k]=o[k]*m; o.agingMul=m; };
   amp(ab); if(ab.bat) amp(ab.bat);
   return ab;
@@ -6609,7 +6650,7 @@ function agingAmplify(ab){
 const INJ_TYPES=[{name:'怪我',w:0.70,games:7,down:1,txt:'1週間'},{name:'打撲',w:0.15,games:14,down:2,txt:'2週間'},{name:'骨折',w:0.10,games:30,down:5,txt:'1か月'},{name:'靭帯損傷',w:0.05,games:-1,down:15,txt:'今季と来季'}];
 const r3=v=>Math.round(v*1000)/1000;
 function injRateAt(age,red){ let r=0.01; for(let a=19;a<=(age||22);a++) r+= a>=40?10 : a>=30?0.05 : 0.01; return Math.max(0,r3(r-(red||0))); }   // %
-const injRate=()=>PEN?injRateAt(PEN.age,PEN.injRed):0;
+const injRate=()=>PEN?injRateAt(PEN.age,PEN.injRed)*(typeof cbOn==='function'&&cbOn('yoga')?0.5:1):0;   // ヨガ教室：半分
 const injured=()=>!!(PEN&&PEN.injury&&PEN.injury.y===PEN.year&&PEN.day<PEN.injury.untilDay);
 const injLeft=()=>injured()?PEN.injury.untilDay-PEN.day:0;
 function injApplyDown(n){
@@ -6949,6 +6990,7 @@ function wbcFinish(){
   PEN.wbcHist=PEN.wbcHist||[]; PEN.wbcHist.push({y:W.y,champ:W.champ,sel:W.sel,mvpB:W.mvpB,mvpP:W.mvpP,my:W.myGames});
   if(W.sel&&W.teams.JPN&&W.teams.JPN.F){ const ev=evEnsure(W.teams.JPN); W.myEv=evRoleText(W.teams.JPN,'wbc'); W.myMis=ev.mok+ev.mng?`${ev.mok}/${ev.mok+ev.mng}`:''; }   // 大会を終えたときの代表チーム内の評価
   // 各国の選手データはセーブに残さない（勝敗などの表示用だけ残す）
+  { const J=W.teams.JPN; PEN.wbcMates=W.sel&&J&&J.F?{y:W.y,F:J.F.filter(x=>!x.me&&x.f).map(x=>({id:x.f.id,team:x.id})),P:J.P.filter(x=>!x.me&&x.p).map(x=>({id:x.p.pid,team:x.id}))}:null; }   // 合同自主トレで呼べる代表の仲間
   for(const id in W.teams){ const t=W.teams[id]; W.teams[id]={id,w:t.w,l:t.l,rs:t.rs,ra:t.ra,mult:t.mult}; } W.pstats={};
   PEN.pending=null;
 }
@@ -6984,6 +7026,536 @@ function wbcRestoreTeams(){
   if(!PEN) return; TEAM.JPN=TEAM.JPN||{...WBC_JPN};
   const ids=new Set(); if(PEN.wbc) Object.keys(PEN.wbc.teams).forEach(id=>ids.add(id)); (PEN.wbcHist||[]).forEach(h=>{ ids.add(h.champ); if(h.mvpB) ids.add(h.mvpB.team); if(h.mvpP) ids.add(h.mvpP.team); });
   ids.forEach(id=>{ if(!TEAM[id]){ const c=WBC_COUNTRIES.find(x=>x.id===id); if(c) TEAM[id]={...c,lg:''}; } });
+}
+/* ========= コーチのキャラクター（メンタリスト・スポーツアナリスト・パーソナルトレーナー・代理人・不動産屋） =========
+   各5案。COACH_LOOK[kind][i] の見た目の設定から svgCoach(kind,i) で描く（自分・監督と同じ大きさ 100×130） */
+const CSK=['#f6d2b4','#ecc19c','#d9a77d','#b9825a','#8a5a3a'];
+const COACH_LOOK={
+  mental:[
+    {lab:'振り子の催眠術師',skin:1,outfit:'suit',top:'#1b1b22',shirt:'#6b3fa0',tie:'#111',hair:'slick',hc:'#1a1a1a',face:'calm',acc:['mustache','pendulum']},
+    {lab:'トランプの心理学者',skin:0,outfit:'turtle',top:'#16161a',inner:'#f4f4f4',hair:'pony',hc:'#2b1d14',face:'smirk',acc:['roundglass','cards']},
+    {lab:'やさしいカウンセラー',skin:0,outfit:'cardigan',top:'#b9a3d9',shirt:'#ffffff',hair:'long',hc:'#3a2418',face:'smile',acc:['earring','notebook']},
+    {lab:'座禅の老師',skin:2,outfit:'samue',top:'#26324f',hair:'bald',hc:'#cfcfcf',face:'closed',acc:['beard','beads']},
+    {lab:'セミナー講師',skin:1,outfit:'hoodie',top:'#2b2b33',hair:'mash',hc:'#3b2a1e',face:'grin',acc:['headset']},
+  ],
+  analyst:[
+    {lab:'タブレット片手の分析官',skin:1,outfit:'polo',top:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'smile',acc:['glass','tablet']},
+    {lab:'ノートPCの女性アナリスト',skin:0,outfit:'vest',top:'#24365e',shirt:'#ffffff',hair:'bob',hc:'#2a1a12',face:'smile',acc:['laptop']},
+    {lab:'ヘッドセットのデータ班',skin:2,outfit:'track',top:'#5f6670',stripe:'#e8e8e8',hair:'capback',hc:'#1a1a1a',cap:'#1f3c7a',face:'grin',acc:['headset','clip']},
+    {lab:'白衣の研究者',skin:0,outfit:'labcoat',top:'#f6f6f6',shirt:'#9ec3e6',tie:'#24365e',hair:'messy',hc:'#4a3a2a',face:'calm',acc:['roundglass','papers']},
+    {lab:'スマートなデータ参謀',skin:1,outfit:'suit',top:'#3a3f4a',shirt:'#e9eef6',tie:null,hair:'side',hc:'#1a1a1a',face:'smirk',acc:['glass','bigtab']},
+  ],
+  trainer:[
+    {lab:'筋肉自慢のトレーナー',skin:3,outfit:'tank',top:'#111111',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['whistle','muscle','clipboard']},
+    {lab:'ヨガのインストラクター',skin:0,outfit:'track',top:'#2aa198',stripe:'#ffffff',hair:'pony',hc:'#2b1d14',face:'smile',acc:['hairband','yogamat']},
+    {lab:'赤ジャージの鬼コーチ',skin:2,outfit:'track',top:'#c0392b',stripe:'#ffffff',hair:'buzz',hc:'#1a1a1a',face:'shout',acc:['towel','stopwatch']},
+    {lab:'日焼けのフィジカル担当',skin:4,outfit:'polo',top:'#f2f2f2',hair:'short',hc:'#1a1a1a',face:'grin',acc:['sunglassup','dumbbell']},
+    {lab:'ベテラントレーナー',skin:1,outfit:'track',top:'#22344f',stripe:'#f5c542',hair:'short',hc:'#9a9a9a',face:'smile',acc:['mustache','clipboard']},
+  ],
+  agent:[
+    {lab:'サングラスのやり手代理人',skin:1,outfit:'suit',top:'#111111',shirt:'#ffffff',tie:'#c0392b',hair:'slick',hc:'#1a1a1a',face:'smirk',acc:['sunglass','briefcase']},
+    {lab:'スマホ片手の女性代理人',skin:0,outfit:'suit',top:'#5a5f6a',shirt:'#f4f4f4',tie:null,hair:'bob',hc:'#1a1a1a',face:'smile',acc:['phone']},
+    {lab:'金髪の敏腕エージェント',skin:0,outfit:'suit',top:'#1d2e57',shirt:'#ffffff',tie:'#d4a52a',hair:'side',hc:'#e2c26a',face:'grin',acc:['contract']},
+    {lab:'金時計の大物代理人',skin:2,outfit:'suit',top:'#2f2f3a',shirt:'#ffffff',tie:'#7a1f2b',hair:'bald',hc:'#555',face:'smile',acc:['mustache','pinstripe','watch','calc']},
+    {lab:'若手のインテリ代理人',skin:1,outfit:'suit',top:'#2c3e50',shirt:'#dfe8f2',tie:'#2a7ab8',hair:'mash',hc:'#2b1d14',face:'calm',acc:['glass','tablet']},
+  ],
+  realtor:[
+    {lab:'鍵を持った笑顔の営業',skin:1,outfit:'suit',top:'#b49a6c',shirt:'#ffffff',tie:'#2a7ab8',hair:'side',hc:'#1a1a1a',face:'smile',acc:['nametag','key']},
+    {lab:'間取り図の女性スタッフ',skin:0,outfit:'suit',top:'#22325a',shirt:'#ffffff',tie:null,hair:'bun',hc:'#2a1a12',face:'smile',acc:['nametag','file']},
+    {lab:'法被（はっぴ）の店長',skin:2,outfit:'happi',top:'#d35400',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['hachimaki','house']},
+    {lab:'メガネの老舗の社長',skin:1,outfit:'vest',top:'#6b4f2a',shirt:'#ffffff',tie:'#8b1e1e',hair:'bald',hc:'#aaaaaa',face:'smile',acc:['glass','plan']},
+    {lab:'青スーツの新人営業',skin:0,outfit:'suit',top:'#1f6fd6',shirt:'#ffffff',tie:'#f5c542',hair:'short',hc:'#2b1d14',face:'grin',acc:['nametag','house']},
+  ],
+};
+const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋'};
+let CSVG_N=0;
+function svgCoach(kind,i){
+  const L=(COACH_LOOK[kind]||COACH_LOOK.mental)[i||0]||COACH_LOOK.mental[0];
+  const sk=CSK[L.skin||0], has=a=>(L.acc||[]).includes(a), dark=c=>c;
+  const top=L.top, hc=L.hc;
+  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('stopwatch')&&false;
+  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab');
+  let back='', body='', arms='', hands='', head='', hair='', face='', front='', held='';
+  // ---- 後ろ髪（頭より先に描く）
+  if(L.hair==='long') back+=`<path d="M29 54 Q27 80 34 88 L66 88 Q73 80 71 54 Z" fill="${hc}"/>`;
+  if(L.hair==='bob') back+=`<path d="M29 54 Q28 74 34 76 L66 76 Q72 74 71 54 Z" fill="${hc}"/>`;
+  if(L.hair==='pony') back+=`<path d="M66 44 Q84 50 78 76 Q74 64 66 56 Z" fill="${hc}"/>`;
+  if(L.outfit==='hoodie') back+=`<path d="M28 84 Q30 66 50 66 Q70 66 72 84 Z" fill="${top}"/>`;
+  // ---- 胴
+  const torso=`M24 128 L26 92 Q50 82 74 92 L76 128 Z`;
+  if(L.outfit==='tank'){
+    body+=`<path d="M30 128 L31 90 Q50 84 69 90 L70 128 Z" fill="${top}"/><path d="M40 86 Q50 96 60 86" fill="${sk}"/>`;
+  }else if(L.outfit==='happi'){
+    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M38 86 L50 128 M62 86 L50 128" stroke="#1a1a1a" stroke-width="5"/>
+      <path d="M44 86 L50 100 L56 86 Z" fill="#f4f4f4"/><text x="38" y="112" font-size="7" fill="#fff" font-weight="900" font-family="sans-serif" transform="rotate(-62 38 112)">不動産</text>
+      <path d="M20 122 L80 122" stroke="#fff" stroke-width="2" opacity=".8"/>`;
+  }else{
+    body+=`<path d="${torso}" fill="${top}"/>`;
+    if(has('pinstripe')) body+=[30,36,42,58,64,70].map(x=>`<path d="M${x} 90 L${x} 128" stroke="#ffffff" stroke-width=".5" opacity=".35"/>`).join('');
+  }
+  if(L.outfit==='suit'||L.outfit==='labcoat'){
+    body+=`<path d="M41 85 L50 104 L59 85 Z" fill="${L.shirt||'#fff'}"/>`;
+    if(L.tie) body+=`<path d="M48.6 88 L51.4 88 L53.4 106 L50 111 L46.6 106 Z" fill="${L.tie}"/><path d="M48 86 L52 86 L51.4 89 L48.6 89 Z" fill="${L.tie}"/>`;
+    else body+=`<path d="M45 86 L50 92 L55 86" fill="none" stroke="#0003" stroke-width="1"/>`;
+    body+=`<path d="M41 85 L47 106 L44 92 Z" fill="#0005"/><path d="M59 85 L53 106 L56 92 Z" fill="#0005"/>`;
+    if(L.outfit==='labcoat') body+=`<path d="M50 106 L50 128" stroke="#cfd6dd" stroke-width="1.2"/><rect x="58" y="108" width="10" height="7" rx="1" fill="none" stroke="#cfd6dd"/><path d="M60 106 L60 112" stroke="#2a7ab8" stroke-width="1.4"/>`;
+    else body+=`<circle cx="50" cy="114" r="1.2" fill="#0007"/><circle cx="50" cy="121" r="1.2" fill="#0007"/>`;
+  }
+  if(L.outfit==='vest'){
+    body=`<path d="${torso}" fill="${L.shirt||'#fff'}"/><path d="M30 128 L31 92 Q42 86 44 86 L50 104 L56 86 Q58 86 69 92 L70 128 Z" fill="${top}"/>`;
+    if(L.tie) body+=`<path d="M48.6 88 L51.4 88 L53 102 L50 106 L47 102 Z" fill="${L.tie}"/>`;
+    body+=`<circle cx="50" cy="112" r="1.2" fill="#0007"/><circle cx="50" cy="119" r="1.2" fill="#0007"/>`;
+  }
+  if(L.outfit==='turtle') body+=`<path d="M41 82 Q50 86 59 82 L59 88 Q50 92 41 88 Z" fill="${L.inner||top}"/><path d="M38 88 L44 128 M62 88 L56 128" stroke="#ffffff22" stroke-width="2"/>`;
+  if(L.outfit==='cardigan') body+=`<path d="M42 85 L50 100 L58 85 L58 128 L42 128 Z" fill="${L.shirt||'#fff'}"/><path d="M42 85 L44 128 M58 85 L56 128" stroke="#0003" stroke-width="1.5"/>${[96,106,116].map(y=>`<circle cx="45" cy="${y}" r="1.1" fill="#fff"/>`).join('')}`;
+  if(L.outfit==='polo') body+=`<path d="M42 84 L50 92 L58 84 L56 82 L50 86 L44 82 Z" fill="${L.collar||'#ffffff'}" opacity=".9"/><path d="M50 88 L50 100" stroke="#0004" stroke-width="1.2"/><circle cx="50" cy="94" r=".9" fill="#0006"/><circle cx="50" cy="98" r=".9" fill="#0006"/>`;
+  if(L.outfit==='track') body+=`<path d="M50 84 L50 128" stroke="#ddd" stroke-width="1.4"/><path d="M42 83 L50 90 L58 83 L58 80 L42 80 Z" fill="${top}" stroke="#0003"/>`;
+  if(L.outfit==='samue') body+=`<path d="M40 84 L58 112 M60 84 L46 104" stroke="#e8e0cc" stroke-width="2.4"/><path d="M26 112 L74 112" stroke="#1a2238" stroke-width="3"/>`;
+  if(L.outfit==='hoodie') body+=`<path d="M44 86 L45 100 M56 86 L55 100" stroke="#ddd" stroke-width="1.2"/><path d="M36 112 L64 112 L62 124 L38 124 Z" fill="#0003"/>`;
+  // ---- 腕（右手に物を持つと腕を上げる）
+  const armC=L.outfit==='tank'?sk:L.outfit==='vest'?(L.shirt||'#fff'):top, aw=L.outfit==='tank'?(has('muscle')?13:10):10;
+  const lArm=both?`M26 94 Q18 104 34 110`:`M26 94 Q14 104 17 119`, rArm=(raise||both)?`M74 94 Q86 102 ${both?'66 110':'82 106'}`:`M74 94 Q86 104 83 119`;
+  arms+=`<path d="${lArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/><path d="${rArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/>`;
+  if(L.outfit==='track') arms+=`<path d="${lArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(-3 0)"/><path d="${rArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(3 0)"/>`;
+  if(L.outfit==='happi') arms+=`<path d="M24 92 L10 112 L22 116 L30 100 Z" fill="${top}"/><path d="M76 92 L90 112 L78 116 L70 100 Z" fill="${top}"/>`;
+  const lh=both?[34,110]:[17,120], rh=both?[66,110]:raise?[82,106]:[83,120];
+  if(has('muscle')) arms+=`<path d="M18 102 Q22 98 26 102" fill="none" stroke="#0003" stroke-width="1.5"/><path d="M82 102 Q78 98 74 102" fill="none" stroke="#0003" stroke-width="1.5"/>`;
+  hands+=`<circle cx="${lh[0]}" cy="${lh[1]}" r="5" fill="${sk}"/><circle cx="${rh[0]}" cy="${rh[1]}" r="5" fill="${sk}"/>`;
+  if(has('watch')) hands+=`<rect x="${lh[0]-4}" y="${lh[1]-8}" width="8" height="3" rx="1" fill="#e2b33a"/>`;
+  // ---- 首と頭
+  head+=`<rect x="44" y="72" width="12" height="12" fill="${sk}"/><circle cx="30.5" cy="58" r="3.5" fill="${sk}"/><circle cx="69.5" cy="58" r="3.5" fill="${sk}"/><circle cx="50" cy="56" r="20" fill="${sk}"/>`;
+  if(has('earring')) head+=`<circle cx="30" cy="63" r="1.6" fill="#e2b33a"/><circle cx="70" cy="63" r="1.6" fill="#e2b33a"/>`;
+  // ---- 髪
+  const H={
+    slick:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q67 41 50 40 Q33 41 30 52 Z" fill="${hc}"/><path d="M38 36 Q50 39 62 36 M36 40 Q50 42 64 40" stroke="#ffffff33" stroke-width="1" fill="none"/>`,
+    short:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q66 42 58 42 Q50 38 42 42 Q34 42 30 52 Z" fill="${hc}"/>`,
+    side:`<path d="M30 54 Q29 33 50 32 Q71 33 70 52 Q60 44 46 44 Q36 46 30 54 Z" fill="${hc}"/><path d="M46 33 Q42 38 46 44" stroke="#0004" stroke-width="1" fill="none"/>`,
+    long:`<path d="M29 56 Q28 33 50 32 Q72 33 71 56 Q66 42 54 40 Q46 46 34 46 Q30 50 29 56 Z" fill="${hc}"/>`,
+    bob:`<path d="M29 58 Q28 33 50 32 Q72 33 71 58 Q68 46 62 44 L38 44 Q32 46 29 58 Z" fill="${hc}"/><path d="M36 44 L64 44 L64 47 L36 47 Z" fill="${hc}"/>`,
+    pony:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q66 41 50 41 Q34 41 30 52 Z" fill="${hc}"/>`,
+    bun:`<circle cx="50" cy="30" r="7" fill="${hc}"/><path d="M30 54 Q30 33 50 33 Q70 33 70 54 Q66 42 50 42 Q34 42 30 54 Z" fill="${hc}"/>`,
+    bald:`<path d="M30 58 Q30 50 32 48 L33 60 Z" fill="${hc}"/><path d="M70 58 Q70 50 68 48 L67 60 Z" fill="${hc}"/><path d="M42 38 Q50 35 56 37" stroke="#ffffff55" stroke-width="2" fill="none"/>`,
+    buzz:`<path d="M30 52 Q30 34 50 33 Q70 34 70 52 Q66 44 50 43 Q34 44 30 52 Z" fill="${hc}" opacity=".75"/>`,
+    mash:`<path d="M29 56 Q28 32 50 31 Q72 32 71 56 Q70 50 66 50 L34 50 Q30 50 29 56 Z" fill="${hc}"/>`,
+    messy:`<path d="M30 54 L28 44 L34 46 L33 36 L40 40 L42 31 L48 37 L52 29 L56 37 L62 31 L63 40 L70 37 L67 46 L72 45 L70 54 Q60 44 50 44 Q40 44 30 54 Z" fill="${hc}"/>`,
+    capback:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 50 Q22 50 18 46 L20 42 Q26 46 31 45 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 52 L70 52" stroke="#0004" stroke-width="1.5"/>`,
+  };
+  hair+=H[L.hair]||'';
+  if(has('hairband')) hair+=`<path d="M30 49 Q50 36 70 49" fill="none" stroke="#f5c542" stroke-width="3"/>`;
+  if(has('hachimaki')) hair+=`<path d="M29 48 Q50 42 71 48 L71 52 Q50 46 29 52 Z" fill="#ffffff"/><path d="M70 49 L78 44 M70 50 L79 52" stroke="#fff" stroke-width="2"/>`;
+  if(has('headset')) hair+=`<path d="M29 56 Q29 30 50 30 Q71 30 71 56" fill="none" stroke="#222" stroke-width="2.4"/><rect x="26" y="53" width="6" height="10" rx="2" fill="#222"/><path d="M29 62 Q32 70 42 69" fill="none" stroke="#222" stroke-width="1.6"/><circle cx="43" cy="69" r="1.8" fill="#222"/>`;
+  if(has('sunglassup')) hair+=`<rect x="36" y="40" width="12" height="5" rx="2" fill="#111"/><rect x="52" y="40" width="12" height="5" rx="2" fill="#111"/><path d="M48 42 L52 42" stroke="#111" stroke-width="1.5"/>`;
+  // ---- 顔
+  const eyes={calm:`<path d="M39 59 Q43 56 47 59 M53 59 Q57 56 61 59" stroke="#222" stroke-width="1.8" fill="none"/>`,
+    closed:`<path d="M39 59 Q43 62 47 59 M53 59 Q57 62 61 59" stroke="#222" stroke-width="1.8" fill="none"/>`,
+    smile:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/>`,
+    grin:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/>`,
+    smirk:`<circle cx="43" cy="59" r="2.1" fill="#222"/><circle cx="57" cy="59" r="2.1" fill="#222"/><path d="M39 54 L46 55 M54 55 L61 53" stroke="#222" stroke-width="1.4"/>`,
+    shout:`<path d="M39 55 L47 58 M53 58 L61 55" stroke="#222" stroke-width="1.8"/><circle cx="43" cy="60" r="2" fill="#222"/><circle cx="57" cy="60" r="2" fill="#222"/>`}[L.face]||'';
+  const mouth={calm:`<path d="M45 68 Q50 70 55 68" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    closed:`<path d="M46 68 Q50 70 54 68" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    smile:`<path d="M44 66 Q50 71 56 66" stroke="#a0522d" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    grin:`<path d="M43 65 Q50 74 57 65 Z" fill="#7a2a1a"/><path d="M44 65.5 L56 65.5" stroke="#fff" stroke-width="1.6"/>`,
+    smirk:`<path d="M45 68 Q52 69 56 65" stroke="#7a3b22" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    shout:`<ellipse cx="50" cy="68" rx="5" ry="4" fill="#7a2a1a"/>`}[L.face]||'';
+  face+=eyes+mouth;
+  if(has('glass')) face+=`<rect x="36.5" y="54.5" width="12" height="9" rx="2" fill="#ffffff22" stroke="#222" stroke-width="1.6"/><rect x="51.5" y="54.5" width="12" height="9" rx="2" fill="#ffffff22" stroke="#222" stroke-width="1.6"/><path d="M48.5 58 L51.5 58" stroke="#222" stroke-width="1.4"/>`;
+  if(has('roundglass')) face+=`<circle cx="43" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><circle cx="57" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><path d="M48 58 L52 58" stroke="#7a5a2a" stroke-width="1.3"/>`;
+  if(has('sunglass')) face+=`<rect x="35" y="54" width="13" height="8" rx="3" fill="#111"/><rect x="52" y="54" width="13" height="8" rx="3" fill="#111"/><path d="M48 57 L52 57" stroke="#111" stroke-width="2"/>`;
+  if(has('mustache')) face+=`<path d="M42 65 Q46 62 50 64 Q54 62 58 65 Q54 66 50 65 Q46 66 42 65 Z" fill="${L.hair==='bald'?'#666':hc}"/>`;
+  if(has('beard')) face+=`<path d="M34 62 Q36 80 50 82 Q64 80 66 62 Q62 72 50 73 Q38 72 34 62 Z" fill="${hc}"/><path d="M44 66 Q50 69 56 66" stroke="#7a3b22" stroke-width="1.6" fill="none"/>`;
+  // ---- 首まわり・胸の小物
+  if(has('whistle')) front+=`<path d="M44 84 L50 100 L56 84" fill="none" stroke="#e74c3c" stroke-width="1.2"/><rect x="47" y="99" width="7" height="4" rx="2" fill="#bdc3c7"/>`;
+  if(has('stopwatch')) front+=`<path d="M44 84 L48 100 M56 84 L52 100" stroke="#333" stroke-width="1"/><circle cx="50" cy="104" r="5" fill="#eee" stroke="#333" stroke-width="1.4"/><path d="M50 104 L50 101" stroke="#c0392b" stroke-width="1.2"/>`;
+  if(has('towel')) front+=`<path d="M40 82 Q50 90 60 82 L62 86 L58 104 L54 104 L56 88 Q50 92 44 88 L46 104 L42 104 L38 86 Z" fill="#f4f4f4"/>`;
+  if(has('beads')) front+=`${Array.from({length:9},(_,k)=>{ const a=Math.PI*(0.1+k*0.1); return `<circle cx="${(50-14*Math.cos(a)).toFixed(1)}" cy="${(86+12*Math.sin(a)).toFixed(1)}" r="1.8" fill="#6b3a1e"/>`; }).join('')}`;
+  if(has('nametag')) front+=`<rect x="56" y="96" width="12" height="6" rx="1" fill="#fff" stroke="#0003"/><path d="M58 99 L66 99" stroke="#2a7ab8" stroke-width="1.2"/>`;
+  if(has('clip')) front+=`<rect x="57" y="96" width="9" height="6" rx="1" fill="#eaeaea"/>`;
+  // ---- 手に持つ物
+  const [hx,hy]=rh;
+  if(has('pendulum')) held+=`<path d="M${hx} ${hy+2} L${hx-1} ${hy+18}" stroke="#d9c27a" stroke-width=".8"/><circle cx="${hx-1}" cy="${hy+21}" r="3.6" fill="#d4a52a" stroke="#9a7a1a"/><circle cx="${hx-1}" cy="${hy+21}" r="1.1" fill="${top}"/>`;
+  if(has('cards')) held+=`<g transform="translate(${hx-6} ${hy-14})"><rect x="0" y="2" width="8" height="11" rx="1" fill="#fff" stroke="#999" transform="rotate(-15 4 12)"/><rect x="3" y="0" width="8" height="11" rx="1" fill="#fff" stroke="#999"/><rect x="6" y="2" width="8" height="11" rx="1" fill="#fff" stroke="#999" transform="rotate(15 10 12)"/><text x="7" y="9" font-size="6" fill="#c0392b" text-anchor="middle">♥</text></g>`;
+  if(has('notebook')) held+=`<rect x="${hx-8}" y="${hy-12}" width="12" height="15" rx="1" fill="#8e6bbf" stroke="#5b3f86"/>`;
+  if(has('tablet')) held+=`<rect x="${hx-9}" y="${hy-16}" width="15" height="21" rx="2" fill="#222"/><rect x="${hx-7.5}" y="${hy-14}" width="12" height="16" fill="#4ea1ff"/><path d="M${hx-6} ${hy-2} L${hx-3} ${hy-6} L${hx} ${hy-4} L${hx+3} ${hy-10}" stroke="#fff" stroke-width="1" fill="none"/>`;
+  if(has('phone')) held+=`<rect x="${hx-4}" y="${hy-14}" width="7" height="12" rx="1.5" fill="#222"/><rect x="${hx-3}" y="${hy-12.5}" width="5" height="8.5" fill="#7fe0a2"/>`;
+  if(has('key')) held+=`<circle cx="${hx}" cy="${hy-10}" r="3.2" fill="none" stroke="#e2b33a" stroke-width="1.8"/><path d="M${hx} ${hy-7} L${hx} ${hy+2} M${hx} ${hy-1} L${hx+3} ${hy-1} M${hx} ${hy+1.5} L${hx+2.4} ${hy+1.5}" stroke="#e2b33a" stroke-width="1.6"/>`;
+  if(has('contract')) held+=`<rect x="${hx-10}" y="${hy-14}" width="12" height="16" fill="#fff" stroke="#bbb"/><path d="M${hx-8} ${hy-10} L${hx-1} ${hy-10} M${hx-8} ${hy-7} L${hx} ${hy-7} M${hx-8} ${hy-4} L${hx-2} ${hy-4}" stroke="#999" stroke-width=".8"/><path d="M${hx-3} ${hy-1} L${hx+6} ${hy-12}" stroke="#d4a52a" stroke-width="1.6"/>`;
+  if(has('papers')) held+=`<rect x="${hx-10}" y="${hy-14}" width="13" height="16" fill="#fff" stroke="#bbb" transform="rotate(-8 ${hx} ${hy})"/><path d="M${hx-8} ${hy-6} L${hx-5} ${hy-9} L${hx-2} ${hy-7} L${hx+1} ${hy-11}" stroke="#2a7ab8" stroke-width="1" fill="none"/>`;
+  if(has('calc')) held+=`<rect x="${hx-8}" y="${hy-14}" width="11" height="15" rx="1.5" fill="#333"/><rect x="${hx-6.5}" y="${hy-12.5}" width="8" height="3.5" fill="#bfe6a8"/>${[0,1,2].map(r=>[0,1,2].map(c=>`<rect x="${hx-6.5+c*2.8}" y="${hy-7.5+r*2.6}" width="2" height="1.8" fill="#aaa"/>`).join('')).join('')}`;
+  if(has('plan')||has('file')) held+=`<rect x="${hx-11}" y="${hy-15}" width="15" height="17" fill="${has('file')?'#2a7ab8':'#fff'}" stroke="#999"/>${has('plan')?`<path d="M${hx-9} ${hy-13} L${hx+2} ${hy-13} L${hx+2} ${hy} L${hx-9} ${hy} Z M${hx-9} ${hy-7} L${hx-3} ${hy-7} L${hx-3} ${hy}" fill="none" stroke="#2a7ab8" stroke-width=".9"/>`:`<rect x="${hx-9}" y="${hy-12}" width="11" height="3" fill="#fff"/>`}`;
+  if(has('briefcase')) held+=`<rect x="76" y="114" width="20" height="14" rx="2" fill="#3b2412"/><path d="M82 114 L82 111 L90 111 L90 114" fill="none" stroke="#3b2412" stroke-width="1.8"/><path d="M76 120 L96 120" stroke="#e2b33a" stroke-width="1"/>`;
+  if(has('dumbbell')) held+=`<path d="M${hx-9} ${hy} L${hx+9} ${hy}" stroke="#555" stroke-width="2.4"/><rect x="${hx-12}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/><rect x="${hx+8}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/>`;
+  if(has('yogamat')) held=`<rect x="6" y="96" width="9" height="30" rx="4.5" fill="#9b59b6"/><ellipse cx="10.5" cy="96" rx="4.5" ry="2" fill="#b07cc6"/>`+held;
+  if(has('laptop')) held+=`<path d="M34 114 L66 114 L70 122 L30 122 Z" fill="#9aa3ad"/><rect x="36" y="98" width="28" height="16" rx="1.5" fill="#2b2f36"/><rect x="38" y="100" width="24" height="12" fill="#4ea1ff"/><path d="M40 110 L45 105 L50 108 L56 102 L60 104" stroke="#fff" stroke-width="1" fill="none"/>`;
+  if(has('clipboard')) held+=`<rect x="38" y="98" width="24" height="28" rx="2" fill="#8a5a2b"/><rect x="41" y="102" width="18" height="22" fill="#fff"/><rect x="45" y="96" width="10" height="4" rx="1" fill="#bbb"/><path d="M43 107 L57 107 M43 111 L57 111 M43 115 L53 115" stroke="#999" stroke-width="1"/>`;
+  if(has('bigtab')) held+=`<rect x="33" y="92" width="34" height="34" rx="3" fill="#1d1f24"/><rect x="36" y="95" width="28" height="27" fill="#4ea1ff"/><path d="M38 118 L44 110 L50 113 L56 104 L62 100" stroke="#fff" stroke-width="1.4" fill="none"/><rect x="39" y="98" width="10" height="3" fill="#ffffffaa"/><circle cx="50" cy="124" r="1" fill="#666"/>`;
+  if(has('house')) held+=`<path d="M38 112 L50 100 L62 112 L62 126 L38 126 Z" fill="#f4e3c1" stroke="#8a5a2b" stroke-width="1"/><path d="M35 113 L50 98 L65 113" fill="none" stroke="#c0392b" stroke-width="3" stroke-linejoin="round"/><rect x="47" y="116" width="6" height="10" fill="#8a5a2b"/><rect x="40" y="114" width="5" height="5" fill="#9ec3e6"/><rect x="55" y="114" width="5" height="5" fill="#9ec3e6"/>`;
+  const handsTop=both||raise;   // 物を持っている手は物の上に描く
+  return `<svg viewBox="0 0 100 130" width="92" height="120" aria-hidden="true">
+  <ellipse cx="50" cy="126" rx="30" ry="4" fill="#0006"/>${back}${body}${front}${arms}${handsTop?held+hands:hands+held}${head}${hair}${face}</svg>`;
+}
+/* ================================================================
+   所持金・年俸の上限・オフシーズンのコーチ
+   ・査定が終わると来季の年俸を先にもらう（寮生活中は半分が寮費）。入団時は500万の半分
+   ・年俸の上限＝ここ5年の実績ポイントで決まる（最高15億）。上限に近いほど上がりにくい
+   ・オフ（キャンプ前）に所持金でコーチを3人まで呼ぶ（家も含む）→ オフ3日間、1日ずつコーチが来る
+   ・効果は今シーズンの終わりまで（家と合同自主トレの能力アップはずっと）
+   ================================================================ */
+const SAL_MAX=1500000000;
+const AWARD_PTS={'日本シリーズMVP':3,'WBC野手MVP':3,'WBC投手MVP':3,'クライマックスシリーズMVP':1,'オールスターMVP':0.5};
+const SAL_CAPS=[[26,1500000000],[21,1000000000],[15,700000000],[10,500000000],[6,350000000],[3,200000000],[1,100000000],[0,50000000]];
+const salCap=p=>{ for(const [t,c] of SAL_CAPS) if(p>=t) return c; return 50000000; };
+const salMaxUp=s=>s<30000000?1.5:s<100000000?1.0:0.6;   // 1年で上がる幅の最大：3,000万未満+150%・1億未満+100%・1億以上+60%
+const streakBonus=n=>n>=2?Math.min(2,0.5*(n-1)):0;      // 連続タイトル：2年+0.5・3年+1・4年+1.5・5年以上+2
+const COACH_V={mental:3,analyst:4,trainer:0,agent:0,realtor:2};   // キャラクター：メンタリスト案4・アナリスト案5（大きいタブレット）・トレーナー案1（ボード）・代理人案1・不動産屋案3
+// 規定到達（野手：規定打席、投手：規定投球回か50登板、二刀流：どちらか）
+function isRegular(ss,bss){
+  const bq=s=>!!(s&&s.pa!=null&&s.pa>=QUAL_PA), pq=s=>!!(s&&s.pa==null&&((s.outs||0)>=SEASON_GAMES*3||(s.g||0)>=50));
+  return bq(ss)||pq(ss)||bq(bss);
+}
+// 実績ポイント（ここ5年）。rv があれば今季のタイトルも入れる
+function realPts(rv){
+  const cur=PEN.year, tBy={}, regBy={};
+  (PEN.seasons||[]).forEach(s=>{ tBy[s.year]=(s.titles||[]).length; regBy[s.year]=isRegular(s.ss,s.bss); });
+  tBy[cur]=rv&&rv.titles?rv.titles.filter(t=>t.won).length:(tBy[cur]||0); regBy[cur]=isRegular(PEN.ss,isTW()?PEN.bss:null);
+  const aw=y=>(PEN.titles||[]).filter(t=>t.y===y&&AWARD_PTS[t.name]).reduce((a,t)=>a+AWARD_PTS[t.name],0);
+  const rows=[]; let tot=0;
+  for(let y=Math.max(1,cur-4);y<=cur;y++){
+    let st=0; for(let k=y;k>=1&&(tBy[k]||0)>0;k--) st++;
+    const t=tBy[y]||0, tp=t>0?2+(t-1):0, sb=t>0?streakBonus(st):0, reg=regBy[y]?1:0, a=aw(y), p=reg+tp+sb+a;
+    rows.push({y,reg,t,tp,sb,st,a,p}); tot+=p;
+  }
+  return {pts:Math.round(tot*10)/10,rows};
+}
+// 年俸査定の仕上げ（ポストシーズンの表彰が終わってから）：上限に近いほど上がりにくい・マネーマネジメント
+function salaryFinalize(rv){
+  if(!rv||rv.salFin||!PEN) return; rv.salFin=true;
+  const R=realPts(rv); rv.rp=R; rv.cap=salCap(R.pts);
+  if(rv.released||rv.ct||rv.faDone) return;   // 契約中・FAで決まった年俸はそのまま
+  const s=PEN.salary; let rate=rv.chg; rv.chg0=rv.chg;
+  if(rate>0){ const f=s>=rv.cap?0:Math.sqrt(1-s/rv.cap); rv.dim=Math.round(f*100)/100; rate=rate*f; if(s*(1+rate)>Math.max(rv.cap,s)) rate=Math.max(rv.cap,s)/s-1; }
+  const mm=cbOn('money'); if(mm){ rv.mm=mm.mm; rate+=mm.mm; }
+  rv.chg=Math.round(rate*1000)/1000;
+  rv.newSal=Math.min(SAL_MAX,Math.max(1000000,Math.round(s*(1+rate)/100000)*100000));
+}
+function salHTML(rv){
+  if(!rv||!rv.rp||rv.released) return '';
+  const R=rv.rp, rowTxt=r=>`${r.y}年目：${[r.reg?'規定到達 1':'',r.t?`タイトル${r.t}つ ${r.tp}`:'',r.sb?`${r.st}年連続 +${r.sb}`:'',r.a?`表彰 +${r.a}`:''].filter(Boolean).join('・')||'0'}${r.p?`（${r.p}点）`:''}`;
+  return `<div class="hint" style="color:var(--ink)">📈 年俸の上限 <b>${yen(rv.cap)}</b>（ここ5年の実績 ${R.pts}点）${rv.dim!=null&&rv.dim<1&&!rv.ct?`<br><small>上限に近いほど上がりにくい：今年の上がり幅 ×${rv.dim}</small>`:''}${rv.mm?`　💼 マネーマネジメント +${Math.round(rv.mm*100)}%`:''}</div>
+    <details class="salx" style="margin-top:2px"><summary class="hint" style="display:list-item;cursor:pointer">実績ポイントの内訳</summary><div class="hint">${R.rows.map(rowTxt).join('<br>')}<br>
+    <small>規定到達1点／タイトル1つ目2点・2つ目から+1点／連続タイトル 2年+0.5〜5年以上+2／日本シリーズMVP・WBC MVP 3点・CS MVP 1点・オールスターMVP 0.5点。<br>上限：1点で1億・3点で2億・6点で3.5億・10点で5億・15点で7億・21点で10億・26点で15億（0点は5,000万）</small></div></details>
+    <div class="hint">💴 査定が終わると、来季の年俸を先にもらえます（${PEN.house?'持ち家なので満額':'寮生活中は半分が寮費'}）</div>`;
+}
+// 年俸を受け取る（寮生活中は半分）
+function salaryPay(sal,why){
+  if(!PEN||!sal) return; const dorm=!PEN.house, net=dorm?Math.round(sal/2):sal;
+  PEN.money=(PEN.money||0)+net;
+  penNotice(`💴 ${why||'来季の年俸'} ${yen(sal)} を受け取った${dorm?`（寮費として半分の${yen(sal-net)}を引かれ、${yen(net)}）`:''}。所持金 ${yen(PEN.money)}`);
+}
+
+/* ---- 今季の効果（PEN.cb={y,on:{id:{...}}}） ---- */
+const cbAct=()=>(typeof PEN!=='undefined'&&PEN&&!PEN.released&&PEN.cb&&PEN.cb.y===PEN.year)?PEN.cb.on:null;
+const cbOn=id=>{ const o=cbAct(); return o&&o[id]||null; };
+const cbG=id=>(typeof G!=='undefined'&&G&&G.pen&&!G.pen.tryout)?cbOn(id):null;   // ペナントの試合中だけ
+const cbSpark=()=>{ const m=cbOn('motion'); return m&&m.pitch||null; };
+const pinchMe=bs=>inPinch(bs)&&!cbG('yosho');   // 要所の戦い方：得点圏でも能力が下がらない
+function cbStaMul(){ let m=1; if(cbG('nebari')) m*=0.8; if(cbG('stamina')) m*=0.65; return m; }   // 疲れの影響（粘り勝つ −20%・体力トレーニング −35%）
+// 打撃の能力（シーズン後半+5・研究した球団との試合+5）
+function cbBab(a){
+  const o=cbAct(); if(!o||!a) return a; let add=0;
+  if(o.stamina&&PEN.day>=71) add+=5;
+  if(o.scout&&PEN.pending&&PEN.pending.opp===o.scout.team) add+=5;
+  if(!add) return a; const r={...a}; for(const k of ['meet','power','speed','eye','def']) r[k]=Math.min(100,(a[k]??(k==='def'?70:50))+add); return r;
+}
+// 投手の能力（研究した球団との試合：球速+2・コントロール+5・スタミナ+5）
+function cbAbil(a){
+  const s=cbOn('scout'); if(!s||!a||!PEN.pending||PEN.pending.opp!==s.team) return a;
+  return {...a,velo:Math.min(165,a.velo+2),control:Math.min(100,a.control+5),stamina:Math.min(100,a.stamina+5)};
+}
+// スキップしたときの防御率（コーチの効果ぶん少し良くなる）
+function cbEraAdj(opp){
+  const o=cbAct(); if(!o) return 0; let d=0;
+  if(o.nebari) d+=0.12; if(o.yosho) d+=0.12; if(o.stamina) d+=0.1; if(o.motion&&o.motion.pitch) d+=0.15;
+  if(o.scout&&opp&&opp===o.scout.team) d+=0.25;
+  return d;
+}
+// シーズンが終わったら元に戻す（ヨガで戻した能力・モーショントラッキングのタイプ）
+function cbSeasonEnd(){
+  const C=PEN&&PEN.cb; if(!C||C.y!==PEN.year||C.ended) return; C.ended=true;
+  const y=C.on.yoga; if(y&&y.d){ for(const k in y.d.abil||{}) PEN.abil[k]=r1(Math.max(k==='velo'?110:0,PEN.abil[k]-y.d.abil[k])); for(const k in y.d.babil||{}) PEN.babil[k]=r1(Math.max(0,(PEN.babil[k]??50)-y.d.babil[k])); }
+  const m=C.on.motion; if(m&&m.type&&m.was!=null&&PEN.btype===m.type) PEN.btype=m.was;
+}
+
+/* ---- コーチの一覧 ---- */
+const CB_ITEMS=[
+  {id:'scout', tier:'お手頃',  coach:'analyst',name:'相手球団の研究',price:6000000},
+  {id:'yoga',  tier:'お手頃',  coach:'trainer',name:'ヨガ教室',price:7000000},
+  {id:'yosho', tier:'お手頃',  coach:'mental', name:'メンタリズム講座〜要所の戦い方編〜',price:8000000},
+  {id:'antei', tier:'お手頃',  coach:'mental', name:'メンタリズム講座〜安定した戦い方編〜',price:9000000},
+  {id:'nebari',tier:'標準',    coach:'mental', name:'メンタリズム教室〜粘り勝つメンタル編〜',price:20000000},
+  {id:'stamina',tier:'標準',   coach:'trainer',name:'体力トレーニング',price:30000000},
+  {id:'data',  tier:'標準',    coach:'analyst',name:'データ解析',price:40000000},
+  {id:'joint', tier:'標準',    coach:'player', name:'他選手との合同自主トレーニング',price:60000000},
+  {id:'anti',  tier:'高級',    coach:'trainer',name:'アンチエイジング',price:300000000},
+  {id:'motion',tier:'最高級',  coach:'analyst',name:'モーショントラッキング',price:1000000000},
+  {id:'money', tier:'特別',    coach:'agent',  name:'マネーマネジメント',price:0},
+  {id:'house', tier:'特別',    coach:'realtor',name:'家を買う',price:100000000},
+];
+const cbItem=id=>CB_ITEMS.find(x=>x.id===id);
+const cbPrice=id=>id==='money'?Math.max(9000000,Math.round((PEN.salary||0)*0.08/100000)*100000):cbItem(id).price;
+const jointYear=y=>typeof wbcYear==='function'&&wbcYear(y-1);   // WBCのあった年のオフ（＝次の年のキャンプ前）
+function cbLock(id){
+  if(id==='joint'&&!jointYear(PEN.year)){ let y=PEN.year+1; while(!jointYear(y)&&y<PEN.year+8) y++; return `🔒 WBCのあった年のオフだけ（次は${y}年目のキャンプ前）`; }
+  if(id==='house'&&PEN.house) return '購入済み（持ち家）';
+  return null;
+}
+const posKind=()=>isBat()?'B':isTW()?'W':'P';
+// 説明（簡潔に・数字つき）
+function cbDesc(id){
+  const k=posKind(), B=k!=='P', P=k!=='B', L=[];
+  switch(id){
+    case 'scout': L.push('球団を1つ選ぶと、その球団との試合だけ能力が少し上がる'); if(B) L.push(`${k==='W'?'打撃：':'野手：'}全能力+5`); if(P) L.push(`${k==='W'?'投球：':'投手：'}球速+2km/h・コントロール+5・スタミナ+5`); break;
+    case 'yoga': L.push('過去にケガで下がった能力の1/3を回復（今季だけ）'); L.push('ケガの確率が半分'); break;
+    case 'yosho': if(B) L.push(`${k==='W'?'打撃':'野手'}：得点圏（ランナー二塁・三塁）で打撃が少し上がる（空振り−10%・打球の質アップ）`); if(P) L.push(`${k==='W'?'投球':'投手'}：得点圏にランナーがいるときの能力ダウンがなくなる`); break;
+    case 'antei': L.push('スランプの発生確率が1/5になる'); break;
+    case 'nebari': if(B) L.push(`${k==='W'?'打撃':'野手'}：三振が少し減り、追い込まれてからのヒット性の当たり・カットが少し増える（2ストライク後の空振り−15%・カット+8%）`); if(P) L.push(`${k==='W'?'投球':'投手'}：体力が切れたときの能力ダウンを20%緩和・勝ち投手の権利が取れる回（勝っている5回以降）は全球種の球威が少し増す`); break;
+    case 'stamina': if(B) L.push(`${k==='W'?'打撃':'野手'}：シーズン後半（72試合目から）の試合は全能力+5`); if(P) L.push(`${k==='W'?'投球':'投手'}：スタミナが減ったときの能力低下を35%緩和`); break;
+    case 'data': L.push('相手からの研究（警戒度）が半分'); L.push(B&&!P?'相手投手の配球の読み（よく狙うマスを避ける）が半分':!B?'相手ベンチの配球分析が4割の確率で外れる':'配球の読み・分析が効きにくい'); break;
+    case 'joint': L.push('チームメイト（その年のオールスター・WBCの仲間も）から3人呼んで自主トレ。3人の平均で一番高い能力が、自分も相手も+2.5〜5（球速は+1〜2km/h。成績が良い選手ほど伸びる）。上がった能力はずっと残る'); break;
+    case 'anti': L.push('33歳を超えてからの大きな衰え（マイナスの倍率）が半分'); if(P) L.push('変化球が年齢の衰えで下がらない'); if((PEN.age||22)<=33) L.push(`<small>（今${PEN.age}歳。衰えの倍率がかかるのは34歳から）</small>`); break;
+    case 'motion': if(B) L.push(`${k==='W'?'打撃':'野手'}：打者タイプを好きなものに変えられる（今季だけ）`); if(P) L.push(`${k==='W'?'投球':'投手'}：変化球を1つ選ぶと名前の前に✨がつき、打たれにくくなる`); break;
+    case 'money': L.push('次の年俸査定が+5〜10%（15億まで）'); L.push('FAになったら提示額+10%・契約年数が伸びやすい'); L.push(`<small>値段は今の年俸の8%（最低900万）</small>`); break;
+    case 'house': L.push('買い切り・効果はずっと'); L.push('次の査定から寮費が引かれず、年俸をそのまま受け取れる'); break;
+  }
+  return L.join('<br>');
+}
+/* ---- オフシーズン（キャンプ前）の画面 ---- */
+let OFF_OPEN=null, OFF_ARM=false, OFF_JT=null;
+const needOff=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.off&&PEN.off.y===PEN.year&&!PEN.off.done&&!PEN.released&&PEN.campY!==PEN.year&&PEN.day===0&&!PEN.pending&&!PEN.review);
+function offInit(){ if(PEN.year>=2&&!PEN.retired){ PEN.off={y:PEN.year,stage:'pick',sel:[]}; if(typeof window!=='undefined'&&window.scrollTo) window.scrollTo(0,0); } }
+const meSay=t=>`<div class="msay me"><div class="mimg">${svgPlayer(TEAM[PEN.team])}<div class="mlab">${PEN.pname}</div></div><div class="bub r">${t}</div></div>`;
+const coachSay=(kind,name,t)=>`<div class="msay"><div class="mimg">${svgCoach(kind,COACH_V[kind]||0)}<div class="mlab">${COACH_KIND_JP[kind]}<br>${name}</div></div><div class="bub l">${t}</div></div>`;
+const mateSay=(m,t)=>`<div class="msay"><div class="mimg">${svgPlayer(TEAM[m.team],{num:m.num,bat:m.kind==='F'})}<div class="mlab">${m.name}<br>${TEAM[m.team].short}</div></div><div class="bub l">${t}</div></div>`;
+function renderOff(el){
+  const O=PEN.off; if(O.stage==='days') return renderOffDay(el);
+  const sel=O.sel.filter(id=>cbItem(id)), sum=sel.reduce((t,id)=>t+cbPrice(id),0), money=PEN.money||0, left=money-sum;
+  const tiers=['お手頃','標準','高級','最高級','特別'];
+  const row=it=>{ const id=it.id, on=sel.includes(id), lock=cbLock(id), pr=cbPrice(id), can=!lock&&(on||(sel.length<3&&pr<=left));
+    return `<div class="cbrow ${on?'on':''} ${lock?'lock':!can?'dis':''}">
+      <button class="cbchk" data-cbs="${id}" ${(!can&&!on)?'disabled':''} aria-label="選ぶ">${on?'✔':lock?'🔒':''}</button>
+      <button class="cbt" data-cbt="${id}">${it.name}<small>${COACH_KIND_JP[it.coach]||'他選手'}　ⓘ</small></button>
+      <span class="cbp ${!lock&&!on&&pr>left?'ng':''}">${yen(pr)}</span></div>
+      ${OFF_OPEN===id?`<div class="cbd">${cbDesc(id)}${lock?`<br><b style="color:#f0a0a0">${lock}</b>`:!on&&pr>left?`<br><b style="color:#f0a0a0">所持金が足りません（あと${yen(pr-left)}）</b>`:''}</div>`:''}`; };
+  const lines=['オフの間に専門家を呼んで、トレーニングやマネジメントをしてみようかな。','せっかくのオフだ。お金を使って、専門家に見てもらおうかな。','今年のオフは誰を呼ぼう？ 専門家の力を借りてみようかな。'];
+  el.innerHTML=`<div class="pen"><h2>🏝 オフシーズン <small>（${PEN.year}年目のキャンプ前）</small></h2>
+    ${meSay(lines[PEN.year%lines.length])}
+    <div class="pcardx offm">💰 所持金 <b>${yen(money)}</b>　<small>${PEN.house?'🏠 持ち家（年俸は満額）':'🏢 寮生活（年俸の半分が寮費）'}</small>
+      <div class="hint" style="margin:4px 0 0">□をタップで選択、名前をタップで説明。選べるのは<b>3つまで</b>（家も含む）。効果は今シーズンの終わりまで（家と合同自主トレの能力アップはずっと）</div></div>
+    <div class="cbl">${tiers.map(t=>{ const L=CB_ITEMS.filter(x=>x.tier===t); return L.length?`<div class="cbtier">${t}</div>${L.map(row).join('')}`:''; }).join('')}</div>
+    <div class="pcardx" style="margin-top:8px">選択中 <b>${sel.length}</b>／3　合計 <b>${yen(sum)}</b>　→ 残り <b>${yen(left)}</b>${sel.length?`<div class="hint" style="margin:2px 0 0">${sel.map(id=>cbItem(id).name).join('・')}</div>`:''}</div>
+    <button class="btn main" id="offGo" style="width:100%">${OFF_ARM?'もう一度押すと決定（お金を払います）':sel.length?`${sel.length}人呼ぶ（${yen(sum)}）→ オフ3日間へ`:'今年は誰も呼ばない → オフ3日間へ'}</button>
+    <div class="hint">決定すると、オフの日にちが3日進み、1日ずつコーチが来ます（来ない日もあります）。</div></div>`;
+  el.querySelectorAll('[data-cbt]').forEach(b=>b.onclick=()=>{ OFF_OPEN=OFF_OPEN===b.dataset.cbt?null:b.dataset.cbt; OFF_ARM=false; renderOff(el); });
+  el.querySelectorAll('[data-cbs]').forEach(b=>b.onclick=()=>{ const id=b.dataset.cbs, i=O.sel.indexOf(id); if(i>=0) O.sel.splice(i,1); else if(O.sel.length<3&&!cbLock(id)) O.sel.push(id); OFF_ARM=false; renderOff(el); save(); });
+  $('offGo').onclick=()=>{ if(!OFF_ARM){ OFF_ARM=true; renderOff(el); return; } OFF_ARM=false; offDecide(); renderPennant(); save(); window.scrollTo(0,0); };
+}
+function offDecide(){
+  const O=PEN.off, sel=O.sel.filter(id=>cbItem(id)&&!cbLock(id)).slice(0,3); let sum=0; const paid={};
+  sel.forEach(id=>{ paid[id]=cbPrice(id); sum+=paid[id]; });
+  if(sum>(PEN.money||0)) return;
+  PEN.money=(PEN.money||0)-sum;
+  const slots=shuffle([0,1,2]).slice(0,sel.length).sort((a,b)=>a-b), days=[null,null,null];
+  sel.forEach((id,i)=>{ days[slots[i]]={id,name:id==='joint'?'':randName()}; });
+  Object.assign(O,{stage:'days',days,d:0,st:{},paid,sum});
+  PEN.cb={y:PEN.year,on:{}};
+  if(sum) penNotice(`🏝 オフにコーチを呼んだ：${sel.map(id=>`${cbItem(id).name}（${yen(paid[id])}）`).join('・')}。残りの所持金 ${yen(PEN.money)}`);
+}
+// ---- 1日ずつ
+function renderOffDay(el){
+  const O=PEN.off, d=O.d, D=O.days[d], st=O.st[d]||(O.st[d]={}), last=d>=2;
+  let body='';
+  if(!D){
+    const t=['今日はコーチングを頼んでいない。自主練でもしておこう。','今日は誰も来ない日。しっかり体を休めておこう。','今日はコーチングを頼んでいない。キャンプに向けて素振り（シャドーピッチング）だ。'];
+    body=`${meSay(t[(d+PEN.year)%3])}<div class="pcardx">今日はコーチングを頼んでいない</div>`;
+  }else{
+    if(!st.done&&!cbNeedsChoice(D.id)) cbDo(D,st,null);
+    body=cbTalk(D,st);
+  }
+  el.innerHTML=`<div class="pen"><h2>🏝 オフ ${d+1}日目 <small>／3日</small></h2>
+    <div class="offdays">${[0,1,2].map(i=>`<span class="${i===d?'on':i<d?'done':''}">${i+1}日目${O.days[i]?`<br><small>${cbItem(O.days[i].id).name.replace(/〜.*〜/,'')}</small>`:'<br><small>－</small>'}</span>`).join('')}</div>
+    ${body}
+    ${(!D||st.done)?`<button class="btn main" id="offNext" style="width:100%">${last?'オフ終了 → 春季キャンプへ ▶':'次の日へ ▶'}</button>`:''}</div>`;
+  const nx=el.querySelector('#offNext'); if(nx) nx.onclick=()=>{ if(last){ O.done=true; penNotice('🏝 オフシーズン終了。春季キャンプへ'); } else O.d++; renderPennant(); save(); window.scrollTo(0,0); };
+  cbBind(el,D,st);
+}
+const cbNeedsChoice=id=>id==='scout'||id==='motion'||id==='joint';
+const cbTag=t=>`<div class="pcardx hi cbeff">✅ ${t}</div>`;
+// 会話（コーチごと・自分の立場に合わせて）
+function cbTalk(D,st){
+  const id=D.id, it=cbItem(id), k=posKind(), B=k==='B', P=k==='P', nm=D.name, me=PEN.pname, age=PEN.age||22;
+  const C=t=>coachSay(it.coach,nm,t), M=meSay;
+  let h='';
+  switch(id){
+    case 'scout':{
+      h+=C(`スポーツアナリストの${nm}です。今日は相手球団を1つ、徹底的に研究しましょう。どこを丸裸にしますか？`);
+      if(!st.done){ const L=NPB.filter(t=>t.id!==PEN.team); h+=`<div class="cbch">${['セ','パ'].map(lg=>`<div class="hint" style="margin:4px 0 2px">${LG_NAME[lg]}</div>${L.filter(t=>t.lg===lg).map(t=>`<button class="btn sm" data-cbteam="${t.id}">${tchip(t.id)}</button>`).join('')}`).join('')}</div>`; break; }
+      const T=TEAM[st.team].short;
+      h+=M(`${T}でお願いします。`)+C(B?`${T}の投手陣は、カウントごとの球種にはっきり偏りがあります。全部まとめておきましたよ。`:P?`${T}の打線は、打者ごとに弱いコースがはっきりしています。全部まとめておきましたよ。`:`${T}の投手の配球も、打者の弱点も、全部まとめておきましたよ。`)+M(`これで${T}戦は一歩先を読めそうだ。`); break; }
+    case 'yoga': h+=C(`パーソナルトレーナーの${nm}です。今日はヨガでじっくり体をほぐしていきましょう。`)+M(st.loss?'昔のケガ、まだ少し体に残っている気がするんです。':'ケガだけはしたくないんです。')+C('呼吸に合わせて、ゆっくり伸ばして……そう。体の奥が目を覚ましてきましたね。'); break;
+    case 'yosho': h+=C(`メンタリストの${nm}です。ランナーが二塁にいる場面、あなたは何を考えていますか？`)+M(B?'「打たなきゃ」って、力が入ってしまいます。':'「打たれたらどうしよう」って、腕が縮こまってしまいます。')+C('その気持ちを消そうとしなくていい。ひと呼吸おいて、いつも通りの1球を。ピンチもチャンスも、同じ1球です。'); break;
+    case 'antei': h+=C(`メンタリストの${nm}です。好不調の波、気になっていませんか？`)+M('1度崩れると、なかなか戻らなくて……。')+C('崩れたときに戻る「型」を作りましょう。毎朝同じ順番で、同じことを。心の振れ幅が小さくなりますよ。'); break;
+    case 'nebari': h+=C(`メンタリストの${nm}です。今日は「粘り」の話をしましょう。`)+M(B?'追い込まれると、つい焦ってしまって。':P?'疲れてくると、気持ちまで切れてしまうんです。':'追い込まれたときも、疲れてきたときも、つい焦ってしまって。')+C(B?'2ストライクからが本当の勝負です。当てにいくのではなく、仕留めるまで粘る。':'勝ちが見えた5回から、もう一段ギアを上げる。体が重いときほど、腕は振れます。'); break;
+    case 'stamina': h+=C(`パーソナルトレーナーの${nm}です！ 今日は体力づくり。走って、跳んで、また走りますよ！`)+M('き、きつい……！')+C(B?'夏場に落ちない体が、シーズン後半のあなたを救います！':'スタミナが切れてからの一踏ん張りが変わりますよ！'); break;
+    case 'data': { const kv=Math.max(isBat()?0:keikai(false),hasBat()?keikai(true):0);
+      h+=C(`スポーツアナリストの${nm}です。去年のあなたのデータ、相手からはこう見えています。`)+M(kv>=0.05?'ここまで丸裸にされているのか……。':'思ったより、クセが出ているんだな……。')+C('だからこそ、傾向を少しずつずらしていきましょう。今季は読まれにくくなりますよ。'); break; }
+    case 'anti': h+=C(`パーソナルトレーナーの${nm}です。アンチエイジングのプログラムを組みました。食事・睡眠・リカバリー、全部見直しますよ。`)+M(age>33?`${age}歳、まだまだやれるところを見せたいんです。`:'まだ若いけど、今から備えておきたいんです。')+C(age>33?'年齢は数字にすぎません。体の時計を、ゆっくり進めていきましょう。':'いい心がけです。若いうちからの積み重ねが、10年後のあなたを支えますよ。'); break;
+    case 'motion':{
+      h+=C(`スポーツアナリストの${nm}です。モーショントラッキングで、あなたの動きを全身から解析します。`)+M('よろしくお願いします。');
+      if(!st.done){
+        h+=C(B?'スイングの軌道を見ると、別のタイプの打者にもなれそうです。どれを目指しますか？':P?'球の回転と腕の振りから、1球種を磨き上げましょう。どの変化球にしますか？':'打撃のタイプと、磨き上げる変化球を1つずつ選んでください。');
+        if(hasBat()) h+=`<div class="cbch"><div class="hint" style="margin:2px 0">打者タイプ（今：${PEN.btype||'バランス'}）</div>${BTYPES.map(t=>`<button class="btn sm ${st.type===t?'on':''}" data-cbtype="${t}">${t}</button>`).join('')}${st.type?`<div class="hint">${BTYPE_INFO[st.type].me}</div>`:''}</div>`;
+        if(!isBat()){ const L=(PEN.rep||[]).filter(t=>t!=='ストレート'); h+=`<div class="cbch"><div class="hint" style="margin:2px 0">磨き上げる変化球</div>${L.length?L.map(t=>`<button class="btn sm ${st.pitch===t?'on':''}" data-cbpitch="${t}">${t} Lv.${lvOf(t)}</button>`).join(''):'<span class="hint">変化球がありません</span>'}</div>`; }
+        const ok=(!hasBat()||st.type)&&(isBat()||st.pitch||!(PEN.rep||[]).some(t=>t!=='ストレート'));
+        h+=`<button class="btn main" data-cbgo="1" style="width:100%" ${ok?'':'disabled'}>これでお願いします</button>`; break; }
+      h+=M(`${[st.type&&`「${st.type}」`,st.pitch].filter(Boolean).join('と、')}でお願いします。`)+C(`……解析完了。${st.type?`今季は「${st.type}」として打席に立ちましょう。`:''}${st.pitch?`${st.pitch}の名前の前に✨が付きます。打たれにくい特別な1球になりましたよ。`:''}`); break; }
+    case 'joint': return cbJointTalk(D,st);
+    case 'money': h+=C(`代理人の${nm}です。あなたの価値を、数字できちんと示しましょう。`)+M('お金の話は、どうも苦手で……。')+C(`だから私がいるんです。今の年俸は${yen(PEN.salary)}。次の契約更改、楽しみにしていてください。`); break;
+    case 'house': h+=C(`不動産屋の${nm}です！ ご希望の条件で、いい物件が見つかりましたよ。`)+M('ついに寮を出るときが来たか……。')+C('こちらが鍵です。おめでとうございます！ 今日からここがあなたの城ですよ。'); break;
+  }
+  if(st.done&&st.eff) h+=cbTag(st.eff);
+  return h;
+}
+function cbBind(el,D,st){
+  if(!D) return; const re=()=>{ renderPennant(); save(); };
+  el.querySelectorAll('[data-cbteam]').forEach(b=>b.onclick=()=>{ cbDo(D,st,{team:b.dataset.cbteam}); re(); });
+  el.querySelectorAll('[data-cbtype]').forEach(b=>b.onclick=()=>{ st.type=b.dataset.cbtype; re(); });
+  el.querySelectorAll('[data-cbpitch]').forEach(b=>b.onclick=()=>{ st.pitch=b.dataset.cbpitch; re(); });
+  el.querySelectorAll('[data-cbgo]').forEach(b=>b.onclick=()=>{ cbDo(D,st,{type:st.type,pitch:st.pitch}); re(); });
+  el.querySelectorAll('[data-jt]').forEach(b=>b.onclick=()=>{ const id=b.dataset.jt, S=st.pick||(st.pick=[]), i=S.indexOf(id); if(i>=0) S.splice(i,1); else if(S.length<3){ const c=jtCands().find(x=>x.id===id); if(st.kind&&c&&c.kind!==st.kind) return; S.push(id); } if(!S.length) st.kind=null; else st.kind=jtCands().find(x=>x.id===S[0]).kind; re(); });
+  el.querySelectorAll('[data-jtk]').forEach(b=>b.onclick=()=>{ st.view=b.dataset.jtk; re(); });
+  el.querySelectorAll('[data-jtgo]').forEach(b=>b.onclick=()=>{ cbDo(D,st,{pick:(st.pick||[]).slice()}); re(); });
+}
+// 効果をつける
+function cbDo(D,st,arg){
+  if(st.done) return; const id=D.id, on=(PEN.cb&&PEN.cb.y===PEN.year?PEN.cb:(PEN.cb={y:PEN.year,on:{}})).on, k=posKind(), B=k!=='P', P=k!=='B';
+  let eff='';
+  switch(id){
+    case 'scout': st.team=arg.team; on.scout={team:arg.team};
+      eff=`${TEAM[arg.team].short}との試合だけ ${[B&&`${k==='W'?'打撃の':''}全能力+5`,P&&'球速+2km/h・コントロール+5・スタミナ+5'].filter(Boolean).join('・')}（今シーズン）`; break;
+    case 'yoga':{
+      const loss=(PEN.injLog||[]).reduce((t,x)=>t+(x.down||0),0), rec=PEN.injRec||0, rest=Math.max(0,loss-rec), amt=r1(rest/3);
+      st.loss=rest; const d={abil:{},babil:{}};
+      if(amt>0){
+        if(PEN.abil&&!isBat()) for(const kk of ['velo','control','stamina']){ const cap=kk==='velo'?165:100, nv=r1(Math.min(cap,PEN.abil[kk]+amt)); d.abil[kk]=r1(nv-PEN.abil[kk]); PEN.abil[kk]=nv; }
+        if(PEN.babil&&hasBat()) for(const kk of ['meet','power','speed','eye','def']){ const v=PEN.babil[kk]??50, nv=r1(Math.min(100,v+amt)); d.babil[kk]=r1(nv-v); PEN.babil[kk]=nv; }
+      }
+      on.yoga={amt,d};
+      eff=amt>0?`ケガで下がった能力（合計−${r1(rest)}）の1/3を回復：全能力+${amt}（今シーズンだけ）・ケガの確率 半分（今シーズン）`:'ケガの確率 半分（今シーズン）<br><small>ケガで下がった能力はないので、回復するものはなかった</small>'; break; }
+    case 'yosho': on.yosho={}; eff=[B&&`${k==='W'?'打撃：':''}得点圏で打撃アップ（空振り−10%・打球の質+0.05）`,P&&`${k==='W'?'投球：':''}得点圏にランナーがいても能力が下がらない`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'antei': on.antei={}; eff='スランプの発生確率 1/5（今シーズン）'; break;
+    case 'nebari': on.nebari={}; eff=[B&&`${k==='W'?'打撃：':''}2ストライク後の空振り−15%・打球の質+0.04・カット成功+8%`,P&&`${k==='W'?'投球：':''}疲れの影響−20%・勝っている5回以降は球威アップ`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'stamina': on.stamina={}; eff=[B&&`${k==='W'?'打撃：':''}シーズン後半（72試合目から）全能力+5`,P&&`${k==='W'?'投球：':''}スタミナが減ったときの能力低下を35%緩和`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'data': on.data={}; eff=`相手からの研究（警戒度）が半分・${B&&!P?'配球の読みが半分':'配球の分析が効きにくい'}（今シーズン）`; break;
+    case 'anti': on.anti={}; eff=`33歳を超えてからの衰えの倍率が半分${P?'・変化球が年齢で下がらない':''}（今シーズン終わりの査定）${(PEN.age||22)<=33?`<br><small>${PEN.age}歳の今は、まだ衰えの倍率はかかりません</small>`:''}`; break;
+    case 'motion':{
+      const m={}; if(arg.type&&hasBat()){ m.was=PEN.btype||'バランス'; m.type=arg.type; PEN.btype=arg.type; }
+      if(arg.pitch&&!isBat()) m.pitch=arg.pitch;
+      st.type=m.type; st.pitch=m.pitch; on.motion=m;
+      eff=[m.type&&`打者タイプ「${m.type}」（${BTYPE_INFO[m.type].me}）`,m.pitch&&`✨${m.pitch}：打たれにくい（空振り+5%・打球の質−0.06）`].filter(Boolean).join('／')+'（今シーズン）'; break; }
+    case 'joint': eff=cbJointApply(st,arg.pick); if(!eff) return; break;
+    case 'money':{ const mm=Math.round((0.05+rnd()*0.05)*100)/100; on.money={mm}; eff=`次の年俸査定 +${Math.round(mm*100)}%（15億まで）・FAなら提示額+10%・契約年数が伸びやすい（今シーズン終わりの査定）`; break; }
+    case 'house': PEN.house={y:PEN.year}; on.house={}; eff='持ち家：次の査定から寮費が引かれず、年俸を満額受け取れる（ずっと）'; break;
+  }
+  st.done=true; st.eff=eff;
+  penNotice(`🏝 ${cbItem(id).name}：${eff.replace(/<[^>]+>/g,'')}`);
+}
+/* ---- 合同自主トレ ---- */
+function jtFind(id){ for(const t of NPB){ const T=PEN.teams[t.id]; if(!T) continue; const f=(T.F||[]).find(x=>x.id===id); if(f) return {kind:'F',o:f,team:t.id}; const p=(T.P||[]).find(x=>x.pid===id); if(p) return {kind:'P',o:p,team:t.id}; } return null; }
+function jtCands(){
+  if(OFF_JT&&OFF_JT.y===PEN.year&&OFF_JT.n===(PEN.jtLog||[]).length) return OFF_JT.list;
+  const map=new Map(), add=(id,src)=>{ if(!id) return; const r=jtFind(id); if(!r) return; const e=map.get(id)||{id,kind:r.kind,team:r.team,src:[]}; if(!e.src.includes(src)) e.src.push(src); map.set(id,e); };
+  const T=myT(); (T.F||[]).forEach(f=>add(f.id,'チーム')); (T.P||[]).forEach(p=>add(p.pid,'チーム'));
+  const A=PEN.asMates; if(A&&A.y===PEN.year-1){ A.F.forEach(x=>add(x.id,'オールスター')); A.P.forEach(x=>add(x.id,'オールスター')); }
+  const W=PEN.wbcMates; if(W&&W.y===PEN.year-1){ W.F.forEach(x=>add(x.id,'WBC')); W.P.forEach(x=>add(x.id,'WBC')); }
+  const okK=k=>isTW()||(isBat()?k==='F':k==='P');
+  const list=[...map.values()].filter(e=>okK(e.kind)).map(e=>{ const r=jtFind(e.id), o=r.o; const sc=(PEN.jtPerf&&PEN.jtPerf[e.id])||0;
+    return {...e,name:e.kind==='F'?o.n:o.name,age:o.age,num:o.num,pos:e.kind==='F'?POS_JP[o.pos]||o.pos:'投手',sc,
+      ab:e.kind==='F'?`ミ${Math.round(o.m)} パ${Math.round(o.p)} 速${Math.round(o.s)} 眼${Math.round(o.e)} 守${Math.round(o.d)}`:`${Math.round(o.velo)}km/h 制${Math.round(o.control)} ス${Math.round(o.stamina)}`}; })
+    .sort((a,b)=>(b.src.length>1||b.src[0]!=='チーム')-(a.src.length>1||a.src[0]!=='チーム')||b.sc-a.sc);
+  OFF_JT={y:PEN.year,n:(PEN.jtLog||[]).length,list}; return list;
+}
+const JT_F={m:['meet','ミート'],p:['power','パワー'],s:['speed','速度'],e:['eye','選球眼'],d:['def','守備']};
+const JT_P={velo:['velo','球速',147,6],control:['control','コントロール',50,12],stamina:['stamina','スタミナ',86,12]};
+function cbJointTalk(D,st){
+  let h='';
+  if(!st.done){
+    const L=jtCands(), view=isTW()?(st.kind||st.view||'P'):(isBat()?'F':'P'), S=st.pick||[];
+    h+=meSay(`今年は一緒に自主トレをする選手を3人誘おう。${PEN.wbcMates&&PEN.wbcMates.y===PEN.year-1?'WBCで一緒だった仲間にも声をかけられるな。':''}`);
+    h+=`<div class="pcardx"><div class="hint" style="margin:0 0 4px">3人選んでください（${S.length}／3）。★＝去年の成績（良いほど伸びる）</div>
+      ${isTW()?`<div class="row" style="margin-bottom:4px">${[['P','投手と'],['F','野手と']].map(([k,l])=>`<button class="btn sm ${view===k?'on':''}" data-jtk="${k}" ${st.kind&&st.kind!==k?'disabled':''}>${l}</button>`).join('')}</div>`:''}
+      <div class="jtl">${L.filter(c=>c.kind===view).map(c=>`<button class="jtc ${S.includes(c.id)?'on':''}" data-jt="${c.id}">${tchip(c.team)} <b>${c.name}</b> <small>${c.age}歳・${c.pos}　${'★'.repeat(1+Math.round(c.sc*4))}${c.src.filter(s=>s!=='チーム').map(s=>`<i class="jts">${s}</i>`).join('')}</small><br><small style="color:var(--mute)">${c.ab}</small></button>`).join('')}</div></div>
+      <button class="btn main" data-jtgo="1" style="width:100%" ${S.length===3||(S.length&&S.length===L.filter(c=>c.kind===view).length)?'':'disabled'}>この3人と自主トレする</button>`;
+    return h;
+  }
+  const ms=st.mates||[];
+  if(ms[0]) h+=mateSay(ms[0],`${PEN.pname}、誘ってくれてありがとう！ 一緒にやろう。`);
+  h+=meSay(`今年はみんなの${st.lab}を盗ませてもらうよ。よろしく！`);
+  if(ms[1]) h+=mateSay(ms[1],`${st.lab}なら任せてくれ。コツを全部教えるよ。`);
+  if(ms[2]) h+=mateSay(ms[2],`お互い、いいシーズンにしよう。こっちも勉強させてもらうよ！`);
+  if(st.eff) h+=cbTag(st.eff);
+  return h;
+}
+function cbJointApply(st,pick){
+  const L=(pick||[]).map(jtFind).filter(Boolean); if(!L.length) return '';
+  const kind=L[0].kind; let key, lab, g;
+  const avgSc=L.reduce((t,r)=>t+((PEN.jtPerf&&PEN.jtPerf[kind==='F'?r.o.id:r.o.pid])||0),0)/L.length;
+  g=r1((5+avgSc*5)/2);   // +2.5〜5（成績が良いほど大きい）
+  if(kind==='F'){ let best=-1; for(const k in JT_F){ const v=L.reduce((t,r)=>t+(r.o[k]||0),0)/L.length; if(v>best){ best=v; key=k; } } lab=JT_F[key][1];
+    const mk=JT_F[key][0], b0=PEN.babil[mk]??50; PEN.babil[mk]=r1(Math.min(100,b0+g)); st.mine=r1(PEN.babil[mk]-b0); L.forEach(r=>{ r.o[key]=Math.min(100,(r.o[key]||50)+g); }); }
+  else { let best=-1e9; for(const k in JT_P){ const [,,m,sd]=JT_P[k]; const v=L.reduce((t,r)=>t+((r.o[k]||m)-m)/sd,0)/L.length; if(v>best){ best=v; key=k; } } lab=JT_P[key][1];
+    const add=key==='velo'?Math.max(1,Math.round(g*0.4)):g; g=add;   /* 球速は +1〜2km/h */ const a0=PEN.abil[key]; PEN.abil[key]=r1(Math.min(key==='velo'?165:100,a0+add)); st.mine=r1(PEN.abil[key]-a0); L.forEach(r=>{ r.o[key]=Math.min(key==='velo'?165:100,(r.o[key]||0)+add); r.o.q=pitQ(r.o); }); }
+  const names=L.map(r=>kind==='F'?r.o.n:r.o.name);
+  st.mates=L.map(r=>({name:kind==='F'?r.o.n:r.o.name,team:r.team,num:r.o.num,kind}));
+  st.lab=lab; st.kind=kind;
+  [...new Set(L.map(r=>r.team))].forEach(t=>{ try{ rebuildTeam(t); }catch(e){} });
+  PEN.jtLog=PEN.jtLog||[]; PEN.jtLog.push({y:PEN.year,lab,g,unit:kind==='P'&&key==='velo'?'km/h':'',names});
+  PEN.cb.on.joint={lab,g,names};
+  return `${lab} +${g}${kind==='P'&&key==='velo'?'km/h':''}（自分と${names.join('・')}）・ずっと残る${st.mine<g?`<br><small>自分は上限に近いため +${st.mine}</small>`:''}`;
+}
+// 去年の成績から合同自主トレの伸び（0〜1）
+function jtPerfMap(cs){
+  const m={}; for(const id in cs){ const s=cs[id]; if(!s) continue; let v=0;
+    if(s.pa!=null||s.ab!=null){ const ab=s.ab||0; if(ab>=30) v=clamp(((s.h/ab-0.23)/0.09)*0.6+((s.hr||0)/30)*0.4,0,1)*Math.min(1,ab/300); }
+    else { const o=s.outs||0; if(o>=30) v=clamp((4.3-s.er*27/o)/2.3+((s.sv||0)+(s.hld||0))/80,0,1)*Math.min(1,o/240+((s.g||0)>=40?0.4:0)); }
+    if(v>0) m[id]=Math.round(v*100)/100; }
+  return m;
+}
+/* ---- 自分の情報：所持金と今季の効果 ---- */
+function cbList(){
+  const o=cbAct(), L=[]; if(!o) return L;
+  for(const id in o){ if(id==='house') continue; const it=cbItem(id); if(!it) continue; const v=o[id]; let t='';
+    switch(id){
+      case 'scout': t=`${TEAM[v.team].short}との試合だけ ${hasBat()?`${isTW()?'打撃の':''}全能力+5`:''}${hasBat()&&!isBat()?'・':''}${!isBat()?'球速+2km/h・コントロール+5・スタミナ+5':''}`; break;
+      case 'yoga': t=`${v.amt?`ケガで下がった能力を回復：全能力+${v.amt}（シーズン終了で元に戻る）・`:''}ケガの確率 ${r3(injRate()).toFixed(3)}%（半分）`; break;
+      case 'yosho': t=[hasBat()&&'得点圏で打撃アップ（空振り−10%・打球の質+0.05）',!isBat()&&'得点圏でも能力ダウンなし'].filter(Boolean).join('／'); break;
+      case 'antei': t=`スランプの発生確率 ${Math.round(slumpP()*1000)/10}%（1/5）`; break;
+      case 'nebari': t=[hasBat()&&'2ストライク後の空振り−15%・打球の質+0.04・カット+8%',!isBat()&&'疲れの影響−20%・勝っている5回以降は球威アップ'].filter(Boolean).join('／'); break;
+      case 'stamina': t=[hasBat()&&`後半戦（72試合目から）全能力+5${PEN.day>=71?'（発動中）':''}`,!isBat()&&'スタミナが減ったときの能力低下−35%'].filter(Boolean).join('／'); break;
+      case 'data': { const kv=Math.max(isBat()?0:keikai(false),hasBat()?keikai(true):0); t=`警戒度が半分（今：${keikLabel(kv)}）・配球の読み・分析が効きにくい`; break; }
+      case 'anti': t=`33歳を超えてからの衰えの倍率が半分${!isBat()?'・変化球が年齢で下がらない':''}（今季終わりの査定）`; break;
+      case 'motion': t=[v.type&&`打者タイプ「${v.type}」`,v.pitch&&`✨${v.pitch}が打たれにくい（空振り+5%・打球の質−0.06）`].filter(Boolean).join('／'); break;
+      case 'joint': t=`${v.lab} +${v.g}（${v.names.join('・')}と）※ずっと残る`; break;
+      case 'money': t=`次の年俸査定 +${Math.round(v.mm*100)}%・FAなら提示額+10%`; break;
+    }
+    L.push({name:it.name,coach:COACH_KIND_JP[it.coach]||'他選手',t});
+  }
+  return L;
+}
+function cbCardHTML(){
+  if(!PEN) return ''; const L=cbList(), J=(PEN.jtLog||[]);
+  return `<div class="sh3">💰 所持金・コーチの効果</div><div class="hint" style="margin:0 0 4px;color:var(--ink)">所持金 <b>${yen(PEN.money||0)}</b>　<small style="color:var(--mute)">${PEN.house?'🏠 持ち家（年俸は満額）':'🏢 寮生活（年俸の半分が寮費）'}</small></div>
+    ${L.length?`<div class="cbbuf">${L.map(x=>`<div><b>${x.name}</b> <small>（${x.coach}）</small><br>${x.t}</div>`).join('')}<div class="hint" style="margin:2px 0 0">効果は今シーズンの終わりまで（合同自主トレの能力アップはずっと）</div></div>`:`<div class="hint" style="margin:0 0 4px">今シーズンのコーチの効果はありません</div>`}
+    ${J.length?`<div class="hint" style="margin:0 0 4px">🤝 合同自主トレ：${J.map(x=>`${x.y}年目 ${x.lab}+${x.g}${x.unit||''}`).join('・')}</div>`:''}`;
 }
 
 /* ========= 描画 ========= */
@@ -7631,8 +8203,8 @@ let SVG_UID=0;
 const SCRIPT_FONT=`font-family="'Brush Script MT','Segoe Script','Dancing Script',cursive" font-style="italic"`;
 const UNI_FONT={cond:`font-family="Impact,'Arial Narrow','Roboto Condensed','sans-serif-condensed',sans-serif-condensed,sans-serif" font-weight="900"`, script:SCRIPT_FONT+' font-weight="700"', serif:`font-family="Georgia,'Times New Roman','Noto Serif',serif" font-weight="900"`, block:'font-family="Arial Black, Arial, sans-serif" font-weight="900"', italic:'font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic"'};
 const capFont=u=>{ const f=u.capf||(u.chf==='script'?'script':null); return f?UNI_FONT[f]:'font-family="sans-serif" font-weight="900"'; };
-function svgPlayer(u){ u=u||curUni(); const bat=(G&&G.bat)||(typeof isBat==='function'&&isBat());
-  const jersey=u.jersey||'#f4f4f4', pinC=u.pin===1?u.trim:u.pin, under=u.under||u.trim, num=bat?B_NUM:MYNUM;
+function svgPlayer(u,o){ u=u||curUni(); const bat=o&&o.bat!=null?o.bat:((G&&G.bat)||(typeof isBat==='function'&&isBat()));   // o：ほかの選手を描くとき（背番号・野手か）
+  const jersey=u.jersey||'#f4f4f4', pinC=u.pin===1?u.trim:u.pin, under=u.under||u.trim, num=o&&o.num!=null?o.num:(bat?B_NUM:MYNUM);
   const pin=pinC?[28,33,38,43,48,52,57,62,67,72].map((x,i)=>`<path d="M${x} 89 L${x} 128" stroke="${u.pin2&&i%2?u.pin2:pinC}" stroke-width="0.8" opacity=".75"/>`).join(''):'';   // pin2 があれば2色の縦じま（日本代表の紺と赤）
   // 三角の波の模様（zig）：縦に走るジグザグの線
   const zig=u.zig?[27,33,39,45,55,61,67,73].map(x=>{ let d=`M${x} 86`; for(let y=86,k=0;y<128;y+=2.6,k++) d+=` L${x+(k%2?1.7:-1.7)} ${y+2.6}`; return `<path d="${d}" fill="none" stroke="${u.zig}" stroke-width="0.75" stroke-linejoin="miter" opacity=".8"/>`; }).join(''):'';
@@ -7772,14 +8344,14 @@ function showProfile(o){
     const a=PEN.babil;
     h=`<h2>${PEN.pname}</h2><div class="prow"><span class="hb ${PEN.bhand}">${bhandJP(PEN.bhand)}</span><span class="rbadge">${roleName(PEN.role)}${PEN.order?`・${PEN.order}番`:''}</span>${btypeBadge(PEN.btype)}${tchip(PEN.team)}<span class="hint">${PEN.age}歳・${POS_JP[PEN.bpos]}${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span></div>
       <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(abPerf(a.meet))}マス・球速 −${meetTol(abPerf(a.meet))}〜+${meetUp(abPerf(a.meet))}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>速度</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
-      <tr><th>今年</th><td style="font-size:13px">${batLine(PEN.ss)}</td></tr><tr><th>通算</th><td style="font-size:13px">${batLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr>
+      <tr><th>今年</th><td style="font-size:13px">${batLine(PEN.ss)}</td></tr><tr><th>通算</th><td style="font-size:13px">${batLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr><tr><th>所持金</th><td>${yen(PEN.money||0)}${PEN.house?'　🏠':''}</td></tr>${typeof cbList==='function'&&cbList().length?`<tr><th>コーチ</th><td style="font-size:12px">${cbList().map(x=>`<b>${x.name}</b><br>${x.t}`).join('<br>')}</td></tr>`:''}
       ${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}</table>`;
   }else if(o.isMe){
     const pen=PEN&&(G&&G.pen||SCREEN==='pennant');
     h=`<h2>${pen?PEN.pname:(G&&G.pname||'あなた')}</h2><div class="prow"><span class="hb ${PHAND}">${PHAND==='L'?'左投':'右投'}</span>${pen?`<span class="rbadge">${roleName(PEN.role)}</span>${PEN.team?tchip(PEN.team):''}<span class="hint">${PEN.age}歳${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span>`:''}</div>
       <table>${pen&&PEN.abil?`<tr><th>球速</th><td>${PEN.abil.velo}km/h</td></tr><tr><th>コントロール</th><td>${bar10(PEN.abil.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(PEN.abil.stamina)}</td></tr>`:`<tr><th>ストレート平均</th><td>${PVELO}km/h</td></tr>`}
       <tr><th>持ち球</th><td>${(pen&&PEN.rep?PEN.rep:REP).map((t,i)=>{ if(pen&&PEN.plev) return `${ptn(t)}　Lv.${lvOf(t)}`; const L=lev(t); return `${ptn(t)}${L==='決'?'（決め球）':L==='少'?'（少し）':''}`}).join('<br>')}</td></tr>
-      ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr>${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・速度${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
+      ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr><tr><th>所持金</th><td>${yen(PEN.money||0)}${PEN.house?'　🏠':''}</td></tr>${typeof cbList==='function'&&cbList().length?`<tr><th>コーチ</th><td style="font-size:12px">${cbList().map(x=>`<b>${x.name}</b><br>${x.t}`).join('<br>')}</td></tr>`:''}${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・速度${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
         :`<tr><th>通算</th><td>防御率 ${fmtRate(C.runs,C.outs)}・${C.w}勝${C.l}敗・奪三振${C.k}</td></tr>`}</table>`;
   }else if(o.isP){
     h=`<h2>${o.name}</h2><div class="prow"><span class="hb ${o.hand}">${o.hand==='L'?'左投':'右投'}</span><span class="hint">背番号 ${o.num}</span></div>
@@ -7811,7 +8383,7 @@ function renderSetup(){
   const PB_=MODE==='pennant'&&dPos==='B', PW_=MODE==='pennant'&&dPos==='W';
   if(MODE==='pennant'){
     $('poscards').innerHTML=[['P','投手'],['B','野手'],['W','二刀流']].map(([k,n])=>`<button class="btn ${dPos===k?'on':''}" data-pos="${k}">${n}</button>`).join('');
-    [...$('poscards').children].forEach(el=>el.onclick=()=>{ const was=dPos; dPos=el.dataset.pos; if(dPos==='W'&&was!=='W') wAuto(false); if(was==='W'&&dPos!=='W'){ abAuto(false); babAuto(false); } renderSetup(); });
+    [...$('poscards').children].forEach(el=>el.onclick=()=>{ const was=dPos; dPos=el.dataset.pos; if(was!==dPos){ setBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); } renderSetup(); });   // 持ち点は投手・野手・二刀流で違うので、変えたら割り振りはおまかせに戻す
     $('wNote').style.display=dPos==='W'?'':'none';
     $('bhandSec').style.display='';
     $('bhcards').innerHTML=[['R','右打ち'],['L','左打ち'],['S','両打ち']].map(([k,n])=>`<button class="btn ${dBhand===k?'on':''}" data-bh="${k}">${n}</button>`).join('');
@@ -7855,7 +8427,8 @@ const BRK_TYPES=LEARN_TYPES;   // 最初はスイーパー以外の全部の変�
 const LV_COST={'少':1,'普':2,'決':5}, SLV_COST={1:0,2:2,3:5};   // ストレートのLv（最初は1〜3。Lv.3が今までの性能）
 let AB={budget:60,velo:130,control:20,stamina:20,brk:{},slv:3};
 const V0=130, VCOST=5;   // 球速は130km/hが基礎。1km/hで5pt（0.1km/hで0.5pt）
-function abCost(a){ return r1((a.velo-V0)*VCOST+a.control+a.stamina+SLV_COST[a.slv||3]+Object.values(a.brk).reduce((t,l)=>t+LV_COST[l],0)); }
+const STA_COST=0.5;   // スタミナは1上げるのに0.5pt（ほかの能力の半分）
+function abCost(a){ return r1((a.velo-V0)*VCOST+a.control+a.stamina*STA_COST+SLV_COST[a.slv||3]+Object.values(a.brk).reduce((t,l)=>t+LV_COST[l],0)); }
 // 二刀流は持ち点の1.9倍を投打で分け合う
 const W_MUL=1.9, isW=()=>MODE==='pennant'&&dPos==='W';
 const wTotal=()=>r1(AB.budget*W_MUL);
@@ -7886,15 +8459,15 @@ function abAuto(random){
     const wv=rnd(), wc=rnd(), ws=rnd(), sum=wv+wc+ws;
     AB.velo=Math.min(160,V0+Math.floor(left*wv/sum/VCOST)); left-=(AB.velo-V0)*VCOST;
     AB.control=Math.min(100,Math.floor(left*wc/(wc+ws))); left-=AB.control;
-    AB.stamina=r1(Math.min(100,left));
+    AB.stamina=r1(Math.min(100,left/STA_COST));
   }else{
-    AB.velo=Math.min(160,V0+Math.floor(B*0.4/VCOST)); AB.control=Math.min(100,Math.floor(B*0.3)); AB.stamina=r1(Math.min(100,B-(AB.velo-V0)*VCOST-AB.control));
+    AB.velo=Math.min(160,V0+Math.floor(B*0.4/VCOST)); AB.control=Math.min(100,Math.floor(B*0.3)); AB.stamina=r1(Math.min(100,(B-(AB.velo-V0)*VCOST-AB.control)/STA_COST));
   }
 }
 function renderAbil(){
   const left=r1(pBudget()-abCost(AB));
   $('abBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(isW()?`${wTotal()}ポイント（二刀流：持ち点${AB.budget}の1.9倍を投打で分け合う）`:AB.budget+'ポイント');
-  $('abReroll').innerHTML=rerollHTML(); $('bReroll').innerHTML=''; rerollBind();   // 振り直しのボタン（二刀流は投手の欄だけに出す）
+  $('abReroll').innerHTML=rerollHTML(); $('bReroll').innerHTML=''; rerollBind(); $('abRange').textContent=rangeTxt();   // 振り直しのボタン（二刀流は投手の欄だけに出す）
   $('abLeft').textContent=`残り ${left.toFixed(1)} ポイント`+(left<-1e-6?'（使いすぎ）':'');
   $('abLeft').classList.toggle('over',left<-1e-6);
   $('abVelo').value=AB.velo; $('abVeloV').textContent=AB.velo.toFixed(1);
@@ -7921,15 +8494,20 @@ function renderAbil(){
 [['abVelo','velo'],['abCtl','control'],['abSta','stamina']].forEach(([id,k])=>{
   $(id).oninput=()=>{
     let v=+$(id).value; const other={...AB,[k]:k==='velo'?V0:0};
-    const room=r1(pBudget()-abCost(other)), max=k==='velo'?r1(V0+Math.floor(room/VCOST*10)/10):room;   // 球速は0.1km/hで0.5pt
+    const room=r1(pBudget()-abCost(other)), max=k==='velo'?r1(V0+Math.floor(room/VCOST*10)/10):k==='stamina'?r1(room/STA_COST):room;   // 球速は0.1km/hで0.5pt・スタミナは0.1で0.05pt
     AB[k]=r1(clamp(v,k==='velo'?V0:0,Math.min(k==='velo'?160:100,max))); renderAbil();
   };
 });
 $('abAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { abAuto(true); renderAbil(); } };
 let dRole='start', dTeam='', dPos='P', dBpos='SS', dBhand='L', dGenius=false;
-// 持ち点の振り直し：ペナントの準備のときに3回まで（同じ決め方で、60〜100の中でランダム・1%で天才の120）。振り直すと能力の割り振りはおまかせに戻る
+// 最初の持ち点：60〜100の中でランダム（1%で天才の120）に、投手は+10・野手は+20・二刀流は+15（投手70〜110・野手80〜120・二刀流75〜115、天才は130・140・135）
+const BUDGET_ADD={P:10,B:20,W:15}; let dRoll=60;
+const budgetAdd=()=>BUDGET_ADD[dPos]||10;
+const setBudget=()=>{ AB.budget=dRoll+budgetAdd(); };
+const rangeTxt=()=>{ const a=budgetAdd(); return `（${60+a}〜${100+a}の中でランダム。1%で「天才」の${120+a}）`; };
+// 持ち点の振り直し：ペナントの準備のときに3回まで（同じ決め方）。振り直すと能力の割り振りはおまかせに戻る
 const ROLL_MAX=3; let ROLL_LEFT=ROLL_MAX;
-function rollBudget(){ dGenius=rnd()<0.01; AB.budget=dGenius?120:ri(60,100); }
+function rollBudget(){ dGenius=rnd()<0.01; dRoll=dGenius?120:ri(60,100); setBudget(); }
 function rerollHTML(){ return MODE!=='pennant'?'':`<div class="reroll"><button class="btn" id="rerollBtn" ${ROLL_LEFT>0?'':'disabled'}>🎲 持ち点を振り直す（あと${ROLL_LEFT}回）</button><small>${ROLL_LEFT>0?'振り直すと、能力の割り振りはおまかせに戻ります':'振り直しは3回までです'}</small></div>`; }
 function rerollBind(){ const b=document.getElementById('rerollBtn'); if(b) b.onclick=()=>{ if(ROLL_LEFT<=0) return; ROLL_LEFT--; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); renderSetup(); }; }
 /* ---- 野手の能力（どれも20から。1上げるごとに1ポイント） ---- */
@@ -7948,7 +8526,7 @@ function renderBAbil(){
   BAB_K.forEach(k=>{ if(BAB[k]<bBase(k)) BAB[k]=bBase(k); if(BAB[k]>BAB_MAX()) BAB[k]=BAB_MAX(); $(BAB_ID[k]).max=BAB_MAX(); });
   const left=r1(W?bBudget()-bat4Cost(BAB):AB.budget-babCost(BAB));
   $('bBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(W?`投打あわせて${wTotal()}ポイント`:AB.budget+'ポイント');
-  if(!W){ $('bReroll').innerHTML=rerollHTML(); $('abReroll').innerHTML=''; rerollBind(); }
+  if(!W){ $('bReroll').innerHTML=rerollHTML(); $('abReroll').innerHTML=''; rerollBind(); } $('bRange').textContent=rangeTxt();
   $('bposWrap').style.display=W?'none':''; $('bDefRow').style.display=W?'none':'';
   $('bLeft').textContent=`残り ${left.toFixed(1)} ポイント`+(left<-1e-6?'（使いすぎ）':''); $('bLeft').classList.toggle('over',left<-1e-6);
   BAB_K.forEach(k=>{ $(BAB_ID[k]).value=BAB[k]; $(BAB_ID[k]+'V').textContent=BAB[k].toFixed(1); });
@@ -7970,7 +8548,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ ROLL_LEFT=ROLL_MAX; AB={budget:60,velo:130,control:0,stamina:0,brk:{}}; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜100の中で一様にランダム。1%で「天才」（持ち点120）
+  if(MODE==='pennant'){ ROLL_LEFT=ROLL_MAX; AB={budget:60,velo:130,control:0,stamina:0,brk:{}}; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜100の中で一様にランダム＋投手10・野手20・二刀流15。1%で「天才」（持ち点120）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
