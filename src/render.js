@@ -28,7 +28,7 @@ function renderAll(){
   const b=G.batter, ab=G.ab;
   $('inn').textContent=G.over?'試合終了':G.inning+'回表';
   $('missionBar').style.display=G.mission&&!G.over?'':'none';
-  if(G.mission) $('missionBar').innerHTML=`🎯 監督のミッション：<b>${G.mission.text}</b>`;
+  if(G.mission) $('missionBar').innerHTML=`🎯 ミッション：<b>${G.mission.text}</b>`;
   $('skipOut').style.display=(!G.over&&!G.pulled&&!PB&&!busy)?'':'none';
   if(G.over){ $('next').textContent=G.pen&&G.pen.tryout?'トライアウトの結果へ':G.pen?'日程に戻る':'次の試合へ（同じ持ち球）'; $('next').style.display=''; $('throw').style.display='none'; }
   lamps('lb',ab.balls,3,'b');lamps('ls',Math.min(ab.strikes,2),2,'s');lamps('lo',Math.min(G.outs,2),2,'o');
@@ -93,11 +93,9 @@ function renderAll(){
   $('plP').innerHTML=`<div class="lab">投手 ${MYNUM}・<b style="color:var(--accent)">投</b>・あなた</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname||'あなた')}</span> <span class="hb ${PHAND==='L'?'L':'R'}">${PHAND==='L'?'左投':'右投'}</span></div>
     ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>${staBarHTML(mySta())}`;
   $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
-    ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||`打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}`}</div>`;
+    ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||(csOn?`打率 -　本塁打 0　<small>（今季まだ打席なし）</small>`:`打率 ${b.avg.toFixed(3).replace(/^0/,'')}`)}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
-  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
-    : `<div class="empty">この打席の投球はまだありません</div>`;
-  $('plist').scrollTop=$('plist').scrollHeight;
+  plistChips(ab,pres);   // この打席の投球：横1列の小さな札（まだ投げていなければ隠す）
 
 
   renderStats(); renderLineup(); renderScout(); renderRecs(); renderBoard(); renderGround();
@@ -337,13 +335,20 @@ $('next').onclick=onNext;
 function warnNoCourse(){
   const el=$('selinfo'); el.textContent='先にコースのマスをタップしてください'; el.classList.add('warn');
 }
+// この打席の投球を横1列の札にする（1画面に収めるため）。まだ1球も無ければ隠す
+function plistChips(ab,pres){
+  const el=$('plist');
+  el.innerHTML = ab.pitches.length ? `<div class="pcs">${ab.pitches.map((p,i)=>`<span class="pc"><i style="background:${pitchColor(p)}">${i+1}</i>${p.speed}<small>km</small> ${ptn(p.pt)} <b>${pres(p)}</b></span>`).join('')}</div>` : '';
+  el.classList.toggle('none',!ab.pitches.length);
+  const pcs=el.firstElementChild; if(pcs) pcs.scrollLeft=pcs.scrollWidth;
+}
 function fitZone(){
   // メイン画面の下（チーム名・投手打者・投球一覧・操作）まで1画面に収まるようにゾーンの大きさを決める
   const w=$('zoneWrap'); w.style.maxWidth='';
   const top=w.getBoundingClientRect().top+window.scrollY;
-  const avail=window.innerHeight-top-$('below').offsetHeight-14;
+  const avail=window.innerHeight-top-$('below').offsetHeight-8;
   const side=66; // 左右の打席ぶん
-  const zw=clamp(avail/1.05,150,380-side);
+  const zw=clamp(avail/1.05,122,380-side);   // 画面が低いときはゾーンを小さめに（最小128px）
   w.style.maxWidth=(zw+side)+'px';
 }
 window.addEventListener('resize',()=>G&&fitZone());
@@ -524,7 +529,7 @@ function showPB(ev){
   }
   if(ev.pitcher){ const p=ev.pitcher;
     $('plP').innerHTML=`<div class="lab">投手 ${p.num}</div><div class="nm"><span class="nmt">${plink(p,p.name)}</span> <span class="hb ${p.hand}">${p.hand==='L'?'左投':'右投'}</span></div>${asTag(p.isMe?PEN.team:p.team)}<div class="sub">最速${p.velo}km/h・${p.types.length}球種</div>`; }
-  $('plist').innerHTML=`<div class="empty">${ev.inning}回${top?'表':'裏'}　観戦中（1.5秒ごとに表示・スキップで飛ばせます）</div>`;
+  $('plist').innerHTML=`<div class="empty">${ev.inning}回${top?'表':'裏'}　観戦中（1.5秒ごとに表示・スキップで飛ばせます）</div>`; $('plist').classList.remove('none');
   if(ev.bip) setView('ground'); else renderGround();
 }
 

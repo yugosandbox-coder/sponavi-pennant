@@ -7,7 +7,7 @@
    ================================================================ */
 const B_ROLE_NAME={'スタメン':'スタメン','代打':'控え（代打）'};
 const isBat=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.pos==='B');
-const roleName=r=>B_ROLE_NAME[r]||ROLE_NAME[r]||r;
+const roleName=r=>B_ROLE_NAME[r]||(typeof PEN!=='undefined'&&PEN&&r===PEN.role&&!isBat()&&typeof pitRoleLabel==='function'?pitRoleLabel():ROLE_NAME[r])||r;   // 投手の今の役割は「先発◯番手」など
 const batStat=()=>({g:0,gs:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,run:0,bb:0,hbp:0,k:0,sb:0,cs:0,tl:0,php:0,pha:0,phh:0,ds:0,gp:0,pr:0,err:0,fg:0,mBonus:0,mOK:0,mNG:0});   // tl＝タイムリー（打点のついた安打）、php/pha/phh＝代打の打席・打数・安打、ds＝守備固め出場、gp＝守備の好プレー
 const B_KEYS=['pa','ab','h','d2','d3','hr','rbi','run','bb','hbp','k','sb','cs','tl','php','pha','phh','ds','gp','pr','err','fg'];
 const bAvg=s=>s.ab?s.h/s.ab:0, bObp=s=>s.pa?(s.h+s.bb+s.hbp)/s.pa:0, bSlg=s=>s.ab?(s.h+s.d2+2*s.d3+3*s.hr)/s.ab:0;
@@ -47,6 +47,9 @@ function fixSpd(){
 const SHORT_T={'ストレート':'直球','カットボール':'カット','ツーシーム':'2シーム','チェンジアップ':'チェンジ','高速スライダー':'高速スラ','スライダー':'スライダー','スロースライダー':'スロースラ','スイーパー':'スイーパー','シュート':'シュート','高速シュート':'高速シュ','シンカー':'シンカー','高速シンカー':'高速シンカ','カーブ':'カーブ','ドロップカーブ':'ドロップ','スローカーブ':'スローC','パワーカーブ':'パワーC','フォーク':'フォーク','SFF':'SFF'};
 const hrRateOf=p=>clamp(HR_MIN*Math.pow(HR_MAX/HR_MIN,(p-18)/81),HR_MIN*0.5,HR_MAX*1.1);
 const HR_ME_K=0.9;   // 自分の本塁打率（パワー依存）：打球になったときの基礎率。パワー100・ミート100で年70本くらいになる調整値
+// パワーが高いところだけ本塁打率を調整：パワー100（ほかが平均的）で年50本前後になるように
+const HR_TOP=(p,k)=>p>50?1+k*Math.pow((p-50)/50,2):1;
+const cpuHrRate=p=>myHrRate(p)*HR_TOP(p,0.25);   // CPUの打者と、自分のおまかせ打席（リーグの試合と同じ計算）
 const myHrRate=p=>clamp(0.006+Math.pow(clamp(p,0,100)/100,2)*HR_MAX*HR_ME_K,HR_MIN*0.5,HR_MAX*2);
 const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0),toThird?0.08:0.25,0.95);   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
 const B_NUM=7;   // 野手の背番号
@@ -88,7 +91,8 @@ function pitAI(pit){
     if(recent.length>=3&&(sitT[t]||0)/recent.length>=0.5) x*=0.7;        // よく張られている球速の球種は避ける
     if(recent.length>=3&&recent.filter(r=>r.main===t).length/recent.length>=0.5) x*=0.8;   // 本命にされている球種はさらに避ける
     return [t,x]; }));
-  let zP = ab.balls===3?0.85 : ab.balls>ab.strikes?0.72 : (ab.strikes===2&&ab.balls<2)?0.36 : 0.58;
+  const kb=gKeikB();   // 警戒されているとストライクゾーンで勝負してこない・狙われたマスをより避ける・失投が減る
+  let zP = (ab.balls===3?0.85 : ab.balls>ab.strikes?0.72 : (ab.strikes===2&&ab.balls<2)?0.36 : 0.58)-0.04*kb;
   if(sty==='ball') zP-= ab.balls===3?0.05 : 0.14;     // ボール球をうまく使う投手
   // 配球パターン（ある程度その方向に偏る）。hz：0=内角〜4=外角（打者から見て）
   const hz=c=>horizIdx(c,G.bhand);
@@ -106,7 +110,7 @@ function pitAI(pit){
       let w=(r===2&&c===2)?(sty==='mix'?0.8:0.5):(r!==2&&c!==2)?1.4:1;
       if(SINKERS.has(pt)) w*= r===3?1.8:r===1?0.5:1;
       w*=styW(r,c);
-      w/=1+(hot.get(r+','+c)||0)*0.12;   // よく狙われているマスは避ける
+      w/=1+(hot.get(r+','+c)||0)*(0.12+0.15*kb);   // よく狙われているマスは避ける
       cand.push([[r,c],w]);
     }
   }else{
@@ -119,7 +123,7 @@ function pitAI(pit){
   }
   let [r,c]=wpick(cand);
   const fT=curPitF();
-  if(rnd()<clamp(0.42-pit.control*0.0042+(sty==='mix'?0.08:0)+fT*0.15+(inPinch(G.bases)?PINCH.ctl:0),0.04,0.6)){   /* 疲れると制球が乱れる */ r=clamp(r+ri(-1,1),0,4); c=clamp(c+ri(-1,1),0,4); }   // 制球ミス
+  if(rnd()<clamp(0.42-pit.control*0.0042+(sty==='mix'?0.08:0)+fT*0.15+(inPinch(G.bases)?PINCH.ctl:0)-0.08*kb,0.04,0.6)){   /* 疲れると制球が乱れる */ r=clamp(r+ri(-1,1),0,4); c=clamp(c+ri(-1,1),0,4); }   // 制球ミス
   const speed=jitterSpd(pitSpeed(pit,pt));   // ±2.5km/h（小数第1位まで）。疲れると全球種の球速が近づく
   const sr0=r-BREAK[pt][1], sc0=c-pbx(pit,pt), sr=clamp(sr0,0,4), sc=clamp(sc0,0,4);   // 曲がる前のマス（sr0/sc0はマスの外もそのまま）
   return {pt,r,c,sr,sc,sr0,sc0,speed};
@@ -129,9 +133,14 @@ function pitAI(pit){
 function meObj(){
   const a=G.babil;
   return {name:G.pname,hand:G.bhand,power:a.power,contact:a.meet,speed:a.speed,eye:a.eye,
-    avg:clamp(0.205+a.meet*0.0005+a.speed*0.0002,.2,.33),hrRate:myHrRate(a.power),order:G.me.order,type:myBtype()};
+    avg:clamp(0.205+a.meet*0.0005+a.speed*0.0002,.2,.33),hrRate:cpuHrRate(a.power)*meetHrK(a.meet)*meetHrF(a.meet)*HR_TOP(a.power,EQ.hp),order:G.me.order,type:myBtype()};
 }
-const BAT_ADJ={wh:-0.05,q:0,ch:-0.03,sure:0.9};   // 球種を作り直したときの全体のバランス調整（自分が打つ打席）
+const BAT_ADJ={wh:-0.05,q:0,ch:-0.03,sure:0.9};
+const EQ=Object.assign({q:0.009,qm:0.004,qh:0.003,qp:0.35,qe:3,qx:0.14,sp:0.2,qcap:0.16,wh:0.005,hb:0.76,hlo:0.02,hhi:-0.0064,hp:0.81},(typeof process!=='undefined'&&process.env.EQ)?JSON.parse(process.env.EQ):{});
+// 自分の打席の本塁打：CPUと同じ本塁打率（cpuHrRate）に、ミートによる補正（ミートが高いほど打球が良くなって本塁打が増えすぎるのをならす）
+const eqQMeet=m=>m<=60?Math.min(EQ.qcap,(60-m)*EQ.q)-Math.max(0,35-m)*0.012 : m<=75?-(m-60)*EQ.qm : -15*EQ.qm-(m-75)*EQ.qh;   // 打球の質の補正（ミート）
+const meetHrF=m=>m<=50?EQ.hb+Math.min(50-m,4)*EQ.hlo : m<=75?EQ.hb : Math.max(0.3,EQ.hb-(m-75)*EQ.hhi);
+const gKeikB=()=>(G&&G.pen&&typeof keikai==='function')?keikai(true):0;   // 試合中の警戒度（打者）   // 球種を作り直したときの全体のバランス調整（自分が打つ打席）
 function batResolve(p){
   const A=G.babil, ab=G.ab, T=G.target, pit=curPit();
   const key=K(p.r,p.c), inZ=inZoneRC(p.r,p.c), inT=T.cells.includes(key), sT=T.cells.includes(K(p.sr,p.sc));
@@ -166,7 +175,7 @@ function batResolve(p){
   // 振ったときの結果：空振り・ファウル・前に飛ぶ（qが大きいほど良い当たり）
   let wh, fo, q, sure=0;
   if(mode==='hit'){
-    sure = isMain&&dv<=SWEET ? Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))*BAT_ADJ.sure : 0;   // 本命が芯・コース的中：ミート100なら100%ヒット性（ミート80で約半分、50以下は0）
+    sure = isMain&&dv<=SWEET ? Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))*BAT_ADJ.sure*(1-EQ.sp*Math.max(0,(A.power-50)/50)) : 0;   // 本命が芯・コース的中：ミート100なら100%ヒット性（ミート80で約半分、50以下は0）
     wh=clamp(0.10-meet*0.06+(1-tq)*0.25+lvP*0.04+(pq-1)*0.2+(1-eye)*0.05,0.02,0.35)*(1-sure);
     fo=clamp(0.25-meet*0.06+(1-tq)*0.28,0.07,0.45)*(1-sure);   // 幅の端ほどファウルが増える
     q=-0.02+tq*0.25+meet*0.08-lvP*0.05-(pq-1)*0.5-(1-eye)*0.12+noise(0.2)+sure*0.1;   // 選球眼・技術が低いと狙い球でも打ち損じる
@@ -179,6 +188,8 @@ function batResolve(p){
   }else if(mode==='chaseZ'){ wh=0.3; fo=0.35; q=-0.15+noise(0.18); }
   else { wh=clamp(0.45-meet*0.1,0.25,0.5); fo=0.30+(1-eye)*0.12; q=-0.5+noise(0.15); }   // ボール球に手を出す（選球眼が低いとカットしてしまう）
   wh=clamp(wh+fx.wh*(1-sure)+BAT_ADJ.wh,0,0.9); q+=fx.q+BAT_ADJ.q;   // 球種の特徴（＋全体のバランス調整）
+  { const m=A.meet, pw=A.power; q+=eqQMeet(m)-(pw>50?EQ.qp*Math.pow((pw-50)/50,EQ.qe)*meetHrK(m)+EQ.qx*Math.max(0,(m-75)/25)*(pw-50)/50:0); if(m<60) wh=clamp(wh-(60-m)*EQ.wh,0,0.9); }   // 同じ能力のCPUと成績が近くなるように（ミートが低いと打てなさすぎ・高いと打てすぎるのをならす）
+  { const kb=gKeikB(); if(kb){ wh=clamp(wh+0.04*kb,0,0.9); q-=0.07*kb; } }   // 警戒：研究されていて打ちにくい
   if(platoon) wh*=0.88;
   { const BT=myBtype(); wh=clamp(wh+btFx(BT,'k'),0,0.9); fo=clamp(fo+btFx(BT,'foul'),0,0.9); }   // タイプ：フルスイングは三振↑ファウル↓、ヒットメーカーはファウル↑
   const x=rnd();
@@ -226,7 +237,7 @@ function batNewGame(o){
   if(o.kind!=='pinch') myL[me.order-1]={...me,avg:0,hrRate:0};
   const POSK={C:'捕','1B':'一','2B':'二','3B':'三',SS:'遊',DH:'指',P:'投'};
   const myPosK = o.kind==='pinch' ? '' : o.slot==='OF' ? (o.ofSide||pick(['左','中','右'])) : (POSK[o.slot]||'');   // 試合中の守備位置（漢字1文字）
-  G={bat:true,pen:o.pen,names:o.names,pname:o.pname,myPosK,bhand:o.bhand==='S'?'L':o.bhand,sw:o.bhand==='S',babil:{...(typeof effBabil==='function'?effBabil(o.babil,o.kind):o.babil)},mission:o.mission||null,
+  G={bat:true,pen:o.pen,names:o.names,pname:o.pname,myPosK,bhand:o.bhand==='S'?'L':o.bhand,sw:o.bhand==='S',babil:{...(typeof effBabil==='function'?effBabil(o.babil,o.kind):o.babil)},babilRaw:{...o.babil},mission:o.mission||null,
     inning:1,half:'top',outs:0,bases:[0,0,0],score:{opp:[],my:[]},hitsOpp:0,hitsMy:0,
     lineup:o.lineup, oppOrder:-1, myTeam:{name:o.myTeam.name,hand:o.myTeam.hand,lineup:myL,order:-1},
     me, meActive:o.kind!=='pinch', pinch:o.kind==='pinch'?{inning:o.pinchInning||ri(6,8),after:ri(0,2),done:false}:null,
@@ -349,7 +360,7 @@ function batAfterPitch(p0){
   if(done) batEndPA(done,p);
   else{
     const cls={ball:'cb',hbp:'cb',look:'cs',swing:'cs',foul:'cf'}[p.kind];
-    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${p.pt}、${courseName(p.r,p.c,G.bhand)}`,G.me.order);
+    setResult(cls,p.kind==='foul'?'ファウル':p.text,`${p.speed}km/h ${p.pt}、${courseName(p.r,p.c,G.bhand)}`,abPitchNo());   // 丸の数字＝この打席の何球目か
     renderAll(); save();
   }
 }
@@ -378,7 +389,7 @@ function batEndPA(kind,p){
   }
   st.rbi+=rbi;
   G.me.res.push(B_LABEL[kind]||(p.kind==='bip'?shortRes(p,big):'邪飛'));
-  setResult(RES_CLS[cls]||cls,big,`${p.speed}km/h ${p.pt}、${sub}${rbi?`／<b style="color:var(--red)">${rbi}打点</b>`:''}`,G.me.order);
+  setResult(RES_CLS[cls]||cls,big,`${p.speed}km/h ${p.pt}、${sub}${rbi?`／<b style="color:var(--red)">${rbi}打点</b>`:''}`,abPitchNo());
   addLog(`<div>　結果：<b>${big}</b>${rbi?`（${rbi}打点）`:''}</div>`);
   if(G.pinch) G.meActive=false;   // 代打は1打席だけ
   if(!G.tryout&&G.inning>=INNINGS&&myTot()>oppTot()) G.walk=true;
@@ -406,14 +417,20 @@ function doSteal(){
     score:{opp:G.score.opp.slice(),my:G.score.my.slice()},hits:[G.hitsOpp,G.hitsMy],isMe:true};
 }
 // 能力から1打席をおまかせで決める（スキップ用）
+// おまかせ打席：CPUの打者とまったく同じ計算（同じ能力ならCPUと同じ成績になる）
+//  能力（内部値）から CPUと同じ形の打者データを作り、リーグの試合と同じ simPA＋調整値（LG_K）で1打席を決める
+const LG_QAVG=1.05;   // リーグの平均的な投手の打たれやすさ（投手の質×リーグの調整×疲れ）
+function meCpuB(A){ return {avg:clamp(0.172+A.meet*0.00135+A.speed*0.00035,.180,.365),hrRate:cpuHrRate(A.power),contact:A.meet,power:A.power,speed:A.speed,eye:A.eye,type:myBtype()}; }
 function autoKind(A,pit){
-  const BT=myBtype(), bb=0.035+A.eye*0.0008, hbp=0.007, hr=Math.max(0,myHrRate(A.power)*0.85+btFx(BT,'hr')*0.4);   // 自分のオート打席も手動と同じパワー依存の本塁打率（タイプの効果つき）
-  let k=clamp(0.30-A.meet*0.0016-A.eye*0.0006+btFx(BT,'k'),0.07,0.4);
-  if(pit&&G&&((G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L'))) k*=0.92;   // 左打ち×右投手、右打ち×左投手
-  const babip=clamp(0.25+A.meet*0.0009+A.speed*0.0005+btFx(BT,'hit'),0.2,0.42), x=rnd();
-  if(x<bb) return 'BB'; if(x<bb+hbp) return 'HBP'; if(x<bb+hbp+k) return 'K'; if(x<bb+hbp+k+hr) return 'HR';
-  if(rnd()<babip){ const y=rnd(), p3=A.speed*0.0007, p2=Math.max(0,0.16+A.power*0.0016+btFx(BT,'d2')), pi=A.speed*0.0012+btFx(BT,'ifh'); return y<p3?'3B':y<p3+p2?'2B':y<p3+p2+pi?'IFH':'1B'; }
-  return rnd()<0.47?'GO':rnd()<0.75?'FO':'LO';
+  const kb=typeof keikai==='function'?keikai(true):0;   // 前年の活躍で警戒されている：打ちにくくなる
+  let q=(pit&&pit.q?pit.q*LG_K.q:LG_QAVG)*(1-0.1*kb);
+  if(pit&&G&&((G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L'))) q*=1.02;   // 左打ち×右投手、右打ち×左投手
+  let r=simPA(meCpuB(A),q);
+  if(r==='HR'&&rnd()<LG_K.hrCut) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<LG_K.hit) r='1B';
+  if((r==='GO'||r==='FO')&&rnd()<0.04*kb) r='K';
+  if(r==='FO'&&rnd()<0.25) r='LO';
+  if(r==='1B'&&rnd()<A.speed*0.0012) r='IFH';
+  return r;
 }
 function autoMyPA(pit){
   const kind=autoKind(G.babil,pit), st=G.st; st.pa++;
@@ -480,7 +497,7 @@ function twBatEval(){ const r=ratingB(PEN.bss||batStat()); return r==null?abilit
 // 試合を二刀流用にする（newGame のあと）
 function twSetup(lineup){
   const me=lineup.find(b=>b.isMe);
-  Object.assign(G,{tw:true,babil:{...PEN.babil},bhand:PEN.bhand==='S'?'L':PEN.bhand,sw:PEN.bhand==='S',bst:{...batStat(),g:1},me:{isMe:true,name:G.pname,hand:PEN.bhand==='S'?'L':PEN.bhand,order:me.order,num:MYNUM,res:[]},
+  Object.assign(G,{tw:true,babil:perfB(PEN.babil),babilRaw:{...PEN.babil},bhand:PEN.bhand==='S'?'L':PEN.bhand,sw:PEN.bhand==='S',bst:{...batStat(),g:1},me:{isMe:true,name:G.pname,hand:PEN.bhand==='S'?'L':PEN.bhand,order:me.order,num:MYNUM,res:[]},
     target:{spd:null,cells:[]},reads:[],pits:[G.oppPitcher,...G.oppPen].slice(0,4),meActive:true,pinch:null,meUp:false,autoMe:false,walk:false,stealAsk:null,halfPA:0});
   while(G.pits.length<4) G.pits.push(G.oppPitcher);
   G.myTeam.lineup=lineup.map(b=>({...b,res:[]}));
@@ -539,7 +556,7 @@ function twAutoRec(r,sc,dp){
 }
 // スキップのとき：先発した日の打撃（打順なりの打席数）
 function twSkipBat(outs){
-  const A=PEN.babil, st=batStat(), npa=Math.max(1,Math.round(3.6*Math.min(1,outs/18+0.4)+(rnd()-.5)));
+  const A=perfB(PEN.babil), st=batStat(), npa=Math.max(1,Math.round(3.6*Math.min(1,outs/18+0.4)+(rnd()-.5)));
   for(let i=0;i<npa;i++){ const k=autoKind(A); st.pa++;
     if(k==='BB'||k==='HBP') st[k==='BB'?'bb':'hbp']++; else st.ab++;
     if(k==='K') st.k++;
@@ -579,7 +596,7 @@ function renderBat(){
   const ab=G.ab||{balls:0,strikes:0,pitches:[]}, pit=curPit(), A=G.babil, me=G.me;
   $('inn').textContent=G.over?'試合終了':`${G.inning}回${G.half==='top'?'表':'裏'}`;
   $('missionBar').style.display=G.mission&&!G.over?'':'none';
-  if(G.mission) $('missionBar').innerHTML=`🎯 監督のミッション：<b>${G.mission.text}</b>`;
+  if(G.mission) $('missionBar').innerHTML=`🎯 ミッション：<b>${G.mission.text}</b>`;
   $('skipOut').style.display=(!G.over&&!PB&&!busy&&!G.tw&&(G.meActive||G.meUp))?'':'none';
   lamps('lb',ab.balls,3,'b');lamps('ls',Math.min(ab.strikes,2),2,'s');lamps('lo',Math.min(G.outs,2),2,'o');
   ['b1','b2','b3'].forEach((id,i)=>$(id).classList.toggle('on',!!G.bases[i]));
@@ -633,9 +650,7 @@ function renderBat(){
   $('plB').innerHTML=`<div class="lab">打者 ${me.num||B_NUM}　${me.order}番${G.myPosK?`・<b style="color:var(--accent)">${G.myPosK}</b>`:''}・${G.pinch?'代打':G.tw?'二刀流':'あなた'}</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname)}</span> <span class="hb ${G.sw?'S':G.bhand}">${G.sw?'両打・':''}${L?'左打席':'右打席'}</span></div>
     ${asTag(PEN&&PEN.team)}<div class="sub">${G.sw&&G.meUp&&!ab.pitches.length?`<button class="btn swbtn" id="swBtn">⇄ ${L?'右':'左'}打席に変える</button>`:(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&csLineB('ME',PEN.team)?csLineB('ME',PEN.team)+`<br><small>今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}</small>`:`今日 ${s.ab}打数${s.h}安打${s.rbi?` ${s.rbi}打点`:''}　ミート${A.meet}・パワー${A.power}`)}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:p.text,foul:p.text,foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
-  $('plist').innerHTML = ab.pitches.length ? ab.pitches.map((p,i)=>`<div class="pr"><span class="pn" style="background:${pitchColor(p)}">${i+1}</span><span>${p.speed}km/h</span><span>${ptn(p.pt)}</span><span>${pres(p)}</span></div>`).join('')
-    : `<div class="empty">${G.meUp?'下のバーで狙う球速、ゾーンで狙うコースを選んで「この読みで待つ」':'この打席の投球はまだありません'}</div>`;
-  $('plist').scrollTop=$('plist').scrollHeight;
+  plistChips(ab,pres);   // この打席の投球：横1列の小さな札
   const sb=$('swBtn'); if(sb) sb.onclick=swToggle;
   renderStats(); renderLineup(); renderScout(); renderBoard(); renderGround();
   fitZone();
@@ -679,12 +694,12 @@ function drawTargetOutline(){
 if(typeof ResizeObserver!=='undefined'&&typeof document!=='undefined'&&document.getElementById('zone')){
   new ResizeObserver(()=>{ try{ if(G&&G.bat) drawTargetOutline(); }catch(_){} }).observe(document.getElementById('zone'));
 }
-const selTxt=()=>{ const h=meetTol(G.babil.meet), u=meetUp(G.babil.meet), c=G.target.spd; return `狙い <b>${c}km/h</b>（${c-h}〜${c+u}）　コース <b>${G.target.cells.length}</b>/${meetCells(G.babil.meet)}マス`; };
+const selTxt=()=>{ const h=meetTol(G.babil.meet), u=meetUp(G.babil.meet), c=G.target.spd; return `狙い <b>${c}km/h</b>（${c-h}〜${c+u}）　コース <b>${G.target.cells.length}</b>/${meetCells(G.babil.meet)}マス <span class="sbq" onclick="const d=document.querySelector('.sbhelp'); if(d) d.open=!d.open;">❔見かた</span>`; };   // ❔＝打ち方・バーの見かたを開く
 function speedBarHTML(pit){
   const [lo,hi,cmin,cmax]=barRange(pit), half=meetTol(G.babil.meet), up=meetUp(G.babil.meet), c=G.target.spd, R=hi-lo, P=v=>((v-lo)/R*100).toFixed(2);
   const ty=pit.types.map(t=>({t,s:pitSpeed(pit,t)})).sort((a,b)=>a.s-b.s), mt=mainType(pit,c,half,up);
   const bands=ty.map(x=>`<div class="sbband g-${PGROUP[x.t]}${x.t===mt?' main':''}" data-t="${x.t}" style="left:${P(x.s-3)}%;width:${(6/R*100).toFixed(2)}%"></div>`).join('');
-  const labs=ty.map(x=>`<div class="sblab${x.t===mt?' main':''}" data-t="${x.t}" data-x="${P(x.s)}" style="left:${P(x.s)}%"><span class="g-${PGROUP[x.t]}">${x.t}</span> ${x.s}</div>`).join('');
+  const labs=ty.map(x=>`<div class="sblab${x.t===mt?' main':''}" data-t="${x.t}" data-x="${P(x.s)}" style="left:${P(x.s)}%"><span class="g-${PGROUP[x.t]}">${x.t}</span> ${Math.round(x.s)}</div>`).join('');   // 球速は整数で表示
   let ticks=''; for(let v=Math.ceil(lo/10)*10; v<=hi; v+=10) ticks+=`<div class="sbtick" style="left:${P(v)}%">${v}</div>`;
   return `<div class="sbwrap"><div></div><div class="sblabs" id="sblabs">${labs}</div><div></div>
     <button class="sbstep" data-sd="-2" aria-label="遅く">◀</button>
@@ -693,8 +708,8 @@ function speedBarHTML(pit){
         <div class="sbwin" id="sbwin" style="left:${P(c-half)}%;width:${((half+up)/R*100).toFixed(2)}%;background:${heatGrad(half,up)}"><div class="sbmid" style="left:${(half/(half+up)*100).toFixed(1)}%"></div></div></div>
       <div class="sbticks">${ticks}</div></div>
     <button class="sbstep" data-sd="2" aria-label="速く">▶</button></div>
-    <div class="sblegend"><span><i class="lg-sw"></i>芯（−${Math.min(SWEET,half)}〜+${Math.min(SWEET,up)}km）＝ヒットになりやすい</span><span><i class="lg-ed"></i>色が薄い端ほどファウル・打ち損じ</span><span><b class="lg-mn">本命</b>真ん中に一番近い球種＝いちばん打ちやすい</span></div>
-    <div class="sbhint">上の帯＝相手の球速／下の枠＝あなたの狙い（なぞって動かす）</div>`;
+    <details class="sbhelp"><summary>❔ 見かた</summary><div class="sbhint" style="margin-bottom:3px">ゾーンで狙うコース、下のバーで狙う球速を選んで「この読みで待つ」</div><div class="sblegend"><span><i class="lg-sw"></i>芯（−${Math.min(SWEET,half)}〜+${Math.min(SWEET,up)}km）＝ヒットになりやすい</span><span><i class="lg-ed"></i>色が薄い端ほどファウル・打ち損じ</span><span><b class="lg-mn">本命</b>真ん中に一番近い球種＝いちばん打ちやすい</span></div>
+    <div class="sbhint">上の帯＝相手の球速／下の枠＝あなたの狙い（なぞって動かす）</div></details>`;
 }
 // 狙いの枠の色：真ん中±5km（芯）は濃い緑、端へ行くほど薄くなり、端は背景の色のまま
 function heatGrad(half,up){
@@ -752,14 +767,14 @@ function renderScoutBat(){
     <table class="sct"><tr><th>${pit.name}</th><td>${pit.hand==='L'?'左投':'右投'}・最速${pit.velo}km/h・コントロール${pit.control}</td></tr>
     <tr><th>配球の傾向</th><td><b style="color:var(--accent)">${PSTYLE_JP[pit.style]||'全体にバラバラ'}</b>${kimeOf(pit)?'':'　<span style="color:var(--mute)">（決め球なし）</span>'}</td></tr>
     ${pit.types.map(t=>`<tr><th>${ptn(t)}</th><td>平均 約${pitSpeed(pit,t)}km/h・Lv.${pitLv(pit,t)}${t===kimeOf(pit)?' <b style="color:var(--accent)">決め球</b>':''}</td></tr>`).join('')}</table>
-    <div class="hint" style="margin-top:6px">あなたが狙える球速の幅：狙いから−${meetTol(G.babil.meet)}〜+${meetUp(G.babil.meet)}km/h（速い球には+${meetUp(G.babil.meet)}までしか対応できない。狙いの−${SWEET}〜+${Math.min(SWEET,meetUp(G.babil.meet))}が芯、真ん中に一番近い球種が本命）／狙えるコース：${meetCells(G.babil.meet)}マス（ミート${G.babil.meet}）</div>
+    <div class="hint" style="margin-top:6px">あなたが狙える球速の幅：狙いから−${meetTol(G.babil.meet)}〜+${meetUp(G.babil.meet)}km/h（速い球には+${meetUp(G.babil.meet)}までしか対応できない。狙いの−${SWEET}〜+${Math.min(SWEET,meetUp(G.babil.meet))}が芯、真ん中に一番近い球種が本命）／狙えるコース：${meetCells(G.babil.meet)}マス（ミート${(G.babilRaw||G.babil).meet}）</div>
     <div class="sh2">相手バッテリーの読み</div>
     <div class="hint">傾向読みは<b>投手ごと</b>。${pit.name}があなたと対戦した${n}球ぶんの狙い（今までの試合＋この試合）を覚えています。<br>${n>=3?`あなたがよく張っている球速：<b style="color:var(--ink)">${top}</b>。よく張られている球速の球種は投げてこなくなり、よく狙うマスも避けてきます。`:'まだ狙いの傾向は読まれていません。'}</div>`;
 }
 
 /* ================= ペナント（野手） ================= */
 // 能力から見込んだ評価
-function abilityRB(){ const a=PEN.babil; return clamp(18+a.meet*0.25+a.power*0.2+a.speed*0.08+a.eye*0.12+(a.def??50)*0.04,25,85); }
+function abilityRB(){ const a=perfB(PEN.babil); return clamp(18+a.meet*0.25+a.power*0.2+a.speed*0.08+a.eye*0.12+(a.def??50)*0.04,25,85); }
 // 成績の評価（OPS中心。打席が少ないうちは能力の見込みに寄せる）
 function ratingB(s){ return mgrRatingB(myMgr(),s); }   // 監督の志向で評価の重みが変わる（manager.js）
 const pinchProb=()=>clamp(0.25+(evalR()-40)/40*0.25,0.15,0.5);
@@ -774,7 +789,7 @@ function penCompete(quiet){
   // 守れるポジションごとのライバル（数字＝能力＋監督の評価）
   PEN.rivals={};
   for(const pos of myPositions()){
-    PEN.rivals[pos]={me:Math.round(posValue(myFielder(pos),pos)),list:T.F.filter(f=>f.pos===pos).map(f=>({n:f.n,v:Math.round(posValue(f,pos)),age:f.age,rookie:!!f.rookie})).sort((a,b)=>b.v-a.v).slice(0,3)};
+    PEN.rivals[pos]={me:abS(posValue(myFielder(pos),pos)),list:T.F.filter(f=>f.pos===pos).map(f=>({n:f.n,v:abS(posValue(f,pos)),age:f.age,rookie:!!f.rookie})).sort((a,b)=>b.v-a.v).slice(0,3)};
   }
   const main=PEN.slot&&PEN.rivals[PEN.slot]?PEN.slot:myPositions()[0];
   PEN.myVal=PEN.rivals[main].me; PEN.rival=PEN.rivals[main].list;
@@ -804,7 +819,7 @@ function penPlayB(p){
     names:{my:{name:TEAM[PEN.team].short,s:TEAM[PEN.team].s,id:PEN.team},opp:{name:TEAM[p.opp].short,s:TEAM[p.opp].s,id:p.opp}},
     pname:PEN.pname, bhand:PEN.bhand||'R', babil:p.oddBabil||PEN.babil, kind:p.kind, order:myIdx>=0?myIdx+1:9, pinchInning:p.pinchInning, slot:isTW()?'DH':p.slot, ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])),
     pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})},
-    mission: p.odd?null:(rnd()<0.35 ? genMissionB(p.kind) : null)});
+    mission: p.odd?null:(rnd()<(p.ps?EV_MP:0.35) ? genMissionB(p.kind) : null)});   // ポストシーズンは出やすい
   const Q=batProceed();
   // 代打はその回の少し前から見せる（それより前の回はまとめて済ませる）
   const show = p.kind==='pinch' ? Q.filter(e=>e.inning>=G.pinch.inning) : Q;
@@ -856,7 +871,7 @@ function penSkipB(){
   PEN.pending=null; tradeCheck();
 }
 // 打順・出番の入れ替え
-function afterAppearanceB(){}   // 打順・出番はスタメン争い（10試合ごと）で決まる
+function afterAppearanceB(){ if(PEN.btrial) bTrialStep(); else bOfferCheck(); }   // 打順・守備位置のお試し（10試合）／監督からの打診
 /* ---- 監督のミッション（野手） ---- */
 function genMissionB(kind){
   const sp=PEN.babil.speed>=40;
@@ -873,12 +888,11 @@ function checkMissionB(){
   const m=G.mission, s=G.st, ob=s.h+s.bb+s.hbp;
   const ok={bh1:s.h>=1,bmh:s.h>=2,bxbh:s.d2+s.d3+s.hr>=1,brbi:s.rbi>=1,bob2:ob>=2,bob1:ob>=1,bnok:s.pa>=3&&s.k===0,bnok1:s.pa>=1&&s.k===0,bsb:s.sb>=1}[m.id];
   m.ok=!!ok;
-  if(!m.ok){ PEN.ss.mNG++; favChange(-2); return; }
-  PEN.ss.mOK++; PEN.ss.mBonus=(PEN.ss.mBonus||0)+3; favChange(8);
+  if(missionScore(m.ok)) return;   // 評価：シーズン／ポストシーズン（翌年へ）／大会の中だけ（pennant.js）
   const a=PEN.babil, got=[], N={meet:'ミート',power:'パワー',speed:'速度',eye:'選球眼・技術',def:'守備'};
   for(const k in m.rw){ const v=r1(m.rw[k]/2); a[k]=r1(Math.min(100,a[k]+v)); got.push(`${N[k]}+${v}`); }   // ミッションの上がり幅は半分
   m.got=got.join('・');
-  penNotice(`ミッション達成！「${m.text}」 ${m.got}`);
+  penNotice(`ミッション達成！「${m.text}」 ${m.got}${missionWhere()}`);
 }
 /* ---- タイトル（野手）：首位打者・本塁打王・打点王・盗塁王・最高出塁率・最多安打 ---- */
 const QUAL_PA=Math.round(SEASON_GAMES*3.1);   // 規定打席 443
@@ -925,12 +939,17 @@ function abilityChangeB(s,minPA){
   if(old){ out.meet-=2; out.power-=1; out.eye-=1; out.speed-=1; }
   out.meet=clamp(out.meet,old?-3:-1,old?1:2); out.power=clamp(out.power,old?-3:-1,old?1:2);
   out.eye=clamp(out.eye,old?-3:-1,old?1:2); out.speed=clamp(out.speed,old?-4:-2,old?1:1); out.def=clamp(out.def,old?-3:-1,old?1:2);
+  // 若手の成長：29歳までは、二軍でも一軍でも年齢に応じて毎年伸びる（±40%のばらつき）
+  const yg=YOUTH_G(age);
+  if(yg>0) for(const k of ['meet','power','speed','eye','def']){ if(k==='def'&&isTW()) continue;
+    const g=r1(yg*(0.6+rnd()*0.8)); out[k]=r1(out[k]+g); out.why[k]=(out.why[k]?out.why[k]+'・':'')+`若手の成長 +${g}`; }
   return out;
 }
+const YOUTH_G=age=>age<=22?4.0:age<=25?3.5:age<=28?2.0:age<=29?1.0:0;   // 18〜22歳4.0／23〜25歳3.5／26〜28歳2.0／29歳1.0
 function applyAbilityChangeB(ch){ if(!ch) return; const a=PEN.babil; for(const k of ['meet','power','speed','eye','def']) a[k]=r1(clamp((a[k]??50)+(ch[k]||0),0,100)); }
 function abilChangeHTMLB(ch,tw){
   const a=PEN.babil, f=v=>v>0?`<span class="up">+${v}</span>`:v<0?`<span class="dn">${v}</span>`:'±0';
-  const rows=[['ミート','meet'],['パワー','power'],['速度','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${clamp((a[k]??50)+(ch[k]||0),0,100)}</b>（${f(ch[k]||0)}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
+  const rows=[['ミート','meet'],['パワー','power'],['速度','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${r1(clamp((a[k]??50)+(ch[k]||0),0,100))}</b>（${f(r1(ch[k]||0))}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
   return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.age>33?'・33歳を超えたので衰えが大きい（マイナスは'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
 }
 function batLine(s){
