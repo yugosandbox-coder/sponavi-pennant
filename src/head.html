@@ -140,7 +140,7 @@ body{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 .lu .num{text-align:right;color:var(--mute);white-space:nowrap}
 .lu .num b{color:var(--ink)}
 .lu .rs{color:#cfe3ff;font-size:11.5px}
-.title{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#1f3a2af7 0%,#08120cfa 70%);padding:20px;overflow:auto;overscroll-behavior:contain;touch-action:none}   /* 表示中は下の画面を触れない。閉じるボタンだけ押せる */
+.title{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#1f3a2af7 0%,#08120cfa 70%);padding:20px 16px calc(24px + env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y}   /* 表示中は下の画面を触れない（重ねた画面の中は縦にスクロールできる） */
 .title.hide{animation:tout .45s ease-in forwards}
 .tin{text-align:center;max-width:460px;width:100%}
 .tin .t1{font-size:13px;letter-spacing:.4em;color:var(--mute);animation:tup .5s ease-out both}
@@ -309,7 +309,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .prof table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
 .prof td,.prof th{padding:6px 4px;border-bottom:1px solid #20382b;text-align:left}
 .prof th{color:var(--mute);font-weight:700;width:38%}
-.tclose{display:block;margin:18px auto 0;min-width:180px;padding:12px 20px;font:inherit;font-size:16px;font-weight:900;border-radius:12px;border:2px solid var(--accent);background:#000;color:var(--accent);cursor:pointer;touch-action:manipulation;animation:tup .4s ease-out .3s both}
+.tclose{display:block;margin:18px auto 0;min-width:180px;padding:12px 20px;font:inherit;font-size:16px;font-weight:900;border-radius:12px;border:2px solid var(--accent);background:#000;color:var(--accent);cursor:pointer;touch-action:manipulation;animation:tup .4s ease-out .3s both;position:sticky;bottom:calc(8px + env(safe-area-inset-bottom));z-index:3;box-shadow:0 4px 16px #000d}   /* 長い会話でも閉じるボタンは画面の下に残る */
 .title{align-items:flex-start}
 .tin{margin:auto}
 .talk{margin-top:14px;text-align:left}
@@ -345,6 +345,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
 svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:0}
 .depth{width:100%;border-collapse:collapse;font-size:13px}.depth td{padding:4px 2px;border-bottom:1px solid #20382b}.depth tr.me td{color:var(--accent);font-weight:700}
 .depth td.v{text-align:right;font-weight:700}
+.reroll{display:flex;align-items:center;gap:8px;margin:2px 0 8px}.reroll .btn{width:auto;margin:0;padding:8px 12px;font-size:14px;white-space:nowrap;flex:none}.reroll small{color:var(--mute);font-size:12px;line-height:1.4}
+.evrank{margin-top:8px;padding:6px 8px;border:1px solid #20382b;border-radius:8px;background:#0c1a12;font-size:12.5px;line-height:1.5}.evh{font-weight:700;margin-bottom:2px}
+.evr{display:flex;gap:5px;align-items:baseline;border-bottom:1px solid #18301f;padding:1px 0}.evr>span:first-child{width:1.6em;color:var(--mute)}.evr b{font-weight:600}.evr .evs{margin-left:auto;font-weight:700}.evr small{min-width:6.5em;text-align:right;color:var(--mute)}.evr.me b,.evr.me .evs{color:var(--accent)}
+.depth.pd2{table-layout:fixed}.depth.pd2 td:nth-child(1){width:17%;vertical-align:top}.depth.pd2 td:nth-child(3){width:12%}.depth.pd{table-layout:fixed}.depth.pd td:nth-child(1){width:15%}.depth.pd td:nth-child(2){width:39%}.depth.pd td:nth-child(3){width:15%}.depth.pd td:nth-child(4){width:19%}.depth.pd td:nth-child(5){width:12%}
 /* 球速バー（野手の狙い） */
 .sbwrap{display:grid;grid-template-columns:34px 1fr 34px;column-gap:6px;align-items:start}
 .sbstep{appearance:none;height:46px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:14px}
@@ -407,7 +411,7 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .mcard .mname{font-weight:900;font-size:15px;margin-bottom:3px}.mcard .mname small{font-weight:400;color:var(--mute);font-size:11px}
 .mcard .mrow{font-size:12.5px;margin-top:2px;line-height:1.3}.mcard .mrow small{display:block;color:var(--mute);font-size:10.5px}
 .mb{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;font-style:normal;font-weight:900;font-size:10px;line-height:1;color:#fff;vertical-align:-3px}
-.mb-p{background:#e8336d}.mb-b{background:linear-gradient(90deg,#e0b400 0,#e0b400 50%,#2a9d4f 50%,#2a9d4f 100%)}.mb-a{background:#111;color:#fff;border:1px solid #555}.mb-o{background:#fff;color:#111}
+.mb-p{background:#e8336d}.mb-b{background:linear-gradient(90deg,#e0b400 0,#e0b400 50%,#2a9d4f 50%,#2a9d4f 100%)}.mb-a{background:#111;color:#fff;border:1px solid #555}.mb-o{background:#fff;color:#111}.mb-r{background:#2f6fd6;letter-spacing:-1px}
 .mbs{display:inline-flex;gap:2px;align-items:center}
 .mlab .mb{width:13px;height:13px;font-size:9px}
 .mrow .mb{margin-right:4px}
@@ -555,8 +559,8 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   <div id="bAbilSec" style="display:none">
     <div id="bposWrap"><div class="sh">守備位置</div>
     <div class="seg3" id="bposcards"></div>
-    <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで2つまで増やせます</div></div>
-    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜120の中でランダム。1%で「天才」の155）</div>
+    <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで増やせます（数の上限なし。増えるほど覚えるコストが上がる）</div></div>
+    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="bReroll"></div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
     <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
@@ -568,12 +572,12 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div class="abhint">ボール球を振らない・追い込まれてから狙っていない球をカットできる（低いとボール球に手を出し、狙い球でも打ち損じる）</div>
     <div id="bDefRow"><div class="abrow"><span class="abn">守備</span><input type="range" id="bDef" min="20" max="100" step="0.1"><b id="bDefV"></b></div>
     <div class="abhint">スタメン争いで有利に（捕手・遊撃手ほど大事）。チームの失点も少し減る</div></div>
-    <div class="abhint">どの能力も20から（左打ちは速度、右打ちはパワーが30から。両打ちはミート・パワーが15から）。1上げるごとに1ポイント</div>
+    <div class="abhint">どの能力も20から（左打ちは速度、右打ちはパワーが30から。両打ちはミート・パワーが15から）。1上げるごとに1ポイント。ペナントの入団時は各能力60まで（プロのスタメンは平均70前後）</div>
     <button class="btn" id="bAuto" style="width:100%;margin-top:8px">おまかせで振り分ける</button>
   </div>
   <!-- ペナント：持ち点で能力を決める -->
   <div id="abilSec" style="display:none">
-    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜120の中でランダム。1%で「天才」の155）</div>
+    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="abReroll"></div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
     <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>

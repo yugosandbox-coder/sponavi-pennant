@@ -14,8 +14,9 @@ function batterSVG(flip){
     <path d="M8 125 L18 125 M44 125 L53 125" stroke-width="4"/>
   </g></svg>`;
 }
+// 丸の数字：その打者（打席）に投じた何球目か（abPitchNo は logic.js）。0・空なら丸なし
 function setResult(cls,big,sub,order){
-  const o=order==null?(G&&G.batter?G.batter.order:''):order;   // 0なら丸なし
+  const o=order==null?abPitchNo():order;
   $('result').innerHTML=`<div class="rb1">${o?`<span class="ordc">${o}</span>`:''}<span class="big ${cls} pop">${big||'&nbsp;'}</span></div><div class="rb2">${sub||'&nbsp;'}</div>`;
 }
 function addLog(html){const l=$('log');l.insertAdjacentHTML('beforeend',html);while(l.children.length>160)l.firstElementChild.remove();l.scrollTop=l.scrollHeight}
@@ -23,6 +24,7 @@ function lamps(id,n,max,cls){$(id).innerHTML=Array.from({length:max},(_,i)=>`<di
 
 function renderAll(){
   if(G&&G.bat) return renderBat();   // 野手の打席（打者目線）
+  if(!G.batter&&G.lineup) G.batter=G.lineup[Math.max(0,G.order)]||G.lineup[0];   // 読み込み直後などで打者がいないとき
   const b=G.batter, ab=G.ab;
   $('inn').textContent=G.over?'試合終了':G.inning+'回表';
   $('missionBar').style.display=G.mission&&!G.over?'':'none';
@@ -89,7 +91,7 @@ function renderAll(){
   const oppT=G.pen&&G.pen.opp, csOn=typeof PEN!=='undefined'&&PEN&&PEN.teams&&G.pen&&!G.pen.wbc;
   setTeamBar(G.half||'top');   // 投手モードで自分が投げているときは表（相手の攻撃）
   $('plP').innerHTML=`<div class="lab">投手 ${MYNUM}・<b style="color:var(--accent)">投</b>・あなた</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname||'あなた')}</span> <span class="hb ${PHAND==='L'?'L':'R'}">${PHAND==='L'?'左投':'右投'}</span></div>
-    ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>`;
+    ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>${staBarHTML(mySta())}`;
   $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
     ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||`打率 ${b.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(b.hrRate*PA_SEASON)}`}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
@@ -163,7 +165,7 @@ function setTeamBar(half){
   // 左＝守備側（投手のチーム）、右＝攻撃側（打者のチーム）。色はユニフォーム（地の色・胸の文字・つば）に合わせる
   const put=(id,n)=>{ const el=$(id); if(!el) return; const t=n&&n.id&&typeof TEAM!=='undefined'&&TEAM[n.id]; el.textContent=n.name; el.style.fontSize='';
     if(t){ el.style.background=t.jersey||t.cap; el.style.color=t.chc||t.cl; el.style.borderColor=t.brim||t.cap; }
-    else if(n&&n.lg&&typeof AS_LG!=='undefined'&&AS_LG[n.lg]){ el.style.background=AS_LG[n.lg].bg; el.style.color=AS_LG[n.lg].fg; el.style.borderColor=AS_LG[n.lg].fg; el.textContent=AS_LG[n.lg].name; el.style.fontSize='12.5px'; }
+    else if(n&&n.lg&&typeof AS_LG!=='undefined'&&AS_LG[n.lg]){ el.style.background=AS_LG[n.lg].bg; el.style.color=AS_LG[n.lg].fg; el.style.borderColor=AS_LG[n.lg].bd||AS_LG[n.lg].fg; el.textContent=AS_LG[n.lg].name; el.style.fontSize='12.5px'; }
     else { el.style.background=''; el.style.color=''; el.style.borderColor=''; } };
   put('tmL',L); put('tmR',R);
   const lab=$('tmLab'); if(lab) lab.innerHTML=`<span>守備</span><span>攻撃</span>`;
@@ -247,7 +249,7 @@ function applySave(d){
     RECS=Array.isArray(d.RECS)?d.RECS:[];
     PHAND=d.PHAND==='L'?'L':'R'; PNAME_IN=typeof d.PNAME_IN==='string'?d.PNAME_IN.slice(0,10):''; TNAME_IN=typeof d.TNAME_IN==='string'?d.TNAME_IN.slice(0,12):''; PLEV=(d.PLEV&&typeof d.PLEV==='object')?d.PLEV:{};
     if(d.OPP&&LINEUPS[d.OPP.pattern]&&HANDS[d.OPP.hand])OPP=d.OPP;
-    if(okG&&d.G.bat){ G={...d.G,lineup:d.G.lineup.map(deB)}; }   // 野手の試合
+    if(okG&&d.G.bat){ G={...d.G,lineup:d.G.lineup.map(deB)}; if(G.tw&&!G.batter) G.batter=G.lineup[G.order]||G.lineup[0]; }   // 野手の試合（二刀流は、あとで投手の画面に戻るので相手の打者も戻す）
     else if(okG){
       const g={...d.G,lineup:d.G.lineup.map(deB)}; g.batter=g.lineup[g.order];
       if(!g.batter) throw new Error('打者データなし');
@@ -286,6 +288,7 @@ function restoreUI(){
     $('next').textContent=G.over?'次の試合へ（同じ持ち球）':G.outs>=3?'チェンジ → 次の回へ':'次の打者へ';
   }else{ $('throw').style.display=''; $('next').style.display='none'; }
   setResult('','続きから再開',`${G.inning}回 ${G.outs}アウト　打者：${b.order}番 ${b.name}`,0);
+  if(G.staAsk) setTimeout(staAskShow,300);   // 続投か降板かを決める途中だった
   renderAll();
 }
 let resetArmed=false;
@@ -507,14 +510,14 @@ function showPB(ev){
   const cls = ev.hit ? (ev.label.startsWith('四球')?'cb':'ch') : 'co';
   // 左の投手欄：守っている側の投手（野手モードの表は味方の投手、投手モードの裏は相手の投手）
   if(!G.bat&&ev.pitcher){ const op=ev.pitcher, tn=top?G.names.my.name:G.names.opp.name;
-    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(op.isMe?csLineP('ME',PEN.team):op.pid?csLineP(op.pid,op.team||(top?PEN.team:G.pen.opp)):null))||(op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`)}</div>`; }
+    $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${tn}</div><div class="nm"><span class="nmt">${op.isMe?plink({isMe:true},G.pname||'あなた'):(op.name||'')}</span> <span class="hb ${op.hand==='L'?'L':'R'}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.isMe?PEN.team:op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(op.isMe?csLineP('ME',PEN.team):op.pid?csLineP(op.pid,op.team||(top?PEN.team:G.pen.opp)):null))||(op.isMe?`防御率 ${fmtRate(C.runs,C.outs)}`:`最速${op.velo||'-'}km/h・${op.types?op.types.length:'-'}球種`)}</div>${op.isMe&&typeof mySta==='function'?staBarHTML(mySta()):(G.bat&&G.pits&&!top?staBarHTML(cpuSta(curPitIdx())):'')}`; }
   if(G.bat&&top&&G.ours&&G.ours.length){ const op=G.ours[ev.inning<=6?0:Math.min(G.ours.length-1,ev.inning-6)];
     $('plP').innerHTML=`<div class="lab">投手 ${op.num||''}　${G.names.my.name}</div><div class="nm"><span class="nmt">${op.name}</span> <span class="hb ${op.hand}">${op.hand==='L'?'左投':'右投'}</span></div>${asTag(op.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&op.pid&&csLineP(op.pid,op.team||PEN.team))||`最速${op.velo}km/h・${op.types?op.types.length:'-'}球種`}</div>`; }
   if(ev.summary){   // 相手の攻撃（1イニングまとめて）
     setResult(ev.hit?'co':'ch', ev.label, `${ev.inning}回表 ${G.names.opp.name}の攻撃${ev.sub?'　'+ev.sub:''}`, 0);
     $('plB').innerHTML=`<div class="lab">${ev.inning}回表</div><div class="nm"><span class="nmt">${G.names.opp.name}の攻撃</span></div><div class="sub">味方の投手が投げています</div>`;
   }else{
-  setResult(cls, ev.label, `${top?G.names.opp.name:G.names.my.name}の攻撃　${ev.order}番 ${ev.name}${ev.isMe?'（あなた）':''}`, ev.order);
+  setResult(cls, ev.label, `${top?G.names.opp.name:G.names.my.name}の攻撃　${ev.order}番 ${ev.name}${ev.isMe?'（あなた）':''}`, 0);   // まとめて進む打席は球数が無いので丸なし
   const bobj=ev.isMe?{isMe:true}:(top?G.lineup:G.myTeam.lineup).find(x=>x.name===ev.name)||ev;
   $('plB').innerHTML=`<div class="lab">打者　${ev.order}番</div><div class="nm"><span class="nmt">${plink(bobj,ev.name)}</span> <span class="hb ${ev.hand==='L'?'L':'R'}">${ev.hand==='L'?'左打':'右打'}</span></div>
       ${asTag(ev.isMe?PEN.team:bobj.team)}<div class="sub">${(G.pen&&!G.pen.wbc&&PEN&&PEN.teams&&(ev.isMe?(hasBat()?csLineB('ME',PEN.team):null):bobj.fid?csLineB(bobj.fid,bobj.team||(top?G.pen.opp:PEN.team)):null))||(ev.isMe?'あなた':`打率 ${ev.avg.toFixed(3).replace(/^0/,'')}　本塁打 ${Math.round(ev.hrRate*PA_SEASON)}`)}</div>`;
@@ -535,8 +538,8 @@ function showTitle(){
         return `<div class="t2" style="font-size:min(26px,${Math.min(6.4,86/n.length).toFixed(1)}vw)">${n}</div>`})()}
       <div class="t3">${G.tw?`先発登板・二刀流（DHなし ${G.me.order}番）`:G.bat?(p.kind==='pinch'?`${G.pinch.inning}回裏ごろ 代打で出場`:`スタメン ${G.me.order}番で出場`):p.kind==='start'?'先発登板':p.kind==='closer'?'9回表 抑えで登板':`${G.inning}回表 中継ぎで登板`}</div>
       <div class="t4">${G.bat?`相手先発：${G.pits[0].name}（${G.pits[0].hand==='L'?'左':'右'}・最速${G.pits[0].velo}km/h・${G.pits[0].types.join('・')}）`:`相手 ${oppTot()} − ${myTot()} 味方　／相手打線：${LINEUPS[OPP.pattern].name}`}</div>
-      ${G.mission?`<div class="talk"><div class="bub r" style="animation-delay:.5s">今日のミッションだ。<b>${G.mission.text}</b>。達成したら評価を上げてやる。頼むぞ。</div>
-        <div class="chars"><div class="ch" style="visibility:hidden">${svgPlayer()}</div><div class="ch" style="animation-delay:.2s">${svgManager()}<span>監督</span></div></div></div>`:''}
+      ${G.mission?`<div class="talk"><div class="bub r" style="animation-delay:.5s">今日のミッションだ。<b>${G.mission.text}</b>。${p.allstar?'達成したら、このオールスターのチームの中での評価を上げてやる。起用も変わるぞ。':p.wbc?'達成したら、代表チームの中での評価を上げてやる。起用も変わるぞ。':p.ps?'達成したら、来季の評価に加えてやる。':'達成したら評価を上げてやる。'}頼むぞ。</div>
+        <div class="chars"><div class="ch" style="visibility:hidden">${svgPlayer()}</div><div class="ch" style="animation-delay:.2s">${svgManager()}<span>${(M=>M?mgrName(M):'監督')(typeof evGameMgr==='function'&&evGameMgr())}</span></div></div></div>`:''}
       <button class="tclose" onclick="hideTitle()">閉じる</button>`;
     const t=$('title'); t.classList.remove('hide'); t.style.display=''; t.scrollTop=0;
     clearTimeout(titleTimer); if(!G.mission) titleTimer=setTimeout(hideTitle,3200); return;
@@ -627,36 +630,65 @@ function talkData(){
 const DEF_UNI={cap:'#1d2a4a',brim:'#1d2a4a',cl:'#f5c542',ch:'B',jersey:'#f4f4f4',pin:0,chest:'',chc:'#1d2a4a',chs:'',num:'#1d2a4a',nums:'',sl:'#1d2a4a',under:'#1d2a4a',pants:'#f4f4f4',panel:0,trim:'#1d2a4a',jk:'#1f3c7a',jt:'#e8e8e8'};
 function curUni(){
   const pen=typeof PEN!=='undefined'&&PEN;
+  if(G&&G.pen&&G.pen.allstar&&pen&&typeof asUni==='function') return asUni(G.pen.lg,PEN.team);   // オールスターのユニフォーム（左肩に所属球団のワッペン）
   const id = G&&G.pen ? (G.pen.team||(pen&&PEN.team)) : (SCREEN==='pennant'&&pen ? PEN.team : null);
   return (id&&typeof TEAM!=='undefined'&&TEAM[id])||DEF_UNI;
 }
 // 自分：シンプルな野球選手のイラスト（球団ごとに帽子・つば・胸の文字・背番号・袖・アンダーシャツの色を変える）
+let SVG_UID=0;
+const SCRIPT_FONT=`font-family="'Brush Script MT','Segoe Script','Dancing Script',cursive" font-style="italic"`;
+const UNI_FONT={cond:`font-family="Impact,'Arial Narrow','Roboto Condensed','sans-serif-condensed',sans-serif-condensed,sans-serif" font-weight="900"`, script:SCRIPT_FONT+' font-weight="700"', serif:`font-family="Georgia,'Times New Roman','Noto Serif',serif" font-weight="900"`, block:'font-family="Arial Black, Arial, sans-serif" font-weight="900"', italic:'font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic"'};
+const capFont=u=>{ const f=u.capf||(u.chf==='script'?'script':null); return f?UNI_FONT[f]:'font-family="sans-serif" font-weight="900"'; };
 function svgPlayer(u){ u=u||curUni(); const bat=(G&&G.bat)||(typeof isBat==='function'&&isBat());
   const jersey=u.jersey||'#f4f4f4', pinC=u.pin===1?u.trim:u.pin, under=u.under||u.trim, num=bat?B_NUM:MYNUM;
   const pin=pinC?[28,33,38,43,48,52,57,62,67,72].map((x,i)=>`<path d="M${x} 89 L${x} 128" stroke="${u.pin2&&i%2?u.pin2:pinC}" stroke-width="0.8" opacity=".75"/>`).join(''):'';   // pin2 があれば2色の縦じま（日本代表の紺と赤）
+  // 三角の波の模様（zig）：縦に走るジグザグの線
+  const zig=u.zig?[27,33,39,45,55,61,67,73].map(x=>{ let d=`M${x} 86`; for(let y=86,k=0;y<128;y+=2.6,k++) d+=` L${x+(k%2?1.7:-1.7)} ${y+2.6}`; return `<path d="${d}" fill="none" stroke="${u.zig}" stroke-width="0.75" stroke-linejoin="miter" opacity=".8"/>`; }).join(''):'';
+  // 大きな柄（shapes：[色, 多角形の点]）と細いストライプ（fine：斜めの細線＝ヘリンボーン）。胴の形で切り抜く
+  const shapes=(u.shapes||[]).map(([c,pts])=>`<polygon points="${pts}" fill="${c}"/>`).join('');
+  const fine=u.fine?Array.from({length:22},(_,k)=>{ const x=24+k*2.5; return `<path d="M${x} 86 L${x+(x<50?-2.2:2.2)} 128" stroke="${u.fine}" stroke-width="0.3" opacity=".22"/>`; }).join(''):'';   // 細いストライプ（中央から外へ少し開く）
+  const jid='jc'+(++SVG_UID);   // 模様は胴の形で切り抜く
   const panel=u.panel?`<path d="M62 90 Q70 88 74 92 L76 128 L66 128 Z" fill="${u.panel}"/>`:'';
-  const chest=u.chest?`<text x="50" y="102" font-size="${u.chest.length>=8?6:u.chest.length>=6?7:9}" font-weight="900" fill="${u.chc||u.trim}" ${u.chs?`stroke="${u.chs}" stroke-width="0.7" paint-order="stroke"`:''} text-anchor="middle" font-family="Arial Black, Arial, sans-serif" letter-spacing="0.3">${u.chest}</text>`:'';
+  // 胸の文字：書体（筆記体・セリフ体・太ゴシック・斜体）とアーチ。球団のロゴ・マークそのものは描かない
+  const cf=u.cf||(u.chf==='script'?'script':'block'), L=(u.chest||'').length, chs=u.chs?`stroke="${u.chs}" stroke-width="${cf==='script'?0.8:0.7}" paint-order="stroke"`:'';
+  const cfs=cf==='script'?(L<=4?12.5:L<=5?12:L<=6?11:L<=7?10.5:9):(L>=8?6:L>=6?7:9);
+  const aid='ar'+(++SVG_UID);
+  const chest=!u.chest?'':u.arch
+    ? `<path id="${aid}" d="M26 106 Q50 92 74 106" fill="none"/><text font-size="${cfs}" fill="${u.chc||u.trim}" ${chs} ${UNI_FONT[cf]} letter-spacing="0.3"><textPath href="#${aid}" startOffset="50%" text-anchor="middle">${u.chest}</textPath></text>`   // アーチ状の胸文字
+    : cf==='script'
+    ? `<text x="50" y="102" font-size="${cfs}" fill="${u.chc||u.trim}" ${chs} text-anchor="middle" ${UNI_FONT.script} transform="rotate(-8 50 100)">${u.chest}</text>`   // 筆記体
+    : cf==='cond'
+    ? `<text x="50" y="103" font-size="9" fill="${u.chc||u.trim}" ${chs} text-anchor="middle" ${UNI_FONT.block} textLength="${Math.min(40,L*4.6)}" lengthAdjust="spacingAndGlyphs">${u.chest}</text>`   // 細長い太字（字の幅を詰める）
+    : `<text x="${u.panel?46.5:50}" y="102" font-size="${cfs}" fill="${u.chc||u.trim}" ${chs} text-anchor="middle" ${UNI_FONT[cf]} letter-spacing="0.3">${u.chest}</text>`;   /* 脇のパネルがあるときは少し左へ */
+  // 袖のライン（外側から順に。なければ1本）
+  const slvL=(u.slv||[u.sl||u.trim]), sw=slvL.length>1?1.5:2.5;
+  const sleeves=slvL.map((c,k)=>`<path d="M${19+k*1.4} ${103-k*1.9} L${12+k*1.4} ${107-k*1.9}" stroke="${c}" stroke-width="${sw}"/><path d="M${81-k*1.4} ${103-k*1.9} L${88-k*1.4} ${107-k*1.9}" stroke="${c}" stroke-width="${sw}"/>`).join('');
+  const stars=u.stars?`<text x="56" y="106.5" font-size="3.6" text-anchor="middle" transform="rotate(-8 50 100)">${u.stars.map(c=>`<tspan fill="${c}" stroke="#fff" stroke-width="0.15">★</tspan>`).join('')}</text>`:'';
+  // 左肩のワッペン：所属球団の2色の1:1ストライプ
+  const pid='wp'+(++SVG_UID);
+  const patch=u.patch?`<defs><clipPath id="${pid}"><rect x="-3.2" y="-3.2" width="6.4" height="6.4" rx="1.5"/></clipPath></defs><g transform="translate(80.6 99.4) rotate(36)"><g clip-path="url(#${pid})">${[0,1,2,3].map(i=>`<rect x="${-3.2+i*1.6}" y="-3.2" width="1.6" height="6.4" fill="${u.patch[i%2]}"/>`).join('')}</g><rect x="-3.2" y="-3.2" width="6.4" height="6.4" rx="1.5" fill="none" stroke="#0008" stroke-width="0.45"/></g>`:'';
   const strip=c=>`<path d="M${c} 94 Q${c<50?12:88} 104 ${c<50?16:84} 118" fill="none" stroke="${jersey}" stroke-width="9" stroke-linecap="round"/>`;
   return `<svg viewBox="0 0 100 130" width="92" height="120" aria-hidden="true">
   <ellipse cx="50" cy="126" rx="30" ry="4" fill="#0006"/>
+  <defs><clipPath id="${jid}"><path d="M24 128 L26 92 Q50 82 74 92 L76 128 Z"/></clipPath></defs>
   <path d="M24 128 L26 92 Q50 82 74 92 L76 128 Z" fill="${jersey}" stroke="${u.trim}" stroke-width="1.5"/>
-  ${pin}${panel}
+  <g clip-path="url(#${jid})">${shapes}${fine}${pin}${zig}</g>${panel}
   <path d="M50 88 L50 128" stroke="${u.trim}" stroke-width="1.2" opacity=".8"/>
-  <path d="M44 86 Q50 92 56 86" fill="none" stroke="${under}" stroke-width="4"/>
-  ${chest}
-  <text x="50" y="121" font-size="14" font-weight="900" fill="${u.num||u.trim}" ${u.nums?`stroke="${u.nums}" stroke-width="0.9" paint-order="stroke"`:''} text-anchor="middle" font-family="Arial Black, Arial, sans-serif">${num}</text>
+  <path d="M44 86 Q50 92 56 86" fill="none" stroke="${u.neck||under}" stroke-width="4"/>
+  ${chest}${stars}
+  ${u.noNum?'':`<text x="50" y="121" font-size="14" font-weight="900" fill="${u.num||u.trim}" ${u.nums?`stroke="${u.nums}" stroke-width="0.9" paint-order="stroke"`:''} text-anchor="middle" font-family="Arial Black, Arial, sans-serif">${num}</text>`}
   <path d="M24 94 Q12 104 16 118" fill="none" stroke="${under}" stroke-width="9" stroke-linecap="round"/>
   <path d="M76 94 Q88 104 84 116" fill="none" stroke="${under}" stroke-width="9" stroke-linecap="round"/>
   <path d="M24 94 Q15 100 15 106" fill="none" stroke="${jersey}" stroke-width="10" stroke-linecap="butt"/>
   <path d="M76 94 Q85 100 85 106" fill="none" stroke="${jersey}" stroke-width="10" stroke-linecap="butt"/>
-  <path d="M19 103 L12 107" stroke="${u.sl||u.trim}" stroke-width="2.5"/><path d="M81 103 L88 107" stroke="${u.sl||u.trim}" stroke-width="2.5"/>
+  ${sleeves}${patch}
   ${bat?`<path d="M84 118 L97 70" stroke="#c99a5b" stroke-width="5" stroke-linecap="round"/><path d="M84 118 L88 104" stroke="#8a5a2b" stroke-width="5.5" stroke-linecap="round"/><circle cx="84" cy="118" r="5" fill="#f2c9a0"/>`:`<ellipse cx="86" cy="118" rx="9" ry="8" fill="#a8652c" stroke="#5b3410" stroke-width="1.5"/>`}
   <circle cx="16" cy="119" r="5" fill="#f2c9a0"/>
   <rect x="44" y="72" width="12" height="12" fill="#f2c9a0"/>
   <circle cx="50" cy="56" r="20" fill="#f2c9a0"/>
   <path d="M29 52 Q30 32 50 31 Q70 32 71 52 Z" fill="${u.cap}"/>
   <path d="M60 50 Q76 49 82 54 L60 54 Z" fill="${u.brim||u.cap}"/>
-  <text x="50" y="48" font-size="10" font-weight="900" fill="${u.cl}" ${u.cls?`stroke="${u.cls}" stroke-width="0.8" paint-order="stroke"`:''} text-anchor="middle" font-family="sans-serif">${u.ch}</text>
+  <text x="50" y="48" font-size="${(u.capf||u.chf)==='script'?12:u.capf==='serif'?11:10}" fill="${u.cl}" ${u.cls?`stroke="${u.cls}" stroke-width="0.8" paint-order="stroke"`:''} text-anchor="middle" ${capFont(u)}>${u.ch}</text>
   <circle cx="43" cy="60" r="2.2" fill="#222"/><circle cx="57" cy="60" r="2.2" fill="#222"/>
   <path d="M44 67 Q50 71 56 67" fill="none" stroke="#a0522d" stroke-width="2" stroke-linecap="round"/>
 </svg>`; }
@@ -667,7 +699,7 @@ function talkScene(){
   return `<div class="talk">
     <div class="bub l">今日の成績は${t.mine}だった</div>
     <div class="bub r">${typeof oddThanks==='function'&&oddThanks()?oddThanks():`今日のお前は<b>${t.sc}点</b>だな。${t.bad}は反省点だな。でも${t.good}は良かったな。${G.mission?(G.mission.ok?`ミッション「${G.mission.text}」も達成だ、よくやった！（${G.mission.got}）`:`ミッション「${G.mission.text}」は失敗だったな。`):''}このまま頼むぞ。`}</div>
-    <div class="chars"><div class="ch">${svgPlayer()}<span>${G.pname||'自分'}</span></div><div class="ch">${svgManager()}<span>${PEN?mgrName(myMgr())+'<br>'+mgrBadges(myMgr()):'監督'}</span></div></div>
+    <div class="chars"><div class="ch">${svgPlayer()}<span>${G.pname||'自分'}</span></div><div class="ch">${svgManager()}<span>${PEN?(M=>mgrName(M)+'<br>'+mgrBadges(M))((typeof evGameMgr==='function'&&evGameMgr())||myMgr()):'監督'}</span></div></div>
   </div>`;
 }
 // ドラフト会議の結果（入団発表）
@@ -747,12 +779,12 @@ function showProfile(o){
   if(o.isMe&&typeof isBat==='function'&&isBat()){
     const a=PEN.babil;
     h=`<h2>${PEN.pname}</h2><div class="prow"><span class="hb ${PEN.bhand}">${bhandJP(PEN.bhand)}</span><span class="rbadge">${roleName(PEN.role)}${PEN.order?`・${PEN.order}番`:''}</span>${btypeBadge(PEN.btype)}${tchip(PEN.team)}<span class="hint">${PEN.age}歳・${POS_JP[PEN.bpos]}${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span></div>
-      <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(a.meet)}マス・球速 −${meetTol(a.meet)}〜+${meetUp(a.meet)}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>速度</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
+      <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(abPerf(a.meet))}マス・球速 −${meetTol(abPerf(a.meet))}〜+${meetUp(abPerf(a.meet))}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>速度</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
       <tr><th>今年</th><td style="font-size:13px">${batLine(PEN.ss)}</td></tr><tr><th>通算</th><td style="font-size:13px">${batLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr>
       ${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}</table>`;
   }else if(o.isMe){
     const pen=PEN&&(G&&G.pen||SCREEN==='pennant');
-    h=`<h2>${pen?PEN.pname:(G&&G.pname||'あなた')}</h2><div class="prow"><span class="hb ${PHAND}">${PHAND==='L'?'左投':'右投'}</span>${pen?`<span class="rbadge">${ROLE_NAME[PEN.role]}</span>${PEN.team?tchip(PEN.team):''}<span class="hint">${PEN.age}歳${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span>`:''}</div>
+    h=`<h2>${pen?PEN.pname:(G&&G.pname||'あなた')}</h2><div class="prow"><span class="hb ${PHAND}">${PHAND==='L'?'左投':'右投'}</span>${pen?`<span class="rbadge">${roleName(PEN.role)}</span>${PEN.team?tchip(PEN.team):''}<span class="hint">${PEN.age}歳${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span>`:''}</div>
       <table>${pen&&PEN.abil?`<tr><th>球速</th><td>${PEN.abil.velo}km/h</td></tr><tr><th>コントロール</th><td>${bar10(PEN.abil.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(PEN.abil.stamina)}</td></tr>`:`<tr><th>ストレート平均</th><td>${PVELO}km/h</td></tr>`}
       <tr><th>持ち球</th><td>${(pen&&PEN.rep?PEN.rep:REP).map((t,i)=>{ if(pen&&PEN.plev) return `${ptn(t)}　Lv.${lvOf(t)}`; const L=lev(t); return `${ptn(t)}${L==='決'?'（決め球）':L==='少'?'（少し）':''}`}).join('<br>')}</td></tr>
       ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr>${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・速度${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
@@ -771,9 +803,9 @@ function showProfile(o){
     h=`<h2>${o.name}</h2><div class="prow"><span class="hb ${o.hand}">${o.hand==='L'?'左打':'右打'}</span>${o.type?`<span class="rbadge">${o.type}</span>`:''}${o.order?`<span class="hint">${o.order}番</span>`:''}</div>
       <table><tr><th>${o.cpuF?"打率（能力の目安）":"打率"}</th><td>${o.avg!=null?o.avg.toFixed(3).replace(/^0/,''):'-'}</td></tr>
       <tr><th>${o.cpuF?"本塁打（能力の目安・年間）":"本塁打（年間ペース）"}</th><td>${o.hrRate!=null?Math.round(o.hrRate*PA_SEASON):'-'}本</td></tr>
-      ${o.power!=null?`<tr><th>パワー</th><td>${bar10(o.power)}</td></tr><tr><th>ミート</th><td>${bar10(o.contact)}</td></tr><tr><th>走力</th><td>${bar10(o.speed)}</td></tr><tr><th>選球眼</th><td>${bar10(o.eye)}</td></tr>`:''}
+      ${o.power!=null?`<tr><th>パワー</th><td>${bar10(abS(o.power))}</td></tr><tr><th>ミート</th><td>${bar10(abS(o.contact))}</td></tr><tr><th>走力</th><td>${bar10(abS(o.speed))}</td></tr><tr><th>選球眼</th><td>${bar10(abS(o.eye))}</td></tr>`:''}
       ${o.good?`<tr><th>得意コース</th><td>${cellNames(o.good,o.hand)}</td></tr><tr><th>苦手コース</th><td>${cellNames(o.bad,o.hand)}</td></tr>`:''}
-      ${o.cpuF?`<tr><th>守備</th><td>${bar10(o.cpuF.d)}<br><small>${POS_JP[o.cpuF.pos]||o.cpuF.pos||''}</small></td></tr><tr><th>球団・年齢</th><td>${o.team?tchip(o.team):''} ${o.cpuF.age||'-'}歳</td></tr>`:''}
+      ${o.cpuF?`<tr><th>守備</th><td>${bar10(abS(o.cpuF.d))}<br><small>${POS_JP[o.cpuF.pos]||o.cpuF.pos||''}</small></td></tr><tr><th>球団・年齢</th><td>${o.team?tchip(o.team):''} ${o.cpuF.age||'-'}歳</td></tr>`:''}
       ${o.cs?`<tr><th>今季成績</th><td style="font-size:13px">${o.cs.g}試合　打率 <b>${o.cs.ab?f3(o.cs.h/o.cs.ab):'-'}</b>　${o.cs.hr}本塁打 ${o.cs.rbi}打点 ${o.cs.sb}盗塁<br>${o.cs.h}安打（二塁打${o.cs.d2}・三塁打${o.cs.d3}）　四球${o.cs.bb}　三振${o.cs.k}　出塁率 ${o.cs.pa?f3((o.cs.h+o.cs.bb)/o.cs.pa):'-'}</td></tr>`:''}
       ${o.res&&o.res.length?`<tr><th>今日の結果</th><td>${o.res.join(' / ')}</td></tr>`:''}</table>`;
   }
@@ -802,7 +834,7 @@ function renderSetup(){
       box.querySelectorAll('.tbtn').forEach(el=>el.onclick=()=>{dTeam=el.dataset.tm;renderSetup()}); });
     $('teamTrait').innerHTML=dTeam?`🏟 ${TEAM[dTeam].short}の特色：<b>${TRAIT_JP[dTeam]}</b>`:'球団ごとに「育ちやすい能力」の特色があります（選ぶとここに出ます）';
   }
-  $('rcards').innerHTML=[['start','先発（裏ローテから）'],['relief','中継ぎ']].map(([k,n])=>`<button class="btn ${dRole===k?'on':''}" data-r="${k}">${n}</button>`).join('');
+  $('rcards').innerHTML=[['start','先発'],['relief','中継ぎ']].map(([k,n])=>`<button class="btn ${dRole===k?'on':''}" data-r="${k}">${n}</button>`).join('');
   [...$('rcards').children].forEach(el=>el.onclick=()=>{dRole=el.dataset.r;renderSetup()});
   $('handLab').textContent='利き腕（投げ）';
   $('handNote').textContent=MODE==='pennant'?(dHand==='L'?'左投げ：キャンプで外野手・一塁手へのコンバートが0.2ポイント安い':'右投げ：キャンプで二塁手・遊撃手・三塁手・捕手へのコンバートが0.2ポイント安い'):'';
@@ -870,6 +902,7 @@ function abAuto(random){
 function renderAbil(){
   const left=r1(pBudget()-abCost(AB));
   $('abBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(isW()?`${wTotal()}ポイント（二刀流：持ち点${AB.budget}の1.9倍を投打で分け合う）`:AB.budget+'ポイント');
+  $('abReroll').innerHTML=rerollHTML(); $('bReroll').innerHTML=''; rerollBind();   // 振り直しのボタン（二刀流は投手の欄だけに出す）
   $('abLeft').textContent=`残り ${left.toFixed(1)} ポイント`+(left<-1e-6?'（使いすぎ）':'');
   $('abLeft').classList.toggle('over',left<-1e-6);
   $('abVelo').value=AB.velo; $('abVeloV').textContent=AB.velo.toFixed(1);
@@ -902,32 +935,39 @@ function renderAbil(){
 });
 $('abAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { abAuto(true); renderAbil(); } };
 let dRole='start', dTeam='', dPos='P', dBpos='SS', dBhand='L', dGenius=false;
+// 持ち点の振り直し：ペナントの準備のときに3回まで（同じ決め方で、60〜100の中でランダム・1%で天才の120）。振り直すと能力の割り振りはおまかせに戻る
+const ROLL_MAX=3; let ROLL_LEFT=ROLL_MAX;
+function rollBudget(){ dGenius=rnd()<0.01; AB.budget=dGenius?120:ri(60,100); }
+function rerollHTML(){ return MODE!=='pennant'?'':`<div class="reroll"><button class="btn" id="rerollBtn" ${ROLL_LEFT>0?'':'disabled'}>🎲 持ち点を振り直す（あと${ROLL_LEFT}回）</button><small>${ROLL_LEFT>0?'振り直すと、能力の割り振りはおまかせに戻ります':'振り直しは3回までです'}</small></div>`; }
+function rerollBind(){ const b=document.getElementById('rerollBtn'); if(b) b.onclick=()=>{ if(ROLL_LEFT<=0) return; ROLL_LEFT--; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); renderSetup(); }; }
 /* ---- 野手の能力（どれも20から。1上げるごとに1ポイント） ---- */
 let BAB={meet:40,power:40,speed:40,eye:40,def:40};
 const BAB_K=['meet','power','speed','eye','def'], BAB_ID={meet:'bMeet',power:'bPow',speed:'bSpd',eye:'bEye',def:'bDef'};
 const babCost=b=>r1(BAB_K.reduce((t,k)=>t+b[k]-bBase(k),0));
+const BAB_MAX=()=>MODE==='pennant'?60:100;   // ペナントの入団時は各能力60まで（プロのスタメンは平均70前後）
 function babAuto(random,budget,keys){
   keys=keys||BAB_K; const B=budget??AB.budget; let left=B; keys.forEach(k=>BAB[k]=bBase(k));
   const w=keys.map(()=>random?0.4+rnd():1), sw=w.reduce((a,b)=>a+b,0);
-  keys.forEach((k,i)=>{ const add=Math.min(80,Math.floor(B*w[i]/sw)); BAB[k]+=add; left-=add; });
-  for(const k of keys){ if(left<=1e-6) break; const add=r1(Math.min(left,100-BAB[k])); BAB[k]=r1(BAB[k]+add); left=r1(left-add); }
+  keys.forEach((k,i)=>{ const add=Math.min(BAB_MAX()-bBase(k),Math.floor(B*w[i]/sw)); BAB[k]+=add; left-=add; });
+  for(const k of keys){ if(left<=1e-6) break; const add=r1(Math.min(left,BAB_MAX()-BAB[k])); BAB[k]=r1(BAB[k]+add); left=r1(left-add); }
 }
 function renderBAbil(){
   const W=isW(); if(W) BAB.def=bBase('def');
-  BAB_K.forEach(k=>{ if(BAB[k]<bBase(k)) BAB[k]=bBase(k); });
+  BAB_K.forEach(k=>{ if(BAB[k]<bBase(k)) BAB[k]=bBase(k); if(BAB[k]>BAB_MAX()) BAB[k]=BAB_MAX(); $(BAB_ID[k]).max=BAB_MAX(); });
   const left=r1(W?bBudget()-bat4Cost(BAB):AB.budget-babCost(BAB));
   $('bBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(W?`投打あわせて${wTotal()}ポイント`:AB.budget+'ポイント');
+  if(!W){ $('bReroll').innerHTML=rerollHTML(); $('abReroll').innerHTML=''; rerollBind(); }
   $('bposWrap').style.display=W?'none':''; $('bDefRow').style.display=W?'none':'';
   $('bLeft').textContent=`残り ${left.toFixed(1)} ポイント`+(left<-1e-6?'（使いすぎ）':''); $('bLeft').classList.toggle('over',left<-1e-6);
   BAB_K.forEach(k=>{ $(BAB_ID[k]).value=BAB[k]; $(BAB_ID[k]+'V').textContent=BAB[k].toFixed(1); });
-  $('bMeetH').textContent=`狙えるコース ${meetCells(BAB.meet)}マス・狙える球速の幅 −${meetTol(BAB.meet)}〜+${meetUp(BAB.meet)}km/h（遅い球への対応はミートで広がる。速い球は+1〜+3まで）`;
+  $('bMeetH').textContent=`狙えるコース ${meetCells(abPerf(BAB.meet))}マス・狙える球速の幅 −${meetTol(abPerf(BAB.meet))}〜+${meetUp(abPerf(BAB.meet))}km/h（遅い球への対応はミートで広がる。速い球は+1〜+3まで）`;
   if(W){ wStartBtn(); return; }
   $('startGame').disabled=left<-1e-6||!dTeam;
   $('startGame').textContent=!dTeam?'希望球団を選んでください':`入団（${TEAM[dTeam].short}・野手・${POS_JP[dBpos]}）`;
 }
 BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
   const v=+$(BAB_ID[k]).value, b0=bBase(k), room=r1(isW()?bBudget()-bat4Cost({...BAB,[k]:b0}):AB.budget-babCost({...BAB,[k]:b0}));
-  BAB[k]=r1(clamp(v,b0,Math.min(100,r1(b0+room)))); renderBAbil(); }; });
+  BAB[k]=r1(clamp(v,b0,Math.min(BAB_MAX(),r1(b0+room)))); renderBAbil(); }; });
 // スライダーの横の −／＋ で0.1ずつ動かす
 ['abVelo','abCtl','abSta','bMeet','bPow','bSpd','bEye','bDef'].forEach(id=>{
   const sl=$(id); if(!sl) return; const val=$(id+'V');
@@ -938,7 +978,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ dGenius=rnd()<0.01; AB={budget:dGenius?155:ri(60,120),velo:130,control:0,stamina:0,brk:{}}; abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜120の中で一様にランダム。1%で「天才」（持ち点155）
+  if(MODE==='pennant'){ ROLL_LEFT=ROLL_MAX; AB={budget:60,velo:130,control:0,stamina:0,brk:{}}; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜100の中で一様にランダム。1%で「天才」（持ち点120）
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
