@@ -409,6 +409,25 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .msay .mimg svg{width:68px;height:88px;display:block}
 .msay.sm .mimg svg{width:54px;height:70px}
 .msay .bub{animation:none;margin:0 0 26px 8px;max-width:none;flex:1}
+.msay.me{flex-direction:row-reverse}.msay.me .bub{margin:0 8px 26px 0}.msay.me .bub::after{left:auto;right:-10px;border:10px solid transparent;border-left-color:#fff;border-right:0}
+.cbl{margin-top:6px}.cbtier{font-size:11.5px;color:var(--accent);font-weight:900;margin:10px 0 3px}
+.cbrow{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 7px;margin:4px 0}
+.cbrow.on{border-color:var(--accent);background:#2a2410}.cbrow.dis,.cbrow.lock{opacity:.45}
+.cbchk{flex:0 0 28px;height:28px;border-radius:7px;border:2px solid var(--accent);background:transparent;color:var(--accent);font-weight:900;font-size:15px;padding:0;line-height:1;font-family:inherit}
+.cbrow.on .cbchk{background:var(--accent);color:#111}.cbrow.lock .cbchk{border-color:var(--line);font-size:12px}.cbchk:disabled{border-color:var(--line)}
+.cbt{flex:1;text-align:left;background:none;border:0;color:var(--ink);font-family:inherit;font-size:13px;font-weight:700;padding:3px 0;line-height:1.35}
+.cbt small{display:block;font-weight:400;color:var(--mute);font-size:10.5px}
+.cbp{font-size:12.5px;font-weight:900;white-space:nowrap}.cbp.ng{color:#f0a0a0}
+.cbd{font-size:12px;line-height:1.55;background:#14231b;border:1px dashed var(--line);border-radius:8px;padding:6px 9px;margin:-2px 0 6px 34px;color:var(--ink)}
+.offm{font-size:14px}.offdays{display:flex;gap:5px;margin:4px 0 8px}.offdays span{flex:1;text-align:center;font-size:11.5px;padding:5px 2px;border-radius:8px;background:var(--panel);border:1px solid var(--line);line-height:1.3}
+.offdays span.on{border-color:var(--accent);color:var(--accent);font-weight:900}.offdays span.done{opacity:.55}.offdays small{font-size:9.5px;color:var(--mute);font-weight:400}
+.cbch{margin:4px 0 8px}.cbch .btn.sm{margin:2px 3px 2px 0;padding:5px 8px;width:auto;font-size:12px}.cbch .btn.on{border-color:var(--accent);background:#2a2410}
+.cbeff{font-size:13px;line-height:1.55}
+.jtl{display:flex;flex-direction:column;gap:4px;max-height:360px;overflow-y:auto}
+.jtc{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 8px;color:var(--ink);font-family:inherit;font-size:12.5px;line-height:1.45}
+.jtc.on{border-color:var(--accent);background:#2a2410}.jts{font-style:normal;font-size:9.5px;background:#1f3c7a;color:#fff;border-radius:4px;padding:0 4px;margin-left:4px}
+.cbbuf{font-size:12px;line-height:1.5;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 8px;margin:0 0 6px}.cbbuf>div{margin:2px 0}
+.salx summary{list-style:none}.salx summary::-webkit-details-marker{display:none}
 .msay .mimg{position:relative}.msay .mlab{font-size:10px;color:var(--mute);text-align:center;margin-top:-2px;white-space:nowrap;line-height:1.5}
 .mcard{display:flex;gap:8px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;margin:6px 0}
 .mcard .mimg svg{width:60px;height:78px;display:block}
@@ -590,7 +609,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div id="bposWrap"><div class="sh">守備位置</div>
     <div class="seg3" id="bposcards"></div>
     <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで増やせます（数の上限なし。増えるほど覚えるコストが上がる）</div></div>
-    <div class="sh">能力　持ち点 <span id="bBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="bReroll"></div>
+    <div class="sh">能力　持ち点 <span id="bBudget"></span><span id="bRange"></span></div><div id="bReroll"></div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
     <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
@@ -607,14 +626,14 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   </div>
   <!-- ペナント：持ち点で能力を決める -->
   <div id="abilSec" style="display:none">
-    <div class="sh">能力　持ち点 <span id="abBudget"></span>（60〜100の中でランダム。1%で「天才」の120）</div><div id="abReroll"></div>
+    <div class="sh">能力　持ち点 <span id="abBudget"></span><span id="abRange"></span></div><div id="abReroll"></div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
     <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>
     <div class="abrow"><span class="abn">コントロール</span><input type="range" id="abCtl" min="0" max="100" step="0.1"><b id="abCtlV"></b></div>
     <div class="abhint">0〜100。1ごとに1ポイント（低いと狙ったマスからずれやすい）</div>
     <div class="abrow"><span class="abn">スタミナ</span><input type="range" id="abSta" min="0" max="100" step="0.1"><b id="abStaV"></b></div>
-    <div class="abhint">0〜100。1ごとに1ポイント（低いと早く疲れ、球数で交代される）</div>
+    <div class="abhint">0〜100。1ごとに0.5ポイント（低いと早く疲れ、球数で交代される）</div>
     <div class="sh">変化球（ストレート以外に0〜2つ）</div>
     <div class="abhint">少し曲がる（Lv.1）＝1ポイント／普通（Lv.2）＝2ポイント／決め球（Lv.3）＝5ポイント。プロ入り後はキャンプなどでLv.7まで上がります</div>
     <div id="abBreak"></div>

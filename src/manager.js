@@ -10,13 +10,17 @@ const MGR_P=[['std','バランス型','防御率・走者・三振をまんべ�
 const MGR_B=[['std','バランス型','出塁と長打をまんべんなく見る'],['k','三振は気にしない','三振が多くても評価を下げない'],['avg','打率至上主義','打率の高い打者を高く評価する'],['slg','長打至上主義','本塁打・長打を高く評価する'],['spd','俊足至上主義','足の速い選手・盗塁を高く評価する'],['def','守備で勝つチーム','守備のうまい選手を優先して使う']];
 const MGR_A=[['merit','実力主義','調子より実力。能力と成績だけで決める'],['young','若手優先','25歳以下を積極的に使う'],['vet','ベテラン優先','30歳以上の経験を信頼する'],['fav','贔屓起用','気に入った選手を能力にかかわらず使う']];
 const MGR_O=[['std','スタンダード型','1番は打率の高い打者、クリーンナップは本塁打も率も残せる打者、下位に向けて弱くなる'],['alt','流線型','左右の打者を交互に並べる'],['nuke','核弾道型','1番から強い打者を順に並べる'],['link','つなぎの四番型','4番にもミートの高い選手を置く。本塁打の多さは考えず、とにかく打率'],['sub','代打多用型','スタンダード型の打順だが、早い回から代打・代走・守備固めを多用する']];
+// 先発起用：ローテーションの人数
+const MGR_R=[['six','少数精鋭','6人ローテ。力のある先発に多く投げさせる'],['seven','標準','7人ローテ。先発を回しながら休ませる'],['eight','休養重視','8人ローテ。先発をしっかり休ませる'],['ten','総動員','10人ローテ。たくさんの先発に機会を与える']];
+const ROT_N={six:6,seven:7,eight:8,ten:10}, rotN=m=>ROT_N[m&&m.r]||6;
+const genRot=()=>wpick([['six',40],['seven',30],['eight',20],['ten',10]]);
 // 志向の名前と説明（種類ごとに引く：'k' や 'std' は投手・野手・打順で意味が違うので混ざらないようにする）
-const MGR_LIST={p:MGR_P,b:MGR_B,a:MGR_A,o:MGR_O};
+const MGR_LIST={p:MGR_P,b:MGR_B,a:MGR_A,o:MGR_O,r:MGR_R};
 const MGR_JP=(k,cat)=>{ const L=MGR_LIST[cat]||MGR_P; return L.find(e=>e[0]===k)||L[0]; };
 function genManager(year){
-  return {sur:pick(rnd()<0.5?SURN:SURN2), lv:r1(1+Math.round(rnd()*rnd()*40)/10), p:pick(MGR_P)[0], b:pick(MGR_B)[0], a:pick(MGR_A)[0], o:pick(MGR_O)[0], y:year||1, fav:0, face:ri(0,2)};
+  return {sur:pick(rnd()<0.5?SURN:SURN2), lv:r1(1+Math.round(rnd()*rnd()*40)/10), p:pick(MGR_P)[0], b:pick(MGR_B)[0], a:pick(MGR_A)[0], o:pick(MGR_O)[0], r:genRot(), y:year||1, fav:0, face:ri(0,2)};
 }
-const mgrOf=id=>{ const T=PEN&&PEN.teams&&PEN.teams[id]; if(!T) return null; if(!T.mgr) T.mgr=genManager(PEN.year); if(!T.mgr.o) T.mgr.o=pick(MGR_O)[0]; return T.mgr; };
+const mgrOf=id=>{ const T=PEN&&PEN.teams&&PEN.teams[id]; if(!T) return null; if(!T.mgr) T.mgr=genManager(PEN.year); if(!T.mgr.o) T.mgr.o=pick(MGR_O)[0]; if(!T.mgr.r) T.mgr.r=genRot(); return T.mgr; };
 const mgrOrder=m=>(m&&m.o)||'std';   // 打順志向
 const mySubMgr=()=>{ const m=myMgr(); return !!(m&&m.o==='sub'); };   // 代打多用型の監督か
 const myMgr=()=>PEN?mgrOf(PEN.team):null;
@@ -71,8 +75,8 @@ function mgrRatingB(m,s){
     case 'k':   raw=50+(ops-0.700)*90+s.sb*0.15; break;
     case 'avg': raw=50+(bAvg(s)-0.260)*400+(bObp(s)-0.330)*60-kTerm; break;
     case 'slg': raw=50+(bSlg(s)-0.400)*180+s.hr*0.6-kTerm*0.5; break;
-    case 'spd': raw=50+(ops-0.700)*60+s.sb*0.8-s.cs*0.4+(PEN.babil.speed-50)*0.3-kTerm*0.5; break;
-    case 'def': raw=50+(ops-0.700)*60-kTerm*0.5+((PEN.babil.def??50)-50)*0.6; break;
+    case 'spd': raw=50+(ops-0.700)*60+s.sb*0.8-s.cs*0.4+(abPerf(PEN.babil.speed)-50)*0.3-kTerm*0.5; break;
+    case 'def': raw=50+(ops-0.700)*60-kTerm*0.5+(abPerf(PEN.babil.def??70)-50)*0.6; break;
     default:    raw=50+(ops-0.700)*90+s.sb*0.15-kTerm;
   }
   const prior=abilityRB();
@@ -80,14 +84,19 @@ function mgrRatingB(m,s){
 }
 /* ---- 贔屓起用の打診 ---- */
 function favProposal(){
-  const m=myMgr(); if(!m||m.a==='fav'&&(m.fav||0)<40) return null; if(!m||m.a!=='fav') return null;
-  if(PEN.prompt||PEN.pending||PEN.favMod) return null;
+  const m=myMgr(); if(!m||m.a!=='fav') return null;
+  if(PEN.prompt||PEN.pending||PEN.favMod||PEN.favTry) return null;
   if(rnd()>0.3) return null;
-  const kinds=[];
-  if(hasBat()){ kinds.push('order'); const np=POSS.filter(p=>!myPositions().includes(p)); if(isBat()&&np.length) kinds.push('pos'); }
-  if(!isBat()) kinds.push('pitch');
+  const kinds=[], lo=(m.fav||0)<40;   // お気に入り度40未満は「試し投げ」の指示だけ
+  const tryC=isBat()?[]:LEARN_TYPES.filter(t=>!PEN.rep.includes(t));
+  if(!lo){
+    if(hasBat()){ kinds.push('order'); const np=POSS.filter(p=>!myPositions().includes(p)); if(isBat()&&np.length) kinds.push('pos'); }
+    if(!isBat()) kinds.push('pitch');
+  }
+  if(tryC.length) kinds.push('try');
   const k=pick(kinds); if(!k) return null;
   const pr={kind:'fav',sub:k};
+  if(k==='try'){ pr.t=pick(tryC); pr.n=ri(5,10); }
   if(k==='pos') pr.pos=pick(POSS.filter(p=>!myPositions().includes(p)));
   if(k==='order') pr.order=pick([1,2,3,4,5,6,7,8,9].filter(o=>o!==PEN.order));
   if(k==='pitch') pr.role=isStarter(PEN.role)?'中継ぎ':isTW()?'裏ローテ':pick(['裏ローテ','抑え']);
@@ -95,6 +104,7 @@ function favProposal(){
 }
 function favText(pr){
   const m=myMgr(), n=PEN.pname;
+  if(pr.sub==='try') return `${n}、ちょっと<b>${pr.t}</b>を試しに投げてみてくれ。次の5登板、1登板に<b>${pr.n}球</b>は投げてほしい。お前なら投げられると思うんだ。`;
   if(pr.sub==='pos') return `${n}、お前のことは買ってるんだ。次の10試合、<b>${POS_JP[pr.pos]}</b>を守ってみないか。慣れてないのは分かってる。だがお前なら何とかなる。`;
   if(pr.sub==='order') return `${n}、ちょっと打線をいじりたい。次の10試合、お前を<b>${pr.order}番</b>で使う。いつもと違う役割だが、お前に任せたいんだ。`;
   return `${n}、次の10試合は<b>${roleName(pr.role)}</b>でいってくれないか。お前の力をもっと使いたいんだ。`;
@@ -102,6 +112,11 @@ function favText(pr){
 function favAnswer(ok){
   const pr=PEN.prompt; if(!pr||pr.kind!=='fav') return; PEN.prompt=null;
   if(!ok){ favChange(-5); penNotice(`${mgrName(myMgr())}の打診を断った（お気に入り度 −5）`); renderPennant(); save(); return; }
+  if(pr.sub==='try'){   // 試し投げ：5登板のあいだ Lv.1 の球種が増える
+    if(PEN.rep.includes(pr.t)){ renderPennant(); save(); return; }
+    PEN.favTry={t:pr.t,n:pr.n,left:5,ok:0,ng:0}; PEN.rep.push(pr.t); PEN.plev[pr.t]=1;
+    penNotice(`${mgrName(myMgr())}の指示で、5登板のあいだ${pr.t}（Lv.1）を投げることに（1登板${pr.n}球以上）`);
+    renderPennant(); save(); return; }
   favChange(3);
   const until=PEN.day+10, mod={until,sub:pr.sub};
   if(pr.sub==='pos'){ mod.pos=pr.pos; myT().errUp=until; penNotice(`${POS_JP[pr.pos]}で出場することになった。慣れない守備で、チームのエラーが増えそうだ`); }
@@ -115,6 +130,21 @@ function favAnswer(ok){
   PEN.favMod=mod;
   if(isBat()) penCompete(true); if(isTW()) twCompete(true);
   renderPennant(); save();
+}
+// 試し投げ：登板ごとに指定の球数を投げたか（クリア+3／届かない−6）。5登板で終わり
+function favTryRecord(cnt,played){
+  const F=PEN.favTry; if(!F) return;
+  if(!isFavMgr()){ favTryEnd(); return; }
+  const ok=cnt>=F.n-1e-6;
+  if(ok){ F.ok++; favChange(3); } else { F.ng++; favChange(-6); }
+  F.left--;
+  penNotice(`試し投げ：${F.t}を${Math.round(cnt)}球${played?'':'（おまかせ）'}／指定${F.n}球 → ${ok?'クリア！ お気に入り度 +3':'届かなかった… お気に入り度 −6'}（あと${F.left}登板）`);
+  if(F.left<=0) favTryEnd(true);
+}
+function favTryEnd(done){
+  const F=PEN.favTry; if(!F) return; PEN.favTry=null;
+  if(PEN.rep.includes(F.t)){ PEN.rep=PEN.rep.filter(x=>x!==F.t); delete PEN.plev[F.t]; }
+  if(done) penNotice(`${F.t}の試し投げが終わった（クリア${F.ok}回・失敗${F.ng}回）`);
 }
 function favExpire(){
   const mod=PEN.favMod; if(!mod||PEN.day<mod.until) return;
@@ -150,6 +180,7 @@ function mgrCard(m,small){
     <div class="mrow"><i class="mb mb-b">${bn[0]}</i>${bn}<small>野手起用：${bd}</small></div>
     <div class="mrow"><i class="mb mb-a">${an[0]}</i>${an}<small>全体起用：${ad}${m.a==='fav'?`　お気に入り度 <b>${m.fav||0}</b>`:''}</small></div>
     <div class="mrow"><i class="mb mb-o">${on[0]}</i>${on}<small>打順志向：${od}</small></div>
+    <div class="mrow"><i class="mb mb-r">${rotN(m)}</i>${MGR_JP(m.r||'six','r')[1]}<small>先発起用：${MGR_JP(m.r||'six','r')[2]}</small></div>
   </div></div>`;
 }
 // 監督の見た目は全員同じ。志向は名前の下の四角いアイコン（投手＝赤・野手＝黄・全体＝緑、頭文字）で表す
@@ -169,11 +200,11 @@ function svgManager(u,m){ u=u||curUni();   // 見た目は全員同じ（サン�
   <path d="M30 56 Q30 50 33 48 L33 58 Z" fill="#8a8a8a"/><path d="M70 56 Q70 50 67 48 L67 58 Z" fill="#8a8a8a"/>
   <path d="M29 52 Q30 32 50 31 Q70 32 71 52 Z" fill="${u.cap}"/>
   <path d="M40 50 Q24 49 18 54 L40 54 Z" fill="${u.brim||u.cap}"/>
-  <text x="50" y="48" font-size="10" font-weight="900" fill="${u.cl}" ${u.cls?`stroke="${u.cls}" stroke-width="0.8" paint-order="stroke"`:''} text-anchor="middle" font-family="sans-serif">${u.ch}</text>
+  <text x="50" y="48" font-size="${(u.capf||u.chf)==='script'?12:u.capf==='serif'?11:10}" fill="${u.cl}" ${u.cls?`stroke="${u.cls}" stroke-width="0.8" paint-order="stroke"`:''} text-anchor="middle" ${typeof capFont==='function'?capFont(u):'font-family="sans-serif" font-weight="900"'}>${u.ch}</text>
   <rect x="35" y="53" width="13" height="8" rx="3" fill="#111"/><rect x="52" y="53" width="13" height="8" rx="3" fill="#111"/>
   <path d="M48 56 L52 56" stroke="#111" stroke-width="2"/>
   <path d="M43 68 L57 68" stroke="#7a3b22" stroke-width="2.2" stroke-linecap="round"/>
 </svg>`; }
 
 // 志向のラベル（赤＝投手起用、黄＝野手起用、緑＝全体起用、白＝打順志向）。小さく、名前は全部書く
-const mgrBadges=m=>m?`<span class="mbs"><i class="mb mb-p" title="投手起用：${MGR_JP(m.p,'p')[1]}">${MGR_JP(m.p,'p')[1][0]}</i><i class="mb mb-b" title="野手起用：${MGR_JP(m.b,'b')[1]}">${MGR_JP(m.b,'b')[1][0]}</i><i class="mb mb-a" title="全体起用：${MGR_JP(m.a,'a')[1]}">${MGR_JP(m.a,'a')[1][0]}</i><i class="mb mb-o" title="打順志向：${MGR_JP(m.o||'std','o')[1]}">${MGR_JP(m.o||'std','o')[1][0]}</i></span>`:'';
+const mgrBadges=m=>m?`<span class="mbs"><i class="mb mb-p" title="投手起用：${MGR_JP(m.p,'p')[1]}">${MGR_JP(m.p,'p')[1][0]}</i><i class="mb mb-b" title="野手起用：${MGR_JP(m.b,'b')[1]}">${MGR_JP(m.b,'b')[1][0]}</i><i class="mb mb-a" title="全体起用：${MGR_JP(m.a,'a')[1]}">${MGR_JP(m.a,'a')[1][0]}</i><i class="mb mb-o" title="打順志向：${MGR_JP(m.o||'std','o')[1]}">${MGR_JP(m.o||'std','o')[1][0]}</i><i class="mb mb-r" title="先発起用：${MGR_JP(m.r||'six','r')[1]}（${rotN(m)}人ローテ）">${rotN(m)}</i></span>`:'';

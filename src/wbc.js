@@ -45,7 +45,7 @@ function wbcSelectJapan(){
   let me=null;
   if(wbcMeOK()){
     if(isBat()||isTW()){ const mf=myFielder(PEN.bpos||'OF'); mf.btype=PEN.btype||'バランス'; const i=sel.map((x,k)=>x.f.pos===mf.pos?k:-1).filter(k=>k>=0).pop(); const ent={f:mf,id:PEN.team,sc:999,me:true}; if(i>=0) sel[i]=ent; else sel.push(ent); me=ent; }
-    if(!isBat()){ const mp={isMe:true,name:PEN.pname,num:MYNUM,hand:PEN.hand,velo:PEN.abil.velo,control:PEN.abil.control,stamina:PEN.abil.stamina,types:PEN.rep.slice(),plv:{...PEN.plev}}; mp.q=pitQ(mp); const ent={p:mp,id:PEN.team,sc:999,me:true}; pit[pit.length-1]=ent; pit.sort((a,b)=>b.sc-a.sc); me=me||ent; }
+    if(!isBat()&&!isTW()){ const mp={isMe:true,name:PEN.pname,num:MYNUM,hand:PEN.hand,velo:PEN.abil.velo,control:PEN.abil.control,stamina:PEN.abil.stamina,types:PEN.rep.slice(),plv:{...PEN.plev}}; mp.q=pitQ(mp); const ent={p:mp,id:PEN.team,sc:0,me:true}; pit[pit.length-1]=ent; me=me||ent; }   // 起用の順番は代表チーム内の評価で決める
   }
   return {F:sel.map(x=>({f:x.f,id:x.id,me:!!x.me})),P:pit.map(x=>({p:x.p,id:x.id,me:!!x.me})),me:!!me};
 }
@@ -83,11 +83,32 @@ function wbcInit(){
   // 1次ラウンドの日程（各プールで総当たり3節）
   const sched=[[],[],[]]; for(const g of pool){ const [a,b,c,d]=g; sched[0].push([a,b],[c,d]); sched[1].push([a,c],[b,d]); sched[2].push([a,d],[b,c]); }
   PEN.wbc={y:PEN.year,teams,pool,sched,round:0,stage:'pool',results:[],myGames:[],sel:J.me,mgrTeam:champ,jmgr,pstats:{},done:false,gameNo:0};
-  const pi=J.P.findIndex(x=>x.me); PEN.wbc.role=!J.me?null:(isBat()||isTW())?{kind:'bat'}:pi<0?null:pi<3?{kind:'start',day:pi+1}:{kind:'relief'};
-  penNotice(`🌏 WBC開幕！ 日本代表監督は${TEAM[champ].short}の${jmgr.sur}監督。${J.me?`あなたは${isBat()?'野手':isTW()?'二刀流（指名打者）':'投手'}として代表入り！`:'あなたは選外（2年目以降で通算・去年の評価が高いと選ばれます）'}`);
-  if(J.me){ const r=PEN.wbc.role; PEN.talk={y:PEN.year,untilDay:0,text:`${PEN.pname}、日本代表から連絡があった。お前がWBCの代表に選ばれたぞ。代表監督は${TEAM[champ].short}の${jmgr.sur}監督だ。${r&&r.kind==='start'?`先発ローテの${r.day}番手として期待されている。`:r&&r.kind==='relief'?'中継ぎでの起用だそうだ。':'打線の軸として期待されている。'}日の丸を背負って、思いきりやってこい。開幕はそのあとだ。`}; }
+  evEnsure(teams.JPN);   // 代表チーム内の評価（前年と通算の成績の評価順でスタート）
+  PEN.wbc.role=J.me?{kind:'ev'}:null;   // 出番はその試合ごとに評価で決まる
+  const rt=J.me?evRoleText(teams.JPN,'wbc'):'';
+  penNotice(`🌏 WBC開幕！ 日本代表監督は${TEAM[champ].short}の${jmgr.sur}監督。${J.me?`あなたは${isBat()?'野手':isTW()?'二刀流（指名打者）':'投手'}として代表入り！ 代表チーム内の評価：${rt}（大会中の成績とミッションで変わる）`:'あなたは選外（2年目以降で通算・去年の評価が高いと選ばれます）'}`);
+  if(J.me){ PEN.talk={y:PEN.year,untilDay:0,text:`${PEN.pname}、日本代表から連絡があった。お前がWBCの代表に選ばれたぞ。代表監督は${TEAM[champ].short}の${jmgr.sur}監督だ。代表での起用は、前年と通算の成績から出した代表チームの中の評価順で決まる。今のところ「${rt}」だそうだ。結果と監督のミッションで評価は上がりも下がりもする。日の丸を背負って、思いきりやってこい。開幕はそのあとだ。`}; }
 }
-const wbcSide=id=>{ const T=PEN.wbc.teams[id]; return {F:T.F,P:T.P,mgr:T.mgr}; };
+const wbcSide=(id,g)=>{ const T=PEN.wbc.teams[id]; if(id==='JPN'&&T.F&&T.P) return wbcJSide(PEN.wbc,g||PEN.wbc.jpnGames||1); return {F:T.F,P:T.P,mgr:T.mgr}; };
+// 日本代表のその試合の並び：先発＝ローテーション（評価の上位3人）で中2試合以上空いた中の最上位。ブルペン＝ローテーション以外を評価順（1番手が抑え）。スタメン＝ポジション争い
+function wbcJSide(W,g){
+  const X=W.teams.JPN, ev=evEnsure(X); ev.st=ev.st||{}; ev.ls=ev.ls||{};
+  const rk=evPitRank(X), rot=rk.slice(0,3);
+  if(ev.st[g]==null){ const ok=x=>{ const l=ev.ls[evKP(x)]; return l==null||g-l>2; }; const sp=rot.find(ok)||rk.find(ok)||rk[0]; ev.st[g]=evKP(sp); ev.ls[evKP(sp)]=g; }
+  const sp=rk.find(x=>evKP(x)===ev.st[g])||rk[0];
+  const pen=rk.filter(x=>x!==sp&&!rot.includes(x)&&!(ev.ls[evKP(x)]!=null&&g-ev.ls[evKP(x)]<=2&&g>ev.ls[evKP(x)]));   // 直前2試合に先発した投手はブルペンに入らない
+  return {F:X.F,P:[sp,...pen],ns:1,mgr:X.mgr,starters:evStarters(X)};
+}
+// 自分のその試合の出番
+function wbcMyKind(W,g){
+  if(typeof injured==='function'&&injured()) return null;
+  const s=wbcJSide(W,g);
+  if(isBat()||isTW()){ const m=s.starters.find(x=>x.me); return m?{k:'bat',slot:m.slot}:(rnd()<0.5?{k:'pinch'}:null); }
+  if(s.P[0]&&s.P[0].me) return {k:'start'};
+  const i=s.P.slice(1).findIndex(x=>x.me); if(i<0) return null;   // ローテーションの投手は先発の日以外は休み
+  if(i===0) return rnd()<0.5?{k:'closer'}:null;   // ブルペン1番手＝抑え（セーブがつく場面）
+  return rnd()<Math.max(0.25,0.6-0.05*(i-1))?{k:'relief'}:null;   // 上位ほど出番が多い
+}
 function wbcRecord(a,b,sa,sb,players,my){
   const W=PEN.wbc, TA=W.teams[a], TB=W.teams[b];
   if(sa>sb){ TA.w++; TB.l++; } else { TB.w++; TA.l++; }
@@ -95,9 +116,10 @@ function wbcRecord(a,b,sa,sb,players,my){
   W.results.push({stage:W.stage,a,b,sa,sb,my:my||null});
   if(players) players.forEach(p=>{ const k=p.name+'@'+p.team+'#'+p.kind; const t=W.pstats[k]||(W.pstats[k]={name:p.name,team:p.team,me:!!p.me,kind:p.kind,st:p.kind==='B'?{pa:0,h:0,hr:0,rbi:0,sb:0,run:0}:{outs:0,runs:0,k:0,h:0}}); for(const kk in p.st){ if(!Array.isArray(p.st[kk])) t.st[kk]=(t.st[kk]||0)+(p.st[kk]||0); } });
 }
-function wbcSimGame(a,b,my){
+function wbcSimGame(a,b,my,jg){
   const W=PEN.wbc; W.gameNo++;
-  const g=asGame(W.gameNo,wbcSide(a),wbcSide(b),{nStart:3,sub:0.3,odd:0,startInn:6});
+  const g=asGame(W.gameNo,wbcSide(a,jg),wbcSide(b,jg),{nStart:3,sub:0.3,odd:0,startInn:6});
+  if(a==='JPN'||b==='JPN') evApply(W.teams.JPN,g.players,false);   // 代表チーム内の評価に反映
   let sa=sumN(g.sc.A), sb=sumN(g.sc.B); if(sa===sb){ if(rnd()<0.5) sa++; else sb++; }
   wbcRecord(a,b,sa,sb,g.players.filter(p=>!(p.me&&my)),my);
   return {sa,sb};
@@ -111,10 +133,11 @@ function wbcNext(){
   for(const [a,b] of pairs){
     if(W.played&&W.played.includes(a+'-'+b)) continue;
     W.played=W.played||[]; W.played.push(a+'-'+b);
-    if((a==='JPN'||b==='JPN')&&W.sel&&W.role){
+    if(a==='JPN'||b==='JPN'){
       const opp=a==='JPN'?b:a, gameNo=W.jpnGames=(W.jpnGames||0)+1;
-      const kind=W.role.kind==='bat'?'bat':W.role.kind==='start'?((gameNo-1)%3===(W.role.day-1)?'start':null):(rnd()<0.45?'relief':null);
-      if(kind){ PEN.pending={day:PEN.day,opp,kind:'wbc',wbcKind:kind,wbcGame:gameNo,wbcPair:[a,b],stage:W.stage,started:false}; return true; }
+      const mk=W.sel&&W.role?wbcMyKind(W,gameNo):null;
+      if(mk){ PEN.pending={day:PEN.day,opp,kind:'wbc',wbcKind:mk.k,slot:mk.slot||null,wbcGame:gameNo,wbcPair:[a,b],stage:W.stage,started:false}; return true; }
+      wbcSimGame(a,b,null,gameNo); continue;
     }
     wbcSimGame(a,b,null);
   }
@@ -137,30 +160,39 @@ function wbcAdvance(){
 }
 // 自分の試合を始める（penPlay から）
 function wbcPlay(p){
-  const W=PEN.wbc, [a,b]=p.wbcPair, opp=p.opp, J=wbcSide('JPN'), O=wbcSide(opp);
+  const W=PEN.wbc, [a,b]=p.wbcPair, opp=p.opp, J=wbcSide('JPN',p.wbcGame), O=wbcSide(opp);
   const names={my:{name:'日本',s:'日',id:'JPN'},opp:{name:TEAM[opp].short,s:TEAM[opp].s,id:opp}};
-  const jL=asLineup(J), oL=asLineup(O), gp=asPit(O,W.jpnGames,3), gm=asPit(J,W.jpnGames,3);
-  const myIdx=jL.findIndex(x=>x.isMe);
-  const pen={day:p.day,year:PEN.year,kind:p.wbcKind,role:PEN.role,team:'JPN',opp,wbc:true,wbcGame:p.wbcGame,stage:p.stage};
+  const jL=asLineup(J), oL=asLineup(O), gp=asPit(O,p.wbcGame||W.jpnGames||1,3), gm=asPit(J,p.wbcGame,3); gm.pen=gm.pen.filter(x=>!x.isMe);
+  const myIdx=jL.findIndex(x=>x.isMe), bat=p.wbcKind==='bat'||p.wbcKind==='pinch', bk=myIdx>=0?'bat':'pinch';
+  const pen={day:p.day,year:PEN.year,kind:bat?bk:p.wbcKind,role:PEN.role,team:'JPN',opp,wbc:true,wbcGame:p.wbcGame,stage:p.stage};
+  const mission=rnd()<EV_MP?(bat?genMissionB(bk):genMission(p.wbcKind)):null;   // 代表監督のミッション（評価は代表チームの中だけ）
   showScreen('game');
-  if(p.wbcKind==='bat'){
+  if(bat){
     const myL=jL.map(x=>x.isMe?{...meBatter(),order:x.order,team:PEN.team}:{...plainB(x),team:x.team});
     batNewGame({OPP:{pattern:'standard',hand:'normal'}, lineup:oL.map(x=>({...x,res:[]})), myLineup:myL, myTeam:{name:'日本代表',hand:''},
       pits:[gp.sp,...gp.pen], ours:[gm.sp,...gm.pen.slice(0,2)], defAdj:1, names, pname:PEN.pname, bhand:PEN.bhand||'R', babil:PEN.babil, kind:myIdx>=0?'bat':'pinch', order:myIdx>=0?myIdx+1:9, pinchInning:ri(6,8),
-      slot:myIdx>=0?jL[myIdx].slot:'DH', ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])), pen, mission:null});
-    const Q=batProceed(); renderAll(); save(); if(typeof showTitle==='function') showTitle(); setTimeout(()=>playBack(Q,batAfterPlay),1200); return;
+      slot:myIdx>=0?jL[myIdx].slot:'DH', ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])), pen, mission});
+    const Q=batProceed(); renderAll(); save(); if(typeof showTitle==='function') showTitle();
+    const show=bk==='pinch'&&G.pinch?Q.filter(e=>e.inning>=G.pinch.inning):Q;
+    setTimeout(()=>playBack(show,batAfterPlay),G.mission?0:1200); return;
   }
   const myL=jL.map(x=>({...plainB(x),team:x.team}));
   PHAND=PEN.hand; REP=PEN.rep.slice(); PLEV={...PEN.plev}; ptype=REP[0];
   let pre=null;
-  if(p.wbcKind==='relief'){
-    const T={lineup:oL.map(x=>({...x,res:[]})),order:-1}, M={lineup:myL.map(x=>({...x,res:[]})),order:-1}, E=ri(5,8), sc={opp:[],my:[]}; let ho=0,hm=0;
-    for(let i=1;i<E;i++){ const x=simHalf(T,0,[0,0,0],i<=5?gm.sp.q:(gm.pen[(i-6)%gm.pen.length]||gm.sp).q,null); sc.opp.push(x.runs); ho+=x.hits; const y=simHalf(M,0,[0,0,0],i<=5?gp.sp.q:(gp.pen[(i-6)%gp.pen.length]||gp.sp).q,null); sc.my.push(y.runs); hm+=y.hits; }
-    pre={entry:E,score:sc,oppOrder:T.order,myOrder:M.order,hitsOpp:ho,hitsMy:hm,oppLineup:T.lineup.map(serB),myLineup:M.lineup,lead:sumN(sc.my)-sumN(sc.opp)}; p.pre=pre;
+  if(p.wbcKind==='relief'||p.wbcKind==='closer'){
+    const cl=p.wbcKind==='closer';   // 抑え：9回のセーブがつく場面（1〜3点リード）
+    for(let t=0;t<(cl?40:1);t++){
+      const T={lineup:oL.map(x=>({...x,res:[]})),order:-1}, M={lineup:myL.map(x=>({...x,res:[]})),order:-1}, E=cl?9:ri(5,8), sc={opp:[],my:[]}; let ho=0,hm=0;
+      for(let i=1;i<E;i++){ const x=simHalf(T,0,[0,0,0],i<=5?gm.sp.q:(gm.pen[(i-6)%gm.pen.length]||gm.sp).q,null); sc.opp.push(x.runs); ho+=x.hits; const y=simHalf(M,0,[0,0,0],i<=5?gp.sp.q:(gp.pen[(i-6)%gp.pen.length]||gp.sp).q,null); sc.my.push(y.runs); hm+=y.hits; }
+      const lead=sumN(sc.my)-sumN(sc.opp);
+      pre={entry:E,score:sc,oppOrder:T.order,myOrder:M.order,hitsOpp:ho,hitsMy:hm,oppLineup:T.lineup.map(serB),myLineup:M.lineup,lead};
+      if(!cl||(lead>=1&&lead<=3)) break;
+    }
+    p.pre=pre;
   }
   newGame(true,{OPP:{pattern:'standard',hand:'normal'}, lineup:pre?pre.oppLineup.map(deB):oL.map(x=>({...x,res:[]})),
     myTeam:{name:'日本代表',hand:'',lineup:pre?pre.myLineup.map(b=>({...b,res:(b.res||[]).slice()})):myL,order:-1},
-    names, pname:PEN.pname, pen, pre, abil:PEN.abil, oppPitcher:{...gp.sp}, oppPen:gp.pen.map(x=>({...x})), bullpen:gm.pen.map(x=>({...x})), mission:null});
+    names, pname:PEN.pname, pen, pre, abil:PEN.abil, oppPitcher:{...gp.sp}, oppPen:gp.pen.map(x=>({...x})), bullpen:gm.pen.map(x=>({...x})), mission});
   renderAll(); save();
 }
 function wbcGameDone(){
@@ -168,7 +200,9 @@ function wbcGameDone(){
   const st=G.st, [a,b]=p.wbcPair; let my=myTot(), op=oppTot(); if(my===op){ if(rnd()<0.5) my++; else op++; }
   const sa=a==='JPN'?my:op, sb=a==='JPN'?op:my;
   const bat=G.bat&&!G.tw, myS=bat?{pa:st.pa,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,run:st.run}:{outs:st.outs,runs:st.runs,k:st.k,h:st.hits};
-  W.gameNo++; let others=[]; try{ const sh=asGame(W.gameNo,wbcSide(a),wbcSide(b),{nStart:3,sub:0.3,odd:0,startInn:6}); others=sh.players.filter(x=>!x.me); }catch(e){}
+  if(G.mission){ if(bat) checkMissionB(); else checkMission(); }   // 評価は代表チームの中だけ
+  W.gameNo++; let others=[]; try{ const sh=asGame(W.gameNo,wbcSide(a,p.wbcGame),wbcSide(b,p.wbcGame),{nStart:3,sub:0.3,odd:0,startInn:6}); others=sh.players.filter(x=>!x.me); }catch(e){}
+  evApply(W.teams.JPN,others,true); evApplyMe(W.teams.JPN,bat?'B':'P',myS);   // 代表チーム内の評価：ほかの選手はシミュレーション、自分は実際の成績
   others.push({name:PEN.pname,team:PEN.team,me:true,kind:bat?'B':'P',st:myS});
   const line=bat?batLineTxt(st):`${fmtIP(st.outs)}回${st.runs}失点${G.result&&G.result.dec!=='－'?'・'+G.result.dec:''}`;
   wbcRecord(a,b,sa,sb,others,{kind:p.wbcKind,line,played:true});
@@ -178,7 +212,7 @@ function wbcGameDone(){
 function wbcSkip(){
   const W=PEN.wbc, p=PEN.pending; if(!W||!p||p.kind!=='wbc') return;
   if(gameIsPending()) closePenGame();
-  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false});
+  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false},p.wbcGame);
   W.myGames.push({stage:p.stage,opp:p.opp,line:'出場（スキップ）',res:(a==='JPN'?r.sa>r.sb:r.sb>r.sa)?'W':'L'});
   PEN.pending=null; wbcAdvance();
 }
@@ -196,7 +230,9 @@ function wbcFinish(){
   if(W.champ==='JPN'){ PEN.titles=PEN.titles||[]; if(W.sel) PEN.titles.push({y:PEN.year,name:'WBC優勝'}); }
   penNotice(`🌏 WBC閉幕：優勝は${TEAM[W.champ].name}${W.champ==='JPN'?'！ 日本が世界一！':''}。野手MVP ${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）`:'-'}／投手MVP ${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）`:'-'}`);
   PEN.wbcHist=PEN.wbcHist||[]; PEN.wbcHist.push({y:W.y,champ:W.champ,sel:W.sel,mvpB:W.mvpB,mvpP:W.mvpP,my:W.myGames});
+  if(W.sel&&W.teams.JPN&&W.teams.JPN.F){ const ev=evEnsure(W.teams.JPN); W.myEv=evRoleText(W.teams.JPN,'wbc'); W.myMis=ev.mok+ev.mng?`${ev.mok}/${ev.mok+ev.mng}`:''; }   // 大会を終えたときの代表チーム内の評価
   // 各国の選手データはセーブに残さない（勝敗などの表示用だけ残す）
+  { const J=W.teams.JPN; PEN.wbcMates=W.sel&&J&&J.F?{y:W.y,F:J.F.filter(x=>!x.me&&x.f).map(x=>({id:x.f.id,team:x.id})),P:J.P.filter(x=>!x.me&&x.p).map(x=>({id:x.p.pid,team:x.id}))}:null; }   // 合同自主トレで呼べる代表の仲間
   for(const id in W.teams){ const t=W.teams[id]; W.teams[id]={id,w:t.w,l:t.l,rs:t.rs,ra:t.ra,mult:t.mult}; } W.pstats={};
   PEN.pending=null;
 }
@@ -212,7 +248,8 @@ function wbcHTML(){
   const poolHTML=W.pool.map((g,i)=>`<div class="wbcpool"><b>${'AB'[i]}</b>${wbcRank(g).map(id=>`<div class="wbct">${T(id)}<small>${tm(id).w}勝${tm(id).l}敗</small></div>`).join('')}</div>`).join('');
   const res=W.results.slice(-8).map(r=>`<div class="hint">${{pool:'1次',semi:'準決勝',final:'決勝'}[r.stage]}：${T(r.a)} ${r.sa}−${r.sb} ${T(r.b)}${r.my?`　<span style="color:var(--accent)">あなた ${r.my.line}</span>`:''}</div>`).join('');
   const stage={pool:`1次ラウンド 第${Math.min(3,W.round+1)}節`,semi:'準決勝',final:'決勝'}[W.stage];
-  const my=W.sel?`<div class="hint">あなた：${isBat()?'野手':isTW()?'二刀流':'投手'}で代表入り${W.role&&W.role.kind==='start'?`（先発ローテ${W.role.day}番手）`:W.role&&W.role.kind==='relief'?'（中継ぎ）':''}${W.myGames.length?`　${W.myGames.map(g=>`vs${TEAM[g.opp].short} ${g.line}`).join('／')}`:''}</div>`:'<div class="hint">あなたは選外</div>';
+  const J=W.teams.JPN, live=W.sel&&J&&J.F, rt=live?evRoleText(J,'wbc'):(W.myEv||'');
+  const my=W.sel?`<div class="hint">あなた：${isBat()?'野手':isTW()?'二刀流':'投手'}で代表入り${rt?`（${rt}）`:''}${W.myMis?`　ミッション ${W.myMis} 達成`:''}${W.myGames.length?`　${W.myGames.map(g=>`vs${TEAM[g.opp].short} ${g.line}`).join('／')}`:''}</div>${live&&!W.done?evPanelHTML(J,'wbc'):''}`:'<div class="hint">あなたは選外</div>';
   const mvp=W.done?`<div>🏆 優勝：<b>${TEAM[W.champ].name}</b>　野手MVP：${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）${W.mvpB.line}${W.mvpB.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}　投手MVP：${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）${W.mvpP.line}${W.mvpP.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}</div>`:'';
   return `<div class="sh2">🌏 WBC（${W.y}年目）${W.done?'　閉幕':`　${stage}`}</div><div class="pcardx" style="font-size:13px;line-height:1.6">
     <div class="hint">日本代表監督：${TEAM[W.mgrTeam].short}の${W.jmgr.sur}監督（前年日本一）　相手国の強さは日本の0.5〜1.5倍</div>

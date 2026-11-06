@@ -7,7 +7,7 @@
 const INJ_TYPES=[{name:'怪我',w:0.70,games:7,down:1,txt:'1週間'},{name:'打撲',w:0.15,games:14,down:2,txt:'2週間'},{name:'骨折',w:0.10,games:30,down:5,txt:'1か月'},{name:'靭帯損傷',w:0.05,games:-1,down:15,txt:'今季と来季'}];
 const r3=v=>Math.round(v*1000)/1000;
 function injRateAt(age,red){ let r=0.01; for(let a=19;a<=(age||22);a++) r+= a>=40?10 : a>=30?0.05 : 0.01; return Math.max(0,r3(r-(red||0))); }   // %
-const injRate=()=>PEN?injRateAt(PEN.age,PEN.injRed):0;
+const injRate=()=>PEN?injRateAt(PEN.age,PEN.injRed)*(typeof cbOn==='function'&&cbOn('yoga')?0.5:1):0;   // ヨガ教室：半分
 const injured=()=>!!(PEN&&PEN.injury&&PEN.injury.y===PEN.year&&PEN.day<PEN.injury.untilDay);
 const injLeft=()=>injured()?PEN.injury.untilDay-PEN.day:0;
 function injApplyDown(n){

@@ -16,7 +16,7 @@ function oddPlan(){
 function oddKindToday(){
   if(!PEN||isTW()||!PEN.oddDays||!PEN.oddDays.includes(PEN.day)) return null;
   if(isBat()) return 'oddP';
-  if(isStarter(PEN.role)&&PEN.day>=PEN.nextStart){ PEN.oddDays=PEN.oddDays.map(d=>d===PEN.day?d+1:d); return null; }   // 先発の日はずらす
+  if(myStartToday()){ PEN.oddDays=PEN.oddDays.map(d=>d===PEN.day?d+1:d); return null; }   // 先発の日はずらす
   return 'oddB';
 }
 function makeOdd(kind){

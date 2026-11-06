@@ -59,13 +59,15 @@ function btypeUpdate(s){
   return {t,was,cands};
 }
 // 代打男：通常時は全能力−10、代打のときはミート・パワー+10
+// 返り値は試合で使う内部値（abPerf）
 function effBabil(a,kind){
-  if(!a||myBtype()!=='代打男') return a;
+  if(!a) return a; if(typeof cbBab==='function'&&a===PEN.babil) a=cbBab(a);   // コーチの効果（後半戦・研究した球団）
+  if(myBtype()!=='代打男') return perfB(a);
   const o={...a};
   if(kind==='pinch'){ o.meet=Math.min(110,(a.meet??50)+10); o.power=Math.min(110,(a.power??50)+10); }
   else for(const k of ['meet','power','speed','eye','def']) o[k]=Math.max(1,(a[k]??50)-10);
-  return o;
+  return perfB(o);
 }
 // 守備：自分の守備位置に飛んだヒット性の打球をアウトにする確率
 function myFieldPos(){ if(typeof G==='undefined'||!G||!G.bat||!G.pen||G.pinch||G.tryout||typeof PEN==='undefined'||!PEN) return null; const s=PEN.slot; return s&&s!=='DH'?s:null; }
-function myFldP(){ const d=(PEN.babil&&PEN.babil.def)??50, t=myBtype(); return clamp((d-50)*0.002,0,0.1)+btFx(t,'fld')+btFx(t,'dive'); }
+function myFldP(){ const d=abPerf((PEN.babil&&PEN.babil.def)??70), t=myBtype(); return clamp((d-50)*0.002,0,0.1)+btFx(t,'fld')+btFx(t,'dive'); }

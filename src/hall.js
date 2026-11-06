@@ -65,13 +65,13 @@ function tryoutGameDone(){
 function tryoutSkip(){
   const t=PEN.tryout; if(!t) return;
   if(tryoutNeedP()){
-    const q=pitQ({velo:PEN.abil.velo,control:PEN.abil.control,types:PEN.rep,plv:PEN.plev,levs:{}});
+    const q=pitQ({velo:PEN.abil.velo,control:PEN.abil.control,stamina:PEN.abil.stamina,types:PEN.rep,plv:PEN.plev,levs:{}});
     const T={lineup:tryoutFielders().map((f,i)=>toBatter(f,i+1)),order:-1};
     const r=simHalf(T,0,[0,0,0],q,null);
     t.pitch={outs:3,runs:r.runs,hits:r.hits,k:r.pas.filter(p=>/三振/.test(p.label)).length,bb:r.pas.filter(p=>p.label==='四球').length,pitches:ri(12,22),pulled:false,auto:true};
   }
   if(tryoutNeedB()){
-    const A=PEN.babil, s={pa:0,ab:0,h:0,d2:0,d3:0,hr:0,bb:0,k:0,rbi:0,auto:true};
+    const A=perfB(PEN.babil), s={pa:0,ab:0,h:0,d2:0,d3:0,hr:0,bb:0,k:0,rbi:0,auto:true};
     for(let i=0;i<TRYOUT_PA;i++){ const k=autoKind(A); s.pa++; if(k==='BB'||k==='HBP') s.bb++; else s.ab++; if(k==='K') s.k++;
       if(['1B','IFH','2B','3B','HR'].includes(k)){ s.h++; if(k==='2B') s.d2++; if(k==='3B') s.d3++; if(k==='HR'){ s.hr++; s.rbi++; } } }
     t.bat=s;
@@ -119,16 +119,17 @@ function tryoutAccept(){
   const newPos = o.pos==='W' ? 'W' : (t.mode==='W' ? o.pos : PEN.pos);   // 片方に絞ったら、その方だけで登録
   if(newPos!==oldPos){
     PEN.pos=newPos;
-    if(newPos==='B'){ PEN.bposs=PEN.bposs&&PEN.bposs.length?PEN.bposs:['OF']; PEN.bpos=PEN.bposs[0]; if(!PEN.babil.def) PEN.babil.def=45;
+    if(newPos==='B'){ PEN.bposs=PEN.bposs&&PEN.bposs.length?PEN.bposs:['OF']; PEN.bpos=PEN.bposs[0]; if(!PEN.babil.def) PEN.babil.def=58;
       PEN.ss=PEN.bss||batStat(); PEN.career=PEN.bcareer||batStat(); PEN.role='代打'; }
     else if(newPos==='P'){ PEN.ss=penStat(); PEN.career=PEN.pcareer||PEN.career; PEN.role='中継ぎ'; }
   }
-  if(PEN.pos==='B'){ PEN.role='代打'; } else { PEN.role=isStarter(PEN.role)?'裏ローテ':'中継ぎ'; }
+  if(PEN.pos==='B'){ PEN.role='代打'; } else { PEN.role=isStarter(PEN.role)?'裏ローテ':'中継ぎ'; PEN.pgrp=isStarter(PEN.role)?'start':'relief'; PEN.pcat=isStarter(PEN.role)?'out':'pen'; }
   PEN.salary=Math.max(10000000,Math.round(PEN.salary*0.6/1000000)*1000000);
   PEN.trades=PEN.trades||[]; PEN.trades.push({y:PEN.year+1,from,to:o.team,tryout:true});
   { const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); A.bank=r1((A.bank||0)+5); A.log.push({y:PEN.year,name:'トライアウト合格',pts:5}); }   // トライアウト成功で持ち点+5（次のキャンプ）
   awakeTransfer(from,o.team);
   t.stage='done'; PEN.tryoutDone=(PEN.tryoutDone||[]).concat(t.hist); PEN.tryout=null;
+  if(typeof salaryPay==='function') salaryPay(PEN.salary,`${PEN.year+1}年目の年俸`);
   seasonRollover(PEN.relFin||null);
   PEN.notices.unshift({d:0,y:PEN.year,t:`トライアウトを経て${TEAM[o.team].name}に入団（${roleName(PEN.role)}・年俸${yen(PEN.salary)}）`});
   renderPennant(); save();
@@ -137,7 +138,7 @@ function tryoutDecline(){ const t=PEN.tryout; if(!t) return; t.offer=null; t.dec
 // 1年たつ（戦力外のまま）：年齢と年数が進み、他球団の選手も入れ替わる
 function tryoutNextYear(){
   PEN.age=(PEN.age||22)+1; PEN.year++;
-  try{ rosterNewSeason(PEN.relFin||null); mgrChangeCheck(PEN.relFin||null); NPB.forEach(t=>{ PEN.teams[t.id].rec={w:0,l:0,t:0}; }); rebuildAll(); }catch(e){}
+  try{ const lastCS=PEN.cs||null; PEN.cs={}; rosterNewSeason(PEN.relFin||null,lastCS); mgrChangeCheck(PEN.relFin||null); NPB.forEach(t=>{ PEN.teams[t.id].rec={w:0,l:0,t:0}; }); rebuildAll(); }catch(e){}
   PEN.relFin=null;
 }
 function tryoutRetire(){ PEN.retired=true; PEN.tryout=null; PEN.hallAsk=true; renderPennant(); save(); }
@@ -345,7 +346,7 @@ function renderHall(){
   on('hallBack',()=>showScreen('mode'));
 }
 function hallDetailHTML(e){
-  const rows=e.seasons.map((s,i)=>`<tr class="${i===e.best?'key':''}"><td>${s.year}年目<br><small>${s.age}歳</small></td><td>${s.team?tchip(s.team):''}<br><small>${roleName(s.role)}</small></td><td style="text-align:left;font-size:11.5px">${hallSeasonLine(s)}${s.titles&&s.titles.length?`<br>🏅${s.titles.join('・')}`:''}${s.feats&&s.feats.length?`<br><span style="color:#f3dfa0">✨${s.feats.join('・')}</span>`:''}<br><small style="color:var(--mute)">${hallAbilTxt(s)}</small></td><td><button class="btn ${i===e.best?'on':''}" data-hbest="${i}" style="padding:6px 8px;font-size:12px">${i===e.best?'★キャリアハイ':'ここにする'}</button></td></tr>`).join('');
+  const rows=e.seasons.map((s,i)=>`<tr class="${i===e.best?'key':''}"><td>${s.year}年目<br><small>${s.age}歳</small></td><td>${s.team?tchip(s.team):''}<br><small>${(s.rl||ROLE_NAME[s.role]||roleName(s.role))}</small></td><td style="text-align:left;font-size:11.5px">${hallSeasonLine(s)}${s.titles&&s.titles.length?`<br>🏅${s.titles.join('・')}`:''}${s.feats&&s.feats.length?`<br><span style="color:#f3dfa0">✨${s.feats.join('・')}</span>`:''}<br><small style="color:var(--mute)">${hallAbilTxt(s)}</small></td><td><button class="btn ${i===e.best?'on':''}" data-hbest="${i}" style="padding:6px 8px;font-size:12px">${i===e.best?'★キャリアハイ':'ここにする'}</button></td></tr>`).join('');
   const inTeam=MYTEAM.ids.includes(e.id);
   return `<div class="pcardx"><div style="font-size:18px;font-weight:900">${e.name} <small style="font-weight:400;color:var(--mute)">${e.pos==='P'?'投手':e.pos==='B'?'野手':'二刀流'}・${e.years}年・${e.teams.map(t=>tchip(t)).join('')}</small></div>
     <div class="hint" style="margin-top:4px">通算：${e.pos==='B'?batLine(e.career):statLine(e.career)}${e.bcareer&&e.pos==='W'?'<br>打撃：'+batLine(e.bcareer):''}</div>

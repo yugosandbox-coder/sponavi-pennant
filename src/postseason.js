@@ -77,6 +77,7 @@ function psGameDone(){
   const st=G.st, res=G.result?G.result.res:(myTot()>oppTot()?'W':myTot()<oppTot()?'L':'T');
   const myA=s.a===PEN.team, my=myTot(), op=oppTot();
   if(res==='T'){ PEN.pending=null; return; }   // 引き分けはやり直し（ポストシーズンに引き分けはない扱い）
+  if(G.mission){ if(G.bat&&!G.tw) checkMissionB(); else checkMission(); }   // 監督のミッション（達成は翌年の評価に持ち越し）
   // 自分の成績（ポストシーズン用）
   const M=S.myStat;
   if(G.bat&&!G.tw){ for(const k of B_KEYS) M[k]=(M[k]||0)+(st[k]||0); M.g++; if(p.kind!=='pinch') M.gs++; }
@@ -164,7 +165,7 @@ function psBind(el){
 /* ---- 33歳を超えてからの衰え：年々大きくなる（34歳で5倍、1歳ごとに+1倍、最大20倍。マイナスの変化だけ） ---- */
 function agingAmplify(ab){
   if(!PEN||!ab) return ab; const age=PEN.age; if(age<=33) return ab;
-  const m=clamp(4+(age-33),5,20);
+  const m=clamp(4+(age-33),5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
   const amp=o=>{ if(!o) return; for(const k of ['velo','control','stamina','meet','power','speed','eye','def']) if(typeof o[k]==='number'&&o[k]<0) o[k]=o[k]*m; o.agingMul=m; };
   amp(ab); if(ab.bat) amp(ab.bat);
   return ab;
