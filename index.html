@@ -3183,6 +3183,7 @@ function abilityChange(){
   rep.slice(1).forEach(t=>{
     const e=bt[t]||{n:0,k:0,wh:0,h:0}, need=starter?150:60; let d;
     if(e.n<need) d=0; else { const sc=(e.k+e.wh*0.25-e.h*0.7)/(e.n/20); d= sc>=1.2?1 : sc<=0.2?-1 : 0; }
+    if(d<0&&lvOf(t)+d<1) d=0;   // 成績で下がるのは Lv.1 まで（成績のせいで投げられなくなることはない。投げられなくなるのは年齢の衰えだけ）
     out.brk[t]=d;
   });
   // 衰え：30代は全球種（ストレート含む）から1つが Lv0〜1 ダウン、40代は 1〜3 ダウン
