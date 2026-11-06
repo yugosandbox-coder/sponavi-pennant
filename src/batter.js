@@ -891,7 +891,7 @@ function checkMissionB(){
   m.ok=!!ok;
   if(missionScore(m.ok)) return;   // 評価：シーズン／ポストシーズン（翌年へ）／大会の中だけ（pennant.js）
   const a=PEN.babil, got=[], N={meet:'ミート',power:'パワー',speed:'速度',eye:'選球眼・技術',def:'守備'};
-  for(const k in m.rw){ const v=r1(m.rw[k]/2); a[k]=r1(Math.min(100,a[k]+v)); got.push(`${N[k]}+${v}`); }   // ミッションの上がり幅は半分
+  for(const k in m.rw){ const v=r1(m.rw[k]*MIS_K); a[k]=r1(Math.min(100,a[k]+v)); got.push(`${N[k]}+${v}`); }   // ミッションの上がり幅は1/5
   m.got=got.join('・');
   penNotice(`ミッション達成！「${m.text}」 ${m.got}${missionWhere()}`);
 }
