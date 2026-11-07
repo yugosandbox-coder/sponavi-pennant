@@ -1001,26 +1001,25 @@ function abReadCells(b,ab){
 }
 
 /* ---- 打者の球種読み（持ち球の中から考える） ---- */
+// 打者の読み（球種）：どの球種も同じしくみで待つ。その試合で多い球を強く読み、絞りきれないときは2球種まで読む
+//  （2球種読みのときは、当たっても打球の良さが1球種に絞ったときの半分）。球種が少ないほど当てられやすい
 function batterGuess(rd){
-  const b=G.batter, ab=G.ab;
-  const recent=G.hist.slice(-12);
+  const b=G.batter, ab=G.ab, gp=G.hist.slice(-40), n=Math.max(1,gp.length), maxLv=Math.max(...REP.map(lvNum));
   const w=REP.map(t=>{
     let x=1;
-    if(t==='ストレート') x+=1.2;                         // 基本はストレート待ち
-    if((b.type==='フルスイング'||b.type==='強打')&&PGROUP[t]==='fast') x+=0.5;
-    x+=recent.filter(h=>h===t).length*0.3;              // 最近よく投げる球
-    if(rd&&rd.types[t]) x+=rd.types[t]*6;                // 分析：この場面でよく投げる球を読む
+    x+=gp.filter(h=>h===t).length/n*GS_K.game;           // この試合で多い球
+    if(rd&&rd.types[t]) x+=rd.types[t]*6;                  // 相手ベンチの分析：この場面でよく投げる球
     const seen=ab.pitches.filter(p=>p.pt===t).length;
     if(b.rstyle==='freq'&&ab.pitches.length>=2) x+=seen*0.9;                       // この打席で多い球を狙う
     else if(b.rstyle==='contra'&&ab.pitches.length>=2) x= seen? Math.max(0.2,x-seen*0.4) : x+1.6;   // 来ていない球を読む
     else x+=seen*0.4;
-    if(lev(t)==='決') x+= 0.8 + (ab.strikes===2?1.0:0);   // 決め球は張られやすい（特に追い込んでから）
-    if(lev(t)==='少') x=Math.max(0.2,x-0.4);
-    if(ab.balls>ab.strikes&&ab.balls>=2&&PGROUP[t]==='fast') x+=1.5; // 投手不利カウントは直球
-    if(ab.strikes===2&&PGROUP[t]!=='fast') x+=0.6;      // 追い込まれたら変化球も警戒
+    if(maxLv>=3&&lvNum(t)===maxLv) x+=0.8+(ab.strikes===2?1.0:0);   // いちばんLvの高い球（決め球）は張られやすい（特に追い込んでから）
+    if(lvNum(t)<=1) x=Math.max(0.2,x-0.4);
     return [t,x];
   });
-  return wpick(w);
+  const g1=wpick(w), tot=w.reduce((s,a)=>s+a[1],0), sh=w.find(a=>a[0]===g1)[1]/tot;
+  if(REP.length>=3&&rnd()<clamp((1-sh)*GS_K.two,0,0.75)) return [g1,wpick(w.filter(a=>a[0]!==g1))];   // 絞りきれない → 2球種
+  return [g1];
 }
 
 // opts：ペナントモードの試合（相手・味方・途中からの登板）。省略時はランダムな1試合
@@ -1159,10 +1158,21 @@ const BREAK={
 const ptn=(t,label)=>{ const sp=typeof cbSpark==='function'&&cbSpark()===t?'✨':''; return PDESC[t]?`<span class="ptn" data-pt="${t}">${sp}${label??t}</span>`:sp+(label??t); };
 const BRV=t=>t==='カットボール'?[-0.3,0.05]:t==='ツーシーム'?[0.3,0.08]:t==='チェンジアップ'?[0,0.32]:BREAK[t];   // アニメーション用（同じマスの中の動き）
 const PFX_K={sbSw:0.12,sbWh:0.06,sbQ:0.05,bsSw:0.14,fool:0.15};
+// 打者CPUの球種の読み：game＝この試合で多い球を読む強さ／two＝2球種読みになりやすさ
+//  hit：読んだ球が来たとき（振る・当てる・打球の質。2球種読みは当てる・打球の質が半分）
+//  spd：読んだ球との球速差（5km/h を超えた分、35km/h で最大）で空振り・打ち損じ
+//  opp：逆の球（スライダー系⇔シュート系、ストレート系⇔フォーク系、カーブ系⇔シンカー系、ストレート⇔チェンジアップ）で空振り
+//  trio：ストレート・ツーシーム・カットボールのどれかを読んでいて、ほかの2つが来ると打ち損じ
+const GS_K={game:6,two:0.9,hit:{sw:0.08,ct:0.07,q:0.16},spd:{ct:0.08,q:0.08},opp:{ct:0.10,q:0.03},trio:{ct:0.02,q:0.10}};
+const FAM2={'ストレート':'st','ツーシーム':'st','カットボール':'st','高速スライダー':'sl','スライダー':'sl','スロースライダー':'sl','スイーパー':'sl','シュート':'sh','高速シュート':'sh',
+  'カーブ':'cv','ドロップカーブ':'cv','スローカーブ':'cv','パワーカーブ':'cv','シンカー':'sk','高速シンカー':'sk','フォーク':'fk','SFF':'fk','チェンジアップ':'ch'};
+const OPP_FAM={sl:'sh',sh:'sl',st:'fk',fk:'st',cv:'sk',sk:'cv'};
+const oppPitch=(g,t)=>OPP_FAM[FAM2[g]]===FAM2[t]||(g==='ストレート'&&t==='チェンジアップ')||(g==='チェンジアップ'&&t==='ストレート');
+const TRIO=new Set(['ストレート','ツーシーム','カットボール']);
 // 打者CPU（自分が投げるとき）の調整
 //  sbl：ストライク→ボールの球（狙っていたマスから外れていく球・追い込まれてから）を振ると空振りが大きく増え、カットとヒット性が減る（カットをより減らす）
 //  foul：ファウル（カット）全体を下げる量／side：内外・高低の片側に投げ続けると反対側が見えにくい／kk：緩急（最近の球速に目が慣れ、大きく違う球速に合わせにくい）
-const CPU_ADJ={sbl:{ct:0.36,foul:0.10,q:0.25},foul:0.10,side:{sw:0.08,ct:0.08,q:0.06},kk:{th:8,span:25,ct:0.10,q:0.08},chase:0.75};
+const CPU_ADJ={sbl:{ct:0.36,foul:0.10,q:0.25},foul:0.05,side:{sw:0.08,ct:0.08,q:0.06},kk:{th:8,span:25,ct:0.10,q:0.08},chase:0.98,sbTake:0.10,ntTake:0.10};   // sbTake：ストライク→ボールを見逃しやすく／ntTake：2ストライクまでは狙っていない球を見送りやすく
 // 内外・高低の偏り（直近の配球）。今の球がその反対側なら 0〜1
 function sideOpp(r,c,hand){
   const P=G.phist.slice(-6); if(P.length<3) return 0;
@@ -1183,7 +1193,7 @@ function expSpd(gSpd){
 const PINCH={ctl:0.03,q:0.03,mul:1.03};
 const inPinch=bs=>!!(bs&&(bs[1]||bs[2]));
 const gKeikP=()=>(typeof G!=='undefined'&&G&&G.pen&&typeof keikai==='function')?keikai(false):0;   // 試合中の警戒度（投手）
-const PIT_ADJ={sw:0.0,ct:0.195,q:-0.025,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+const PIT_ADJ={sw:0.0,ct:0.18,q:-0.06,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
 let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
 // 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
 //  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
@@ -1248,8 +1258,11 @@ function simulatePitch(r,c,pt,note){
   // 打席の中での読み：多いコースを張る／来ていないコースを読む
   const abCells=abReadCells(b,ab);
   const abRead=abCells.has(key);
-  const guess=batterGuess(rd);
-  const gMatch = guess===pt ? 2 : (PGROUP[guess]===PGROUP[pt] ? 1 : 0);   // 2=的中 1=近い 0=外れ
+  const guesses=batterGuess(rd), guess=guesses[0], g2r=guesses.length>1, hitG=guesses.includes(pt);   // 読み（1〜2球種）・読みが当たったか
+  const gMatch=hitG?2:0;   /* 記録用 */
+  const gdS=hitG?0:Math.min(...guesses.map(g=>Math.abs(VOFF[pt]-VOFF[g])));   // 読んだ球との球速差
+  const oppG=!hitG&&guesses.some(g=>oppPitch(g,pt)), trioG=!hitG&&TRIO.has(pt)&&guesses.some(g=>TRIO.has(g));   // 逆の球／直球系の打ち損じ
+  const gK=clamp((gdS-5)/30,0,1);
   // 投手と打者の左右：同じ利き腕は投手有利。打者から逃げていく変化球は打ちにくい
   const samePH = PHAND===b.hand;
   const bx=breakX(pt);
@@ -1277,21 +1290,21 @@ function simulatePitch(r,c,pt,note){
   if(inZone){
     if(protect) swingP=0.84;
     else if(strictTarget) swingP=0.92;
-    else swingP=PIT_ADJ.swNT+(middle?0.12:0);   // 狙っていない → 甘くても見逃しやすい
+    else swingP=PIT_ADJ.swNT+(middle?0.12:0)-CPU_ADJ.ntTake;   // 狙っていない → 甘くても見逃しやすい（2ストライクまでは見送ることも多い）
     if(readCell) swingP=Math.max(swingP,0.9);   // 分析で張っていたコース
     if(abRead) swingP=Math.max(swingP,0.9);     // 打席の中で張っていたコース
     if(ab.balls===3&&ab.strikes===0) swingP*=0.45;
     swingP+=(PT_SWZ[pt]||0)+PIT_ADJ.sw;   // カーブ系は見送られやすい／小さく動く球はストライクに見えて手を出させる
     swingP+=fx.sw;           // ボール→ストライクは見逃されやすい など
     if(pt==='ストレート') swingP-=0.03*stLv();   // 伸びのあるストレートは見逃されやすい（Lvが低いと振られやすい）
-    swingP+=[-0.07,0,0.08][gMatch];
+    if(hitG) swingP+=GS_K.hit.sw;   // 読んだ球はよく振る
     swingP+=zoneHeavy*0.3-ballHeavy*0.3;
   }else{
     swingP=(1-b.eye/100)*0.30;   // ボール球の見極め（少し見極めるように）
     if(nearTarget) swingP+=0.14;
     if(protect) swingP+=0.16;
     if(r===4) swingP+=PT_LOWB[pt]||0;   // 低めに沈んで振らせる
-    if(gMatch===2) swingP-=0.05; else if(gMatch===0&&PGROUP[pt]!=='fast') swingP+=0.06; // 読み外れの変化球に手が出る
+    if(hitG) swingP-=0.05;   // 読んだ球のボールは見極める
     if((pt==='ツーシーム'||PFAM[pt]==='shoot')&&dIn<=1) swingP+=0.06;
     if(PFAM[pt]==='slider'&&dIn>=3) swingP+=({'高速スライダー':0.06,'スイーパー':0.1}[pt]||0.08);
     if(pt==='カットボール'&&dIn>=3) swingP+=0.04;
@@ -1310,13 +1323,14 @@ function simulatePitch(r,c,pt,note){
     if(sp>0&&r<=1) swingP+=0.04*sp;             // 速い高めの釣り球
     swingP+=CPU_ADJ.side.sw*opp;                 // 反対側のボール球に手が出やすい
     if(!fx.sb) swingP*=CPU_ADJ.chase;            // ボール球の手の出しやすさ（成績の調整用。ストライク→ボールの球は除く）
+    else swingP-=CPU_ADJ.sbTake;                 // ストライク→ボールの球も少し見逃せる
   }
   if(fooled&&!protect) swingP=Math.max(swingP,0.8);   // 狙っていたマスに来たように見えて振ってしまう
   swingP=clamp(swingP,0.02,0.97);
   const swing=rnd()<swingP;
   const fT=myStaFx(), slowest=Math.min(...REP.map(t=>myVelo()+VOFF[t]));
   const speed=jitterSpd(tiredSpd(myVelo()+VOFF[pt],myVelo(),slowest,fT));   // 球速（km/h・小数第1位まで）。疲れると全球種の球速が近づく
-  const base={r,c,sr,sc,pt,inZone,note,guess,gMatch,readCell,abRead,speed,fooled,sb:fx.sb,bs:fx.bs};
+  const base={r,c,sr,sc,pt,inZone,note,guess,guesses,gMatch,oppG,readCell,abRead,speed,fooled,sb:fx.sb,bs:fx.bs};
 
   if(!swing){
     if(!inZone){
@@ -1337,7 +1351,7 @@ function simulatePitch(r,c,pt,note){
   if(abRead&&inZone) ct+=0.05;
   // 球の質：少しの球は読みが外れても対応されやすい／決め球は打ちにくい
   const L=lev(pt);
-  if(L==='少'){ ct+=0.07; if(gMatch===0) ct+=0.1; }
+  if(L==='少'){ ct+=0.07; }
   if(L==='決'){ ct-=0.1+0.04*lx; if(ab.strikes===2) ct-=0.05; }
   const spk=G.pen&&typeof cbSpark==='function'&&cbSpark()===pt&&!G.pen.tryout;   // モーショントラッキングで磨いた✨の球
   if(spk) ct-=0.05;
@@ -1351,14 +1365,14 @@ function simulatePitch(r,c,pt,note){
   if(low) ct-=PT_LOWCT[pt]||0;
   ct+=PIT_ADJ.ct-fx.wh;                        // 球種の特徴（ストライク→ボール・待ち球とのずれ など）
   if(fooled) ct-=PFX_K.fool;                   // 曲がる前のマスを狙っていた
-  ct+=[-0.07,0,0.07][gMatch];
+  if(hitG) ct+=GS_K.hit.ct*(g2r?0.5:1);   // 読みが当たると当てやすい（2球種読みは半分）
+  ct-=GS_K.spd.ct*gK+(oppG?GS_K.opp.ct:0)+(trioG?GS_K.trio.ct:0);   // 読んだ球との球速差・逆の球で空振り
   ct+= samePH ? -0.02 : 0.02;
   if(away) ct-=0.04;
-  if(gMatch===0&&pt==='ストレート') ct-=0.05;   // 変化球待ちで直球に差し込まれる
   // 緩急：直前がストレートならカーブ・チェンジアップがより効く
   const prev=ab.pitches[ab.pitches.length-1];
   if(prev&&prev.pt==='ストレート'&&SLOWP.has(pt)) ct-= pt==='スローカーブ'?0.11:0.06;
-  if(pt==='スローカーブ'){ if(gMatch===2) ct+=0.05; if(prev&&prev.pt==='スローカーブ') ct+=0.06; }   // 読まれたり続けたりすると合わされる
+  if(pt==='スローカーブ'){ if(hitG) ct+=0.05; if(prev&&prev.pt==='スローカーブ') ct+=0.06; }   // 読まれたり続けたりすると合わされる
   if(pt==='ストレート'&&high&&b.power>70) ct-=0.06;
   ct+=fam;
   // よく来るコースとその周りは当てられやすい（この試合の配球から）
@@ -1395,7 +1409,7 @@ function simulatePitch(r,c,pt,note){
   // --- 打球の質 q ---
   let q=0;
   if(strictTarget||readCell||abRead) q+=PIT_ADJ.qT+b.contact/100*0.24; else if(protect&&inZone) q-=PIT_ADJ.qP; else q-=PIT_ADJ.qNT;   // 狙ったコースでもヒット性になるかはミート次第（ミート50で+0.20、80で+0.27）。狙っていない球はヒット・HRになりにくい
-  if(L==='少'){ q+=0.085; if(gMatch===0) q+=0.11; }
+  if(L==='少'){ q+=0.085; }
   if(L==='決'){ q-=0.11+0.04*lx; }
   if(spk) q-=0.06;
   if(typeof cbG==='function'&&cbG('nebari')&&G.inning>=5&&myTot()>oppTot()) q-=0.04;   // 粘り勝つメンタル：勝っている5回以降は球威が増す
@@ -1411,8 +1425,9 @@ function simulatePitch(r,c,pt,note){
   if(low) q-=PT_LOWQ[pt]||0;
   q+=fx.q+PIT_ADJ.q+((typeof pinchMe==='function'?pinchMe(G.bases):inPinch(G.bases))?PINCH.q:0)+0.06*gKeikP();   // ピンチでは球威がわずかに落ちる／警戒されていると捉えられやすい
   if(fooled) q-=PFX_K.fool;
-  if(pt==='スローカーブ'&&(gMatch===2||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
-  q+=[-0.12,0,0.16][gMatch];   // 読みが当たると強い打球
+  if(pt==='スローカーブ'&&(hitG||(prev&&prev.pt==='スローカーブ'))) q+=0.08;
+  if(hitG) q+=GS_K.hit.q*(g2r?0.5:1);   // 読みが当たると強い打球（2球種読みは半分）
+  q-=GS_K.spd.q*gK+(oppG?GS_K.opp.q:0)+(trioG?GS_K.trio.q:0);   // 球速差・逆の球・直球系の違いで打ち損じ
   q+= samePH ? -0.04 : 0.03;
   if(away) q-=0.03;
   if(pt==='ツーシーム'&&dIn<=1) q-=0.06;   // 内角のツーシームで詰まらせる
@@ -1738,7 +1753,7 @@ function resolvePitch(loc){
   else if(p.kind==='foul'){if(ab.strikes<2)ab.strikes++;line+=p.text}
   else if(p.kind==='foulout'){line+=p.text;done=p}
   else {line+=p.bip.cls==='out'?p.bip.text:'<b>'+p.bip.big+'</b>';done=p}
-  line+=` <span style="color:var(--mute);font-size:12px">［読み:${p.guess}${['','△','◎'][p.gMatch]}${p.readCell?(p.inZone?'・コースを張られた':'・見極められた'):''}${p.abRead?(p.inZone?'・打席内で張られた':'・打席内で見極められた'):''}］</span>`;
+  line+=` <span style="color:var(--mute);font-size:12px">［読み:${(p.guesses||[p.guess]).join('・')}${p.gMatch===2?'◎':p.oppG?'（逆）':''}${p.readCell?(p.inZone?'・コースを張られた':'・見極められた'):''}${p.abRead?(p.inZone?'・打席内で張られた':'・打席内で見極められた'):''}］</span>`;
   addLog(`<div>${line}</div>`);
   if(done){ endAB(done); r1Update(done,b); }
   else{
