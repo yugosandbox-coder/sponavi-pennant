@@ -24,6 +24,7 @@ function lamps(id,n,max,cls){$(id).innerHTML=Array.from({length:max},(_,i)=>`<di
 
 function renderAll(){
   if(G&&G.bat) return renderBat();   // 野手の打席（打者目線）
+  { const bs=$('bsty'); if(bs) bs.style.display='none'; }   // 打ち方の選択は自分の打席だけ
   if(!G.batter&&G.lineup) G.batter=G.lineup[Math.max(0,G.order)]||G.lineup[0];   // 読み込み直後などで打者がいないとき
   const b=G.batter, ab=G.ab;
   $('inn').textContent=G.over?'試合終了':G.inning+'回表';
@@ -92,7 +93,7 @@ function renderAll(){
   setTeamBar(G.half||'top');   // 投手モードで自分が投げているときは表（相手の攻撃）
   $('plP').innerHTML=`<div class="lab">投手 ${MYNUM}・<b style="color:var(--accent)">投</b>・あなた</div><div class="nm"><span class="nmt">${plink({isMe:true},G.pname||'あなた')}</span> <span class="hb ${PHAND==='L'?'L':'R'}">${PHAND==='L'?'左投':'右投'}</span></div>
     ${asTag(PEN&&PEN.team)}<div class="sub">${(csOn&&csLineP('ME',PEN.team))||`防御率 ${fmtRate(C.runs,C.outs)}`}</div>${staBarHTML(mySta())}`;
-  $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
+  $('plB').innerHTML=`<div class="lab">打者 ${b.num}　${b.order}番・${b.type}${b.appr&&typeof APPR_JP!=='undefined'?`・<b class="appr ${b.appr}">${APPR_JP[b.appr]}</b>`:''}</div><div class="nm"><span class="nmt">${plink(b,b.name)}</span> <span class="hb ${b.hand==='L'?'L':'R'}">${b.hand==='L'?'左打':'右打'}</span></div>
     ${asTag(b.team)}<div class="sub">${(csOn&&b.fid&&csLineB(b.fid,b.team||oppT))||(csOn?`打率 -　本塁打 0　<small>（今季まだ打席なし）</small>`:`打率 ${b.avg.toFixed(3).replace(/^0/,'')}`)}</div>`;
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:'空振り',foul:'ファウル',foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
   plistChips(ab,pres);   // この打席の投球：横1列の小さな札（まだ投げていなければ隠す）

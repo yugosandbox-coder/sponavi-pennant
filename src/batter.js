@@ -94,6 +94,7 @@ function pitAI(pit){
   const kb=gKeikB();   // 警戒されているとストライクゾーンで勝負してこない・狙われたマスをより避ける・失投が減る
   let zP = (ab.balls===3?0.85 : ab.balls>ab.strikes?0.72 : (ab.strikes===2&&ab.balls<2)?0.36 : 0.58)-0.04*kb;
   if(sty==='ball') zP-= ab.balls===3?0.05 : 0.14;     // ボール球をうまく使う投手
+  if(G.bsty==='bb'&&bstyN()>=2) zP=Math.min(0.95,zP+(bstyN()-1)*BSTY_K.zp);   // 四球狙いを続けると、ストライクで攻めてくる
   // 配球パターン（ある程度その方向に偏る）。hz：0=内角〜4=外角（打者から見て）
   const hz=c=>horizIdx(c,G.bhand);
   const styW=(r,c)=>{ const h=hz(c);
@@ -140,9 +141,34 @@ const EQ=Object.assign({q:0.009,qm:0.004,qh:0.003,qp:0.35,qe:3,qx:0.14,sp:0.2,qc
 // 自分の打席の本塁打：CPUと同じ本塁打率（cpuHrRate）に、ミートによる補正（ミートが高いほど打球が良くなって本塁打が増えすぎるのをならす）
 const eqQMeet=m=>m<=60?Math.min(EQ.qcap,(60-m)*EQ.q)-Math.max(0,35-m)*0.012 : m<=75?-(m-60)*EQ.qm : -15*EQ.qm-(m-75)*EQ.qh;   // 打球の質の補正（ミート）
 const meetHrF=m=>m<=50?EQ.hb+Math.min(50-m,4)*EQ.hlo : m<=75?EQ.hb : Math.max(0.3,EQ.hb-(m-75)*EQ.hhi);
+// 自分の打ち方（打席の最初に選ぶ）：通常／四球狙い／単打狙い／フルスイング。同じ打ち方（通常以外）を続けると読まれて打ち取られやすくなる（試合ごとにリセット）
+const BSTY=['n','bb','s1','fs'];
+const BSTY_JP={n:'通常',bb:'四球狙い',s1:'単打狙い',fs:'フルスイング'};
+const BSTY_TXT={n:'今までどおりの打ち方',bb:'ボール球を見極め、ファウルで粘る（ヒットはほぼ出ない）',s1:'長打を捨ててシングルヒット狙い（空振りが減る）',fs:'狙ったコースだけを強振。ヒットは長打になる'};
+//  bb：chase/fooled＝ボール球・逃げる変化に手を出す確率の倍率、wh＝空振りの倍率、fo＝狙ったコースのファウル率、cut＝カット成功＋、cutSw＝追い込まれてからカットしにいく確率＋、q＝打球の質、keep＝ヒット性が残る割合、late＝この球数を超えると崩れ始める（1球ごとに空振り＋lwh・カット−lcut）
+//  s1：wh＝空振りの倍率、q＝打球の質＋、cut＝カット成功＋、hr1＝本塁打性がシングルヒットになる割合（残りは外野フライ）
+//  fs：fwh＝狙っていないコースを振ったときの空振り率（残りはフライ）、sw2＝追い込まれてから狙っていないストライクを振る確率（＋選球眼×0.1）、fo/wh＝狙ったコースのファウル・空振り＋、q＋qp×(パワー−50)/50＝狙ったコースの打球の質＋、
+//      x2＋x2p×(パワー−50)/50＝シングル性の当たりが長打になる割合（残りは外野フライ）、hr＝本塁打率の倍率
+//  rep＝同じ打ち方の連続（2・3・4打席目〜）で打球の質−・空振り＋（四球狙いは振る回数が多いので空振り＋はrepBB倍）、zp＝四球狙いの連続で投手がストライクを増やす量
+const BSTY_K={bb:{chase:0.45,fooled:0.7,wh:0.5,fo:0.75,cut:0.15,cutSw:0.05,q:-0.25,keep:0.3,late:6,lwh:0.04,lwhMax:0.20,lcut:0.04,lcutMax:0.25},
+  s1:{wh:0.8,q:0.10,cut:0.05,hr1:0.5},
+  fs:{fwh:0.60,sw2:0.88,fo:0.05,wh:0.03,q:0.45,qp:0.2,x2:0.8,x2p:0.7,hr:1.2},
+  rep:[0,0,0.03,0.06,0.09], repBB:0.5, zp:0.03};
+if(typeof process!=='undefined'&&process.env&&process.env.BSK){ const o=JSON.parse(process.env.BSK); for(const k in o) BSTY_K[k]=typeof o[k]==='object'&&!Array.isArray(o[k])?Object.assign(BSTY_K[k],o[k]):o[k]; }
+const bstyN=()=>{ const s=(G&&G.bsty)||'n'; return s==='n'?0:Math.min(4,G.bstyLast===s?(G.bstyN||1)+1:1); };   // 今の打ち方が何打席連続か（通常は0）
+const bstyPen=()=>BSTY_K.rep[bstyN()]||0;
+// 打球を凡打に変える（四球狙いの弱い当たり・単打狙いのフェンス手前・フルスイングの狙っていないコース）
+function bipOut(b,fly){ const side=b.side||pick(['left','center','right']), k=fly?'fly':b.kind||'fly', q=b.q??-0.4;
+  const IF={left:['3B','SS'],center:['SS','2B'],right:['2B','1B']}[side], OF={left:'LF',center:'CF',right:'RF'}[side], o={side,kind:k,q,out:true,cls:'out'};
+  if(k==='ground'){ const f=pick(IF); return {...o,res:'GO',fielder:f,big:FN[f]+'ゴロ',text:FN[f]+'ゴロ'}; }
+  if(k==='liner'){ const f=pick(IF); return {...o,res:'LO',fielder:f,big:FN[f]+'ライナー',text:FN[f]+'正面のライナー'}; }
+  if(rnd()<(fly?0.6:0.5)){ const f=pick(IF); return {...o,res:'PO',fielder:f,big:FN[f]+'フライ',text:fly?'打ち上げて'+FN[f]+'フライ':FN[f]+'への内野フライ'}; }
+  return {...o,res:'FO',fielder:OF,of:true,big:FN[OF]+'フライ',text:FN[OF]+'フライ'};
+}
 const gKeikB=()=>(G&&G.pen&&typeof keikai==='function')?keikai(true):0;   // 試合中の警戒度（打者）   // 球種を作り直したときの全体のバランス調整（自分が打つ打席）
 function batResolve(p){
   const A=G.babil, ab=G.ab, T=G.target, pit=curPit();
+  const S=G.bsty||'n', SK=BSTY_K[S]||{}, rep=bstyPen(), late=S==='bb'?Math.max(0,ab.pitches.length+1-SK.late):0;   // 打ち方・同じ打ち方の連続・四球狙いで粘った球数
   const key=K(p.r,p.c), inZ=inZoneRC(p.r,p.c), inT=T.cells.includes(key), sT=T.cells.includes(K(p.sr,p.sc));
   const dsp=p.speed-T.spd, tol=tolOf(dsp,A.meet), dv=Math.abs(dsp);   // 速い側は+1〜+3しか対応できない
   // 芯（±5km/h）は打ちやすく、幅の端ほどファウル・打ち損じが増える。
@@ -160,9 +186,9 @@ function batResolve(p){
   let mode;
   if(inT&&tq>0) mode='hit';
   else if(inT) mode='late';
-  else if(fooled&&rnd()<0.85-eye*0.35) mode='fooled';
-  else if(inZ) mode = two ? (rnd()<0.88+eye*0.1+fx.sw?'cut':'take') : (rnd()<0.03+0.10*(1-eye)+fx.sw*0.3?'chaseZ':'take');   // ボール→ストライクは見逃しやすい
-  else mode = rnd()<clamp((1-eye)*0.26+(two?0.10:0)+(nearT?0.07:0)-0.04+btFx(myBtype(),'chase')+fx.swB+BAT_ADJ.ch,0.02,0.7)*(1-0.3*Math.min(1,pfT)) ? 'chase' : 'take';   // 疲れた投手のボール球は見切りやすい   // ストライク→ボールは手を出しやすい
+  else if(fooled&&rnd()<(0.85-eye*0.35)*(S==='bb'?SK.fooled:1)) mode='fooled';
+  else if(inZ) mode = S==='fs' ? (two&&rnd()<SK.sw2+eye*0.1?'chaseZ':'take') : two ? (rnd()<0.88+eye*0.1+fx.sw+(S==='bb'?SK.cutSw:0)?'cut':'take') : (rnd()<(0.03+0.10*(1-eye)+fx.sw*0.3)*(S==='bb'?SK.chase:1)?'chaseZ':'take');   // ボール→ストライクは見逃しやすい   // フルスイング：狙っていないコースは見逃す
+  else mode = rnd()<clamp((1-eye)*0.26+(two?0.10:0)+(nearT?0.07:0)-0.04+btFx(myBtype(),'chase')+fx.swB+BAT_ADJ.ch,0.02,0.7)*(1-0.3*Math.min(1,pfT))*(S==='bb'?SK.chase:1) ? 'chase' : 'take';   // 四球狙い：ボール球に手を出しにくい   // 疲れた投手のボール球は見切りやすい   // ストライク→ボールは手を出しやすい
   const read = inT&&isMain&&dv<=SWEET ? '◎ 本命の球種が芯に来た・コースも的中' : inT&&isMain ? '◎ 本命の球種・コース的中' :
     inT&&dv<=SWEET ? '○ 球速は芯・コース的中（本命の球種ではない）' : inT&&tq>=0.45 ? '○ コース的中・球速は芯から少しずれた' :
     inT&&tq>0 ? '△ コース的中・球速は幅の端（ファウル・打ち損じしやすい）' : inT ? '✕ コースは合ったが球速が幅の外だった' :
@@ -171,6 +197,10 @@ function batResolve(p){
   if(mode==='take'){
     if(!inZ){ if(horizIdx(p.c,G.bhand)===0&&p.r>=1&&p.r<=3&&rnd()<0.04*fx.hbp) return {...base,kind:'hbp',text:'デッドボール'}; return {...base,kind:'ball',text:'ボール'}; }
     return {...base,kind:'look',text:'見逃しストライク'};
+  }
+  if(S==='fs'&&mode!=='hit'&&mode!=='late'){   // フルスイング：狙っていないコースを振ると空振りかフライ
+    if(rnd()<clamp(SK.fwh+rep,0,0.95)) return {...base,kind:'swing',text:'空振り'};
+    const bip=bipOut({q:-0.5},true); BIPMETA={side:bip.side,kind:'fly',q:-0.5}; return {...base,kind:'bip',q:-0.5,bip};
   }
   // 振ったときの結果：空振り・ファウル・前に飛ぶ（qが大きいほど良い当たり）
   let wh, fo, q, sure=0;
@@ -182,7 +212,7 @@ function batResolve(p){
   }else if(mode==='late'){ wh=clamp(0.40-meet*0.2-eye*0.05,0.12,0.45); fo=0.32+meet*0.1; q=-0.22+meet*0.12+noise(0.2); }
   else if(mode==='fooled'){ wh=inZ?0.4-meet*0.1:0.55-meet*0.15; fo=inZ?0.3:0.25; q=(inZ?-0.3:-0.45)+noise(0.15); }
   else if(mode==='cut'){   // 追い込まれて、狙っていない球をカットで逃げる
-    if(rnd()<clamp(0.5+eye*0.3+meet*0.2+(typeof cbG==='function'&&cbG('nebari')?0.08:0),0.45,0.95)) return {...base,kind:'foul',text:'ファウル（カット）',cut:true};
+    if(rnd()<clamp(0.5+eye*0.3+meet*0.2+(typeof cbG==='function'&&cbG('nebari')?0.08:0)+(SK.cut||0)-(late?Math.min(SK.lcutMax,late*SK.lcut):0)-rep*(S==='bb'?BSTY_K.repBB:1),0.25,0.95)) return {...base,kind:'foul',text:'ファウル（カット）',cut:true};   // 四球狙い・単打狙いはカットしやすい（四球狙いは粘りすぎると崩れる）
     if(rnd()<0.5) return {...base,kind:'swing',text:'空振り（カットし損ねた）'};
     wh=0; fo=0; q=-0.3+noise(0.15);
   }else if(mode==='chaseZ'){ wh=0.3; fo=0.35; q=-0.15+noise(0.18); }
@@ -193,6 +223,12 @@ function batResolve(p){
   if(typeof cbG==='function'){ if(two&&cbG('nebari')){ wh*=0.85; q+=0.04; } if(cbG('yosho')&&inPinch(G.bases)){ wh*=0.9; q+=0.05; } }   // コーチ：粘り勝つ（2ストライク後）・要所（得点圏）
   if(platoon) wh*=0.88;
   { const BT=myBtype(); wh=clamp(wh+btFx(BT,'k'),0,0.9); fo=clamp(fo+btFx(BT,'foul'),0,0.9); }   // タイプ：フルスイングは三振↑ファウル↓、ヒットメーカーはファウル↑
+  if(S==='bb'){ wh*=SK.wh; if(mode!=='chase'&&mode!=='fooled') fo=Math.max(fo,SK.fo); q+=SK.q;   // 四球狙い：狙ったコースはファウルで粘る（空振り半分・前に飛ぶと弱い当たり）
+    if(late){ const d=Math.min(SK.lwhMax,late*SK.lwh); wh+=d; fo=Math.max(0,fo-d); } }   // 粘るほど空振り・打ち損じが増える
+  else if(S==='s1'){ wh*=SK.wh; q+=SK.q; }
+  else if(S==='fs'){ wh+=SK.wh; fo+=SK.fo; q+=SK.q+SK.qp*(A.power-50)/50; }   // パワーがあるほど強い打球
+  if(rep){ wh+=rep*(S==='bb'?BSTY_K.repBB:1); q-=rep; }   // 同じ打ち方を続けると読まれる
+  wh=clamp(wh,0,0.95); if(wh+fo>0.97) fo=Math.max(0,0.97-wh);
   const x=rnd();
   if(x<wh) return {...base,kind:'swing',text:'空振り'};
   if(x<wh+fo){
@@ -200,8 +236,19 @@ function batResolve(p){
     return {...base,kind:'foul',text:'ファウル'};
   }
   BIPFX={gb:fx.gb,fb:fx.fb,xbh:fx.xbh};
-  const bip=Object.assign(resolveBIP(p.r,p.c,p.pt,q,{...meObj(),sure,sureK:Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))}),BIPMETA);
-  if(bip.res==='2B'&&rnd()<Math.max(0,(A.speed-50)*0.006)) Object.assign(bip,{res:'3B',bases:3,big:'スリーベース',text:'俊足を飛ばしてスリーベース'});   // 足で三塁へ
+  const mo=meObj(); if(S==='fs') mo.hrRate*=SK.hr;   // フルスイング：本塁打が出やすい
+  let bip=Object.assign(resolveBIP(p.r,p.c,p.pt,q,{...mo,sure,sureK:Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))}),BIPMETA);
+  if(S==='bb'&&!bip.out&&bip.res!=='IFH'){   // 四球狙い：当てただけの打球（たまにポテンヒット）
+    bip = rnd()<SK.keep&&bip.res!=='HR' ? {...bip,res:'1B',bases:1,cls:'hit',big:'ヒット',text:'当てただけの打球がポテンヒットに'} : bipOut(bip,bip.res==='HR');
+  }else if(S==='s1'&&!bip.out&&bip.res!=='1B'&&bip.res!=='IFH'){   // 単打狙い：長打はシングルヒット（本塁打性は半分がフェンス手前のヒット、半分が外野フライ）
+    if(bip.res!=='HR'||rnd()<SK.hr1) bip={...bip,res:'1B',bases:1,cls:'hit',big:'ヒット',text:bip.res==='HR'?'フェンス直撃のシングルヒット':(bip.side==='left'?'レフト':bip.side==='right'?'ライト':'センター')+'へのシングルヒット'};
+    else { const of={left:'LF',center:'CF',right:'RF'}[bip.side||'center']; bip={side:bip.side||'center',kind:'fly',q:bip.q,out:true,cls:'out',res:'FO',fielder:of,of:true,big:FN[of]+'フライ',text:'フェンス手前で失速して'+FN[of]+'フライ'}; }
+  }else if(S==='fs'&&!bip.out&&(bip.res==='1B'||bip.res==='IFH')){   // フルスイング：ヒットは長打に（パワーが足りないと外野フライ）
+    const side=bip.side==='center'?pick(['left','right']):bip.side||'left', w=side==='left'?'左中間':'右中間', of=side==='left'?'LF':'RF';
+    bip = rnd()<clamp(SK.x2+SK.x2p*(A.power-50)/50,0.2,1) ? {...bip,kind:bip.kind==='ground'?'liner':bip.kind,side,res:'2B',bases:2,cls:'hit',big:'ツーベース',text:w+'を破るツーベース'}
+      : {side,kind:'fly',q:bip.q,out:true,cls:'out',res:'FO',fielder:of,of:true,big:FN[of]+'フライ',text:'大きな当たりも'+FN[of]+'が追いついてフライ'};
+  }
+  if(S!=='s1'&&bip.res==='2B'&&rnd()<Math.max(0,(A.speed-50)*0.006)) Object.assign(bip,{res:'3B',bases:3,big:'スリーベース',text:'俊足を飛ばしてスリーベース'});   // 足で三塁へ
   return {...base,kind:'bip',q,bip};
 }
 
@@ -332,6 +379,7 @@ function startMyPA(){
   G.meUp=true; G.abOver=false; G.ab={balls:0,strikes:0,pitches:[]}; G.st0={...G.st};
   if(G.sw){ const p0=curPit(); swSet(p0.hand==='L'?'R':'L'); }   // 両打ち：相手投手と逆の打席に（1球目まで変えられる）
   if(!G.target) G.target={spd:null,cells:[]};
+  G.bsty=G.bstyLast||'n';   // 打ち方は前の打席と同じものが選ばれている（1球目までに変えられる）
   fixSpd();   // 狙いの球速は前の打席のまま（投手が代わればバーに収まるように）
   const max=meetCells(G.babil.meet); if(G.target.cells.length>max) G.target.cells=G.target.cells.slice(-max);
   const p=curPit();
@@ -369,6 +417,7 @@ const B_LABEL={K:'三振',BB:'四球',HBP:'死球'};
 function batEndPA(kind,p){
   const st=G.st, A=G.babil; G.meUp=false; G.abOver=true;
   st.pa++;
+  const bsU=G.bsty||'n'; G.bstyN=G.bstyLast===bsU?(G.bstyN||1)+1:1; G.bstyLast=bsU;   // 同じ打ち方の連続（試合ごとにリセット）
   if(G.tryout){ G.tryoutEnd=true; }
   let big,sub,cls,rbi=0;
   const map={'1B':'1B','IFH':'IFH','2B':'2B','3B':'3B','HR':'HR','GO':'GO','FO':'FO','LO':'LO','PO':'PO','FF':'FF','K':'K','BB':'BB','HBP':'HBP'};
@@ -391,7 +440,7 @@ function batEndPA(kind,p){
   st.rbi+=rbi;
   G.me.res.push(B_LABEL[kind]||(p.kind==='bip'?shortRes(p,big):'邪飛'));
   setResult(RES_CLS[cls]||cls,big,`${p.speed}km/h ${p.pt}、${sub}${rbi?`／<b style="color:var(--red)">${rbi}打点</b>`:''}`,abPitchNo());
-  addLog(`<div>　結果：<b>${big}</b>${rbi?`（${rbi}打点）`:''}</div>`);
+  addLog(`<div>　結果：<b>${big}</b>${rbi?`（${rbi}打点）`:''}${bsU!=='n'?`<span style="color:var(--mute);font-size:12px">［${BSTY_JP[bsU]}${G.bstyN>=2?`・${G.bstyN}打席連続`:''}］</span>`:''}</div>`);
   if(G.pinch) G.meActive=false;   // 代打は1打席だけ
   if(!G.tryout&&G.inning>=INNINGS&&myTot()>oppTot()) G.walk=true;
   renderAll(); save();
@@ -435,7 +484,7 @@ function autoKind(A,pit,risp){
   return r;
 }
 function autoMyPA(pit){
-  const kind=autoKind(G.babil,pit,inPinch(G.bases)), st=G.st; st.pa++;
+  const kind=autoKind(G.babil,pit,inPinch(G.bases)), st=G.st; st.pa++; G.bstyLast='n'; G.bstyN=1;   // おまかせの打席は「通常」
   { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*S.S/(S.S+staN(S.S))); }
   const adv=bAdvance(G.bases,kind,2,G.outs); G.bases=adv.b; G.outs+=adv.o;
   const runs=adv.sc.length; G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs; if(adv.sc.includes(2)) st.run++;
@@ -654,6 +703,12 @@ function renderBat(){
   const pres=p=>({ball:'ボール',hbp:'死球',look:'見逃し',swing:p.text,foul:p.text,foulout:p.text,bip:p.bip?p.bip.big:''}[p.kind]);
   plistChips(ab,pres);   // この打席の投球：横1列の小さな札
   const sb=$('swBtn'); if(sb) sb.onclick=swToggle;
+  { const bs=$('bsty');   // 打ち方（1球目までに選ぶ）
+    if(bs){ if(G.meUp){ const cur=G.bsty||'n', lock=ab.pitches.length>0, n=bstyN();
+        bs.style.display='';
+        bs.innerHTML=`<div class="bsrow">${BSTY.map(k=>`<button class="bsb${k===cur?' on':''}" data-bs="${k}"${lock&&k!==cur?' disabled':''}>${BSTY_JP[k]}</button>`).join('')}</div><div class="bsd">${BSTY_TXT[cur]}${n>=2?`<br><b class="bsw">${n}打席連続：${n>=4?'かなり読まれています':n===3?'読まれています':'少し読まれています'}</b>`:''}</div>`;
+        bs.querySelectorAll('[data-bs]').forEach(b=>b.onclick=()=>{ if(!G.meUp||busy||G.ab.pitches.length) return; G.bsty=b.dataset.bs; renderAll(); save(); });
+      } else bs.style.display='none'; } }
   renderStats(); renderLineup(); renderScout(); renderBoard(); renderGround();
   fitZone();
   drawTargetOutline();

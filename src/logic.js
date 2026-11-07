@@ -98,7 +98,7 @@ function genBatter(type,pL,used){
   const target=genTarget(hand);
   const name=randName(used);
   const btype=typeof cpuTypeOf==='function'?cpuTypeOf({m:contact,p:power,s:speed,d:50,e:eye},rnd()<0.3):type;   // 表示・効果用のタイプ
-  return {name, num:ri(0,99), type:btype, arch:type, hand, power, contact, speed, eye, avg, hrRate, good, bad, target, res:[]};
+  return {name, num:ri(0,99), type:btype, arch:type, hand, power, contact, speed, eye, avg, hrRate, good, bad, target, res:[], appr:apprOf(btype,eye)};
 }
 function genLineup(){
   const L=LINEUPS[OPP.pattern]||LINEUPS.standard, used=new Set();
@@ -463,6 +463,7 @@ function nextBatter(){
   G.order=(G.order+1)%G.lineup.length;
   G.batter=G.lineup[G.order]; G.batter.target=genTarget(G.batter.hand);   // 狙いは打席ごとに変わる
   G.batter.rstyle=wpick([['freq',38],['contra',32],['none',30]]);        // 打席の中での読み方
+  G.batter.appr=apprOf(G.batter.type,G.batter.eye);                       // 打ち方（早打ち型・粘り打ち型・スタンダード型）も打席ごとに変わる
   G.ab={balls:0,strikes:0,pitches:[]}; G.abOver=false;   // 選んだコースは次の打者にも引き継ぐ
   rebuildScout();   // この打者が今までにあなたから受けた球で、傾向を読む
   if(typeof setView==='function') setView('pitch');
@@ -521,6 +522,12 @@ const FAM2={'ストレート':'st','ツーシーム':'st','カットボール':'
 const OPP_FAM={sl:'sh',sh:'sl',st:'fk',fk:'st',cv:'sk',sk:'cv'};
 const oppPitch=(g,t)=>OPP_FAM[FAM2[g]]===FAM2[t]||(g==='ストレート'&&t==='チェンジアップ')||(g==='チェンジアップ'&&t==='ストレート');
 const TRIO=new Set(['ストレート','ツーシーム','カットボール']);
+// 打者の打ち方（打席ごとにタイプ・選球眼に応じて抽選）：早打ち型（初球から打ちに来る）／粘り打ち型（打てる球を見極め、追い込まれたら狙い以外はカットで粘る）／スタンダード型
+const APPR_JP={agg:'早打ち型',pat:'粘り打ち型',mid:'スタンダード型'};
+const APPR_K={agg:{swZ:0.12,first:0.06,swB:0.04,foul:-0.05},pat:{swZ:-0.15,first:-0.05,swB:-0.04,cutF:0.10,cutCt:0.03,cutQ:0.04}};
+const DBL_Q=0.06;   // 狙っていたコースに本命の球種が来た（両方当たり）：ヒット性が少し上がる
+function apprOf(type,eye){ const W={'フルスイング':[50,35,15],'スピードスター':[40,40,20],'ヒットメーカー':[20,40,40],'アスリート':[35,40,25]}[type]||[30,40,30], e=(eye??50)-50;
+  return wpick([['agg',Math.max(5,W[0]-e*0.4)],['mid',W[1]],['pat',Math.max(5,W[2]+e*0.4)]]); }
 // 打者CPU（自分が投げるとき）の調整
 //  sbl：ストライク→ボールの球（狙っていたマスから外れていく球・追い込まれてから）を振ると空振りが大きく増え、カットとヒット性が減る（カットをより減らす）
 //  foul：ファウル（カット）全体を下げる量／side：内外・高低の片側に投げ続けると反対側が見えにくい／kk：緩急（最近の球速に目が慣れ、大きく違う球速に合わせにくい）
@@ -545,7 +552,7 @@ function expSpd(gSpd){
 const PINCH={ctl:0.03,q:0.03,mul:1.03};
 const inPinch=bs=>!!(bs&&(bs[1]||bs[2]));
 const gKeikP=()=>(typeof G!=='undefined'&&G&&G.pen&&typeof keikai==='function')?keikai(false):0;   // 試合中の警戒度（投手）
-const PIT_ADJ={sw:0.0,ct:0.18,q:-0.06,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
+const PIT_ADJ={sw:0.0,ct:0.175,q:-0.075,swNT:0.64,foul:0.05,oz:0.14,ctMin:0.38,qNT:0,qT:0.08,qP:0,cut:0.24,ctNT:0.08};   // 狙っていないコースへの対応力（振る・当てる・カット・打球の質）と狙ったコースのヒット性   // 三振が多すぎないように：狙っていないストライクも振り、当てやすく、ファウル・打球を増やす   // 球種を作り直したときの全体のバランス調整（自分が投げる打席）   // ストライク→ボール／ボール→ストライク／曲がる前のマスを狙ったときの強さ（調整値）
 let BIPFX=null;   // 打球の結果に渡す球種の特徴（ゴロ・フライ・長打）
 // 球種ごとの特徴（自分が投げる打席・自分が打つ打席の両方で使う）
 //  x: {pt,r,c,sr,sc（曲がる前のマス）,hand（打者の打席）,phand（投手の利き腕）,mainT（打者の本命の球種）,mainSpd（本命の球速）,stSpd（この投手の直球の球速）}
@@ -646,6 +653,8 @@ function simulatePitch(r,c,pt,note){
     if(readCell) swingP=Math.max(swingP,0.9);   // 分析で張っていたコース
     if(abRead) swingP=Math.max(swingP,0.9);     // 打席の中で張っていたコース
     if(ab.balls===3&&ab.strikes===0) swingP*=0.45;
+    if(!protect&&b.appr==='agg') swingP+=APPR_K.agg.swZ+(ab.pitches.length===0?APPR_K.agg.first:0);   // 早打ち型：早いカウントから打ちに来る
+    if(!protect&&b.appr==='pat'&&!strictTarget&&!readCell&&!abRead) swingP+=APPR_K.pat.swZ+(ab.pitches.length===0?APPR_K.pat.first:0);   // 粘り打ち型：狙い以外は見送る
     swingP+=(PT_SWZ[pt]||0)+PIT_ADJ.sw;   // カーブ系は見送られやすい／小さく動く球はストライクに見えて手を出させる
     swingP+=fx.sw;           // ボール→ストライクは見逃されやすい など
     if(pt==='ストレート') swingP-=0.03*stLv();   // 伸びのあるストレートは見逃されやすい（Lvが低いと振られやすい）
@@ -674,6 +683,7 @@ function simulatePitch(r,c,pt,note){
     swingP*=1-0.25*gKeikP();                // 警戒：研究されていてボール球を振ってくれない
     if(sp>0&&r<=1) swingP+=0.04*sp;             // 速い高めの釣り球
     swingP+=CPU_ADJ.side.sw*opp;                 // 反対側のボール球に手が出やすい
+    swingP+=b.appr==='agg'?APPR_K.agg.swB:b.appr==='pat'?APPR_K.pat.swB:0;   // 早打ち型は手が出やすく、粘り打ち型は見極める
     if(!fx.sb) swingP*=CPU_ADJ.chase;            // ボール球の手の出しやすさ（成績の調整用。ストライク→ボールの球は除く）
     else swingP-=CPU_ADJ.sbTake;                 // ストライク→ボールの球も少し見逃せる
   }
@@ -741,6 +751,8 @@ function simulatePitch(r,c,pt,note){
   if(inZone) ct+=zoneHeavy*0.18;                // ストライクばかりだとタイミングを合わせられる
   if(showBall) ct-=0.05;                        // 見せ球が効いている
   if(sbl) ct-=CPU_ADJ.sbl.ct;                   // ストライク→ボールを振らされる
+  const patCut=b.appr==='pat'&&protect&&!strictTarget&&!readCell&&!abRead;   // 粘り打ち型：追い込まれたら狙い以外はカット
+  if(patCut) ct+=APPR_K.pat.cutCt;
   ct-=CPU_ADJ.side.ct*opp;                      // 片側に投げ続けたあとの反対側
   const kE=expSpd(gSpd), kk=kE!=null?clamp((Math.abs(speed-kE)-CPU_ADJ.kk.th)/CPU_ADJ.kk.span,0,1):0;   // 緩急：待っている球速とのずれ
   ct-=CPU_ADJ.kk.ct*kk;
@@ -748,7 +760,8 @@ function simulatePitch(r,c,pt,note){
   if(rnd()>ct) return {...base,kind:'swing',text:'空振り'};
 
   // --- ファウル判定 ---
-  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?PIT_ADJ.cut:0)-CPU_ADJ.foul-(sbl?CPU_ADJ.sbl.foul:0);   // 追い込まれるとファウルで粘る（全体を少し下げ、ストライク→ボールはカットしにくい）
+  let foulP=0.40+PIT_ADJ.foul+(inZone?0:0.15)+(inZone&&!isTarget&&!protect?0.12:0)-(strictTarget?0.08:0)+(protect?PIT_ADJ.cut:0)-CPU_ADJ.foul-(sbl?CPU_ADJ.sbl.foul:0);
+  foulP+=(b.appr==='agg'?APPR_K.agg.foul:0)+(patCut?APPR_K.pat.cutF:0);   // 早打ち型は前に飛ばす／粘り打ち型はカットで粘る   // 追い込まれるとファウルで粘る（全体を少し下げ、ストライク→ボールはカットしにくい）
   if(rnd()<foulP){
     if(rnd()<0.07){
       const f=wpick([['キャッチャー',5],['ファースト',2],['サード',2]]);
@@ -794,6 +807,8 @@ function simulatePitch(r,c,pt,note){
   if(inZone) q+=zoneHeavy*0.22;
   if(showBall) q-=0.05;
   if(sbl) q-=CPU_ADJ.sbl.q;
+  if(patCut) q-=APPR_K.pat.cutQ;   // カット狙いのスイングは強い打球になりにくい
+  if(strictTarget&&pt===guess) q+=DBL_Q;   // 狙ったコースに本命の球種：両方当たり
   q-=CPU_ADJ.side.q*opp+CPU_ADJ.kk.q*kk;   // 反対側・緩急で打ち損じ
   q+=noise(0.22);
 

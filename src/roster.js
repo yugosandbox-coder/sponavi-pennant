@@ -66,7 +66,8 @@ function toBatter(f,order){
   const hrRate=typeof cpuHrRate==='function'?cpuHrRate(f.p):clamp(HR_MIN*Math.pow(HR_MAX/HR_MIN,(f.p-18)/81),HR_MIN,HR_MAX);   // 本塁打率は自分と同じパワー依存の式
   const sh=shuffle(INNER), nG=ri(1,3), nB=ri(1,2);
   return {name:f.n,num:f.num,type:fType(f),hand:f.h,power:f.p,contact:f.m,speed:f.s,eye:f.e,avg,hrRate,
-    good:new Set(sh.slice(0,nG)),bad:new Set(sh.slice(nG,nG+nB)),target:genTarget(f.h),res:[],order,pos:f.pos,fid:f.id};
+    good:new Set(sh.slice(0,nG)),bad:new Set(sh.slice(nG,nG+nB)),target:genTarget(f.h),res:[],order,pos:f.pos,fid:f.id,
+    appr:typeof apprOf==='function'?apprOf(fType(f),f.e):'mid'};   // 打ち方（早打ち型・粘り打ち型・スタンダード型）は打席ごとに抽選し直す（nextBatter）
 }
 // スタメンを決める（守備位置ごとにいちばん評価の高い選手。指名打者は残りでいちばん打てる選手）
 // me：野手のあなた（このチームにいるとき）
