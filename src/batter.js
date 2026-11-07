@@ -791,7 +791,7 @@ function penCompete(quiet){
   // 守れるポジションごとのライバル（数字＝能力＋監督の評価）
   PEN.rivals={};
   for(const pos of myPositions()){
-    PEN.rivals[pos]={me:abS(posValue(myFielder(pos),pos)),list:T.F.filter(f=>f.pos===pos).map(f=>({n:f.n,v:abS(posValue(f,pos)),age:f.age,rookie:!!f.rookie})).sort((a,b)=>b.v-a.v).slice(0,3)};
+    PEN.rivals[pos]={me:abS(posValue(myFielder(pos),pos)),list:T.F.filter(f=>f.pos===pos).map(f=>({id:f.id,n:f.n,v:abS(posValue(f,pos)),age:f.age,rookie:!!f.rookie})).sort((a,b)=>b.v-a.v).slice(0,3)};
   }
   const main=PEN.slot&&PEN.rivals[PEN.slot]?PEN.slot:myPositions()[0];
   PEN.myVal=PEN.rivals[main].me; PEN.rival=PEN.rivals[main].list;
@@ -940,6 +940,7 @@ function abilityChangeB(s,minPA){
   if(old){ out.meet-=2; out.power-=1; out.eye-=1; out.speed-=1; }
   out.meet=clamp(out.meet,old?-3:-1,old?1:2); out.power=clamp(out.power,old?-3:-1,old?1:2);
   out.eye=clamp(out.eye,old?-3:-1,old?1:2); out.speed=clamp(out.speed,old?-4:-2,old?1:1); out.def=clamp(out.def,old?-3:-1,old?1:2);
+  if(typeof isDevP==='function'&&isDevP()) for(const k of ['meet','power','speed','eye','def']) if(out[k]<0){ out[k]=0; out.why[k]=(out.why[k]||'')+'（育成期間なので成績によるダウンなし）'; }   // 育成期間は成績によるダウンなし
   // 若手の成長：29歳までは、二軍でも一軍でも年齢に応じて毎年伸びる（±40%のばらつき）
   const yg=YOUTH_G(age);
   if(yg>0) for(const k of ['meet','power','speed','eye','def']){ if(k==='def'&&isTW()) continue;

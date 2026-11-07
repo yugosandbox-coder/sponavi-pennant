@@ -106,31 +106,47 @@ function battingOrder(st,m){
    チームの投手を「投手の力（能力）・今季の成績・通算の成績・監督の見方（調子・年齢の好み・三振重視など）」で総合評価して順位をつける。自分も同じ物差し
    先発候補（スタミナ60以上。自分は先発の配置のとき）の上位がローテーション、残りはブルペン（順位順。1番手が抑え） */
 const eraToR=e=>clamp(55+(5.3-e)/0.1,25,100);   // 防御率 → 投手の力と同じ目盛り
+// 成績の重み：今年の成績：通算成績＝7：3（今年が30回投げるまでは成績の重みが小さい）。年の初めは去年の最後の評価（順位）を引き継ぎ、今年の登板が増えるにつれて今年の評価に移る
 function pEval(o,m){
-  const s=o.s, c=o.c, ws=s&&s.outs?Math.min(1,s.outs/120)*0.5:0, wc=c&&c.outs?Math.min(1,c.outs/450)*0.25:0;
-  let v=o.rn*(1-ws-wc)+(ws?eraToR(s.er*27/s.outs)*ws:0)+(wc?eraToR(c.er*27/c.outs)*wc:0);
-  if(m&&m.p==='k'&&s&&s.outs>=30) v+=clamp((s.k*27/s.outs-8),-4,6);   // 奪三振至上主義
-  return v+(m&&m.a==='merit'?0.3:1)*(o.pf||0)+mgrAgeAdj(m,o.age)*0.8;
+  const s=o.s, c=o.c, so=s&&s.outs||0, co=c&&c.outs||0;
+  const ws=so?Math.min(1,so/90)*0.6:0, wc=co>=30?(so?ws*3/7:Math.min(1,co/450)*0.6*3/7):0;
+  let v=o.rn*(1-ws-wc)+(ws?eraToR(s.er*27/so)*ws:0)+(wc?eraToR(c.er*27/co)*wc:0);
+  if(m&&m.p==='k'&&s&&so>=30) v+=clamp((s.k*27/so-8),-4,6);   // 奪三振至上主義
+  v+=(m&&m.a==='merit'?0.3:1)*(o.pf||0)+mgrAgeAdj(m,o.age)*0.8;
+  if(o.prev!=null){ const wp=Math.max(0,1-Math.max(so/45,(PEN&&PEN.day||0)/40)); v=v*(1-wp)+o.prev*wp; }   // 去年の順位を引き継ぐ（今年15回・40試合で今年の評価だけに）
+  return v;
 }
-function myPitEval(m){ const ss=PEN.ss, c=PEN.career; return pEval({rn:abilityR(),s:{outs:ss.outs,er:ss.runs*0.9,k:ss.k},c:{outs:c.outs,er:c.runs*0.9},age:PEN.age,pf:Math.min(15,ss.mBonus||0)*0.5+favBonus()-(ss.tPen||0)},m); }
+function myPitEval(m,prev){ const ss=PEN.ss, c=PEN.career; return pEval({rn:abilityR(),s:{outs:ss.outs,er:ss.runs*0.9,k:ss.k},c:{outs:c.outs,er:c.runs*0.9},age:PEN.age,pf:Math.min(15,ss.mBonus||0)*0.5+favBonus()-(ss.tPen||0),prev},m); }
 const staffKey=T=>T.P.map(p=>p.pid).join(',');
+const PEN_MIN=5;   // ブルペン（ローテ外の先発候補を除く）に最低限残す人数
 function staffBuild(T,id,keep,reroll){
   const m=mgrOf(id), N=rotN(m); ensurePids();
-  while(T.P.length<N+5){ T.P.push(genRosterPitcher(ri(22,30),ri(-10,-2))); ensurePids(); }   // ローテの人数に合わせて投手をそろえる
+  while(T.P.length<2*N+3){ T.P.push(genRosterPitcher(ri(22,30),ri(-10,-2))); ensurePids(); }   // ローテ（N人）・ローテ外の先発候補（N−2人）・ブルペン（5人）がそろうように投手を補充
+  const pv=T.prevSc||{};   // 去年の最後の総合評価
   const E=T.P.map(p=>{ if(p.rn==null) p.q=pitQ(p); if(reroll||p.pf==null) p.pf=Math.round((rnd()-.5)*6);
-    return {id:p.pid,p,st:(p.stamina??86)>=STA_ROLE_MIN,sc:pEval({rn:p.rn,s:PEN.cs&&PEN.cs[p.pid],c:p.car,age:p.age,pf:p.pf},m)}; });
+    return {id:p.pid,p,st:(p.stamina??86)>=STA_ROLE_MIN,sc:pEval({rn:p.rn,s:PEN.cs&&PEN.cs[p.pid],c:p.car,age:p.age,pf:p.pf,prev:pv[p.pid]},m)}; });
   // 自分は配置（ローテ／ローテ外／中継ぎ／クローザー）が決まっていて、その中の番手だけが評価で決まる
-  let me=null; if(id===PEN.team&&!isBat()&&!PEN.released){ const cat=myPcat(); me={id:'ME',me:true,cat,grp:cat==='rot'||cat==='out'?'start':'relief',sc:myPitEval(m)}; E.push(me); }
-  const S=E.filter(x=>x.me?x.grp==='start':x.st).sort((a,b)=>b.sc-a.sc);
-  const rot=S.filter(x=>!x.me).slice(0,me&&me.cat==='rot'?N-1:N).concat(me&&me.cat==='rot'?[me]:[]);
-  const pen=E.filter(x=>!rot.includes(x)&&!(x.me&&x.grp==='start')).sort((a,b)=>b.sc-a.sc);
+  let me=null; if(id===PEN.team&&!isBat()&&!PEN.released){ const cat=myPcat(); me={id:'ME',me:true,cat,grp:cat==='rot'||cat==='out'?'start':'relief',sc:myPitEval(m,pv.ME)}; E.push(me); }
+  const tr=me&&PEN.trial?PEN.trial.to:null;   // お試し中は、その配置の最下位として（人数の上限を超えてもよい）。決まったらその時の最下位と入れ替え
+  const byS=(a,b)=>b.sc-a.sc, S=E.filter(x=>x.me?x.grp==='start':x.st).sort(byS), cpuS=S.filter(x=>!x.me);
+  const rot=cpuS.slice(0,me&&me.cat==='rot'&&tr!=='rot'?N-1:N).concat(me&&me.cat==='rot'?[me]:[]);
+  // ローテ外の先発候補：ローテに入らなかった投手の上位から（ローテの人数−2）人まで（ブルペンに最低5人は残す）。
+  //   上位半分は先発組（ロングリリーフ＋ときどき先発）、下位半分（奇数なら1人少ない）はロングリリーフのみ
+  const cap=Math.max(1,N-2), rest=cpuS.filter(x=>!rot.includes(x)), nCore=E.filter(x=>!x.me&&!rot.includes(x)).length;
+  let out=rest.slice(0,Math.max(0,Math.min(me&&me.cat==='out'&&tr!=='out'?cap-1:cap,nCore-PEN_MIN)));
+  if(me&&me.cat==='out') out=tr==='out'?out.concat([me]):out.concat([me]).sort(byS);   // お試し中は最下位
+  const ns=Math.ceil(out.length/2);
+  if(me&&me.cat==='out'&&tr!=='out'&&PEN.outSwap){ const i=out.indexOf(me); if(i>=ns){ out.splice(i,1); out.splice(ns-1,0,me); } }   // 監督の判断で先発組の最下位と入れ替え
+  // ブルペン：ローテとローテ外の先発候補を除いた投手（評価順。1番手がクローザー）。ローテ外の先発候補はロングリリーフとして最後に入る
+  const pen=E.filter(x=>!rot.includes(x)&&!out.includes(x)&&!(x.me&&x.grp==='start')).sort(byS);
   if(me&&me.cat==='close'){ pen.splice(pen.indexOf(me),1); pen.unshift(me); }
   else if(me&&me.cat==='pen'&&pen[0]===me&&pen.length>1){ pen[0]=pen[1]; pen[1]=me; }   // クローザーには打診（お試し）でしかならない
-  if(me&&me.grp==='start'&&!rot.includes(me)) pen.push(me);   // ローテ外の先発候補：ロングリリーフ（ブルペンの最後）
+  T.penN=pen.length; pen.push(...out);
   const ids=rot.map(x=>x.id); let order=ids;
-  if(keep&&T.rotIds&&T.rotIds.length===N){ order=T.rotIds.map(x=>ids.includes(x)?x:null); const nw=ids.filter(x=>!order.includes(x)); order=order.map(x=>x??nw.shift()); }   // 残る投手の登板順はそのまま、空いた枠に新しく入った投手
+  if(keep&&T.rotIds&&T.rotIds.length===ids.length){ order=T.rotIds.map(x=>ids.includes(x)?x:null); const nw=ids.filter(x=>!order.includes(x)); order=order.map(x=>x??nw.shift()); }   // 残る投手の登板順はそのまま、空いた枠に新しく入った投手
   if(!keep){ T.rotSt=null; T.spHist={}; }   // 開幕：登板の順番を作り直す
-  T.rotIds=order; T.penIds=pen.map(x=>x.id); T.rankS=S.map(x=>x.id); T.pSc={}; E.forEach(x=>T.pSc[x.id]=Math.round(x.sc)); T.rotKey=staffKey(T);
+  T.rotIds=order; T.penIds=pen.map(x=>x.id); T.rankS=S.map(x=>x.id); T.outIds=out.map(x=>x.id); T.outN=ns; T.pSc={}; E.forEach(x=>T.pSc[x.id]=Math.round(x.sc)); T.rotKey=staffKey(T);
+  if(tr==='rot') T.rankS=T.rankS.filter(x=>x!=='ME').concat(['ME']);   // お試し中はローテの最下位
 }
 function staff(T){
   const id=PEN&&PEN.teams?Object.keys(PEN.teams).find(k=>PEN.teams[k]===T):null;
@@ -147,10 +163,11 @@ function rotOrderByRank(T){ const R=T.rankS||[], ids=T.rotIds||[]; return R.filt
 // ローテ外の先発候補：ロングリリーフのほか、ときどき先発する（成績が良いほど多く、最大でローテ最下位の2/3）
 //  防御率2.50以下で最大、5.00以上で最小（最大の1割）。まだあまり投げていないときは4割
 function spotF(era,outs){ if(!outs||outs<15) return 0.4; return clamp((5.0-era)/2.5,0.1,1); }
-// ローテ外の先発候補：先発ができる投手のうちローテに入っていない投手（ブルペンの勝ちパターン＝クローザー・セットアッパー・3番手は除く）
-function outIds(T){ const p3=(T.penIds||[]).slice(0,3); return (T.rankS||[]).filter(x=>!(T.rotIds||[]).includes(x)&&!p3.includes(x)); }
+// ローテ外の先発候補（staffBuild で決まる）。outN＝そのうち先発組（ときどき先発）の人数
+function outIds(T){ if(T.outIds) return T.outIds; const p3=(T.penIds||[]).slice(0,3); return (T.rankS||[]).filter(x=>!(T.rotIds||[]).includes(x)&&!p3.includes(x)); }
+const outStartN=T=>T.outN!=null?T.outN:Math.ceil(outIds(T).length/2);
 function rotSpots(T,IN){
-  const out=outIds(T), L=out.slice(0,3); if(out.includes('ME')&&!L.includes('ME')) L.push('ME');
+  const L=outIds(T).slice(0,outStartN(T));   // 先発組だけがときどき先発（ロングリリーフ組は先発しない）
   return L.map(id=>{ let era=null,outs=0; if(id==='ME'){ const s=PEN.ss; outs=s.outs; era=outs?s.runs*0.9*27/outs:null; } else { const c=PEN.cs&&PEN.cs[id]; outs=c?c.outs:0; era=outs?c.er*27/outs:null; }
     return {id,w:(2/3)/IN*spotF(era,outs)}; });
 }
