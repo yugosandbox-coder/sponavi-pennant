@@ -243,11 +243,12 @@ function rebuildTeam(id){
   T.off=clamp((hs-50)*0.035,-0.6,0.6); T.def=clamp((ps-50)*0.02+(ds-50)*0.006,-0.6,0.6); T.fdef=ds;
   return st;
 }
-// 野手のあなた（スタメン争い用）：能力＋監督の評価（成績）
+// 野手のあなた（スタメン争い用）：能力＋監督の評価（成績）。ME_PF_ADD＝スタメンを外すかどうかを決めるときの今のスタメンの上乗せ
+let ME_PF_ADD=0;
 const myPositions=()=>PEN.favMod&&PEN.favMod.pos?[PEN.favMod.pos]:PEN.bAssign&&PEN.bAssign.pos&&isBat()?[PEN.bAssign.pos]:(PEN.bposs&&PEN.bposs.length?PEN.bposs:[PEN.bpos||'OF']);   // 打診で決まった守備位置があればそこだけ
 function myFielder(pos){
   const a=perfB(PEN.babil);   // 内部値でCPUと比べる
-  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6),num:B_NUM,isMe:true};
+  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6)+ME_PF_ADD,num:B_NUM,isMe:true};
 }
 
 /* ---- 年をまたぐとき：成長・衰え・引退、ドラフト ---- */

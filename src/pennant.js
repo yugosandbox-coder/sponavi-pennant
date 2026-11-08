@@ -296,10 +296,19 @@ function stagUpdate(yR){   // シーズン終了時に呼ぶ
   s.n = dull ? s.n+1 : 0; s.last=y; return s;
 }
 // シーズン中の評価（ノルマ方式・シーズン後の評価と同じ物差し）：今年55〜80%＋通算。ミッション達成・お気に入り度・お試しの未達は前の1.5倍（物差しが広がったぶん）
+// 最近の調子（野手）：打席に立った最近10試合の成績
+function recentBat(n){
+  const L=(PEN.days||[]).filter(g=>g.me&&g.me.bat&&g.me.bat.pa).slice(-(n||10)); if(!L.length) return null;
+  const s={pa:0,ab:0,h:0,d2:0,d3:0,hr:0,bb:0,hbp:0,k:0,sb:0}; L.forEach(g=>{ for(const k in s) s[k]+=g.me.bat[k]||0; }); return s;
+}
 function evalR(){
   const m=myMgr(), rt=isBat()?(s=>seasonRateB(m,s)):(s=>seasonRateP(m,s)), y0=rt(PEN.ss), c0=rt(PEN.career), sp=stagPenalty(), y=y0==null?null:y0-sp, c=c0==null?null:c0-sp;
   const mb=Math.min(15,PEN.ss.mBonus||0)*1.5;
   const tp=(PEN.ss.tPen||0)*1.5;   // お試しでノルマ未達だったぶん
+  if(isBat()){   // 野手：最近の調子（最近10試合）3：今年の成績 5：通算 2（無いものは除いて割り直す）
+    const r0=seasonRateB(m,recentBat(10)), r=r0==null?null:r0-sp, parts=[[r,0.3],[y,0.5],[c,0.2]].filter(x=>x[0]!=null);
+    if(!parts.length) return priorRB()+mb-tp;
+    const w=parts.reduce((t,x)=>t+x[1],0); return parts.reduce((t,x)=>t+x[0]*x[1],0)/w+mb+favBonus()*1.5-tp; }
   if(y==null&&c==null) return (isBat()?priorRB():priorRP(m))+mb-tp; if(y==null) return c+mb-tp; if(c==null) return y+mb-tp;
   const w=0.55+0.25*Math.min(1,isBat()?PEN.ss.pa/300:PEN.ss.outs/90);   // 今年の重み 55〜80%
   return y*w+c*(1-w)+mb+favBonus()*1.5-tp;   // ミッション達成で評価アップ。贔屓監督ならお気に入り度も
@@ -950,9 +959,10 @@ function bForce(to,text){
 // 10試合ごと：監督が考える起用（能力＋評価で組んだ打線）と今の起用を比べる。
 //  控え→スタメン：打診（断れる・5試合のお試し）／スタメン→控え：通告（断れない・5試合で見極め）
 //  スタメンの中の打順は話なしで入れ替わる（こちらから希望して決まった打順はそのシーズンそのまま）
-function bNatural(){
-  const T=myT(), sv=PEN.bAssign; PEN.bAssign=null; let st;
-  try{ st=battingOrder(bestStarters(T,PEN.team),T.mgr); }finally{ PEN.bAssign=sv; }
+const B_KEEP=+((typeof process!=='undefined'&&process.env&&process.env.BKEEP)||8);   // 今のスタメンは、ライバルがこれだけ上回らないと外さない
+function bNatural(add){
+  const T=myT(), sv=PEN.bAssign; PEN.bAssign=null; ME_PF_ADD=add||0; let st;
+  try{ st=battingOrder(bestStarters(T,PEN.team),T.mgr); }finally{ PEN.bAssign=sv; ME_PF_ADD=0; }
   const i=st.findIndex(x=>x.me); return i>=0?{pos:st[i].slot,order:i+1}:{bench:true};
 }
 function bUsageCheck(){
@@ -960,7 +970,7 @@ function bUsageCheck(){
   if(!PEN.bAssign) PEN.bAssign=bCurHold();   // 今の起用のまま（監督の話がないかぎり変わらない）
   penCompete(true);
   if(PEN.btrial||PEN.mgrOffer||PEN.favMod||PEN.day<(PEN.offerCool||0)||(typeof injured==='function'&&injured())) return;
-  const cur=bCurHold(), nat=bNatural(), n=PEN.pname;
+  const cur=bCurHold(), nat=bNatural(cur.bench?0:B_KEEP), n=PEN.pname;   // スタメンを外すのは、ライバルがはっきり上回ったときだけ
   if(cur.bench&&nat.bench) return;
   if(cur.bench) return mgrOfferSet('start',`${n}、評価が上がってきたな。スタメン（${bAsTxt(nat)}）で使ってみたい。5試合のお試しで、ノルマは${quotaTxt(bQuota5(nat.order,myMgr()))}だ。`,true,nat);
   if(nat.bench) return bForce({bench:true},`${n}、悪いが次からスタメンを外す。しばらく控えから出てもらう。`);

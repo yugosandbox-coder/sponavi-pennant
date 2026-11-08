@@ -894,7 +894,7 @@ function penGameDoneB(p){
   addBatLine(st,p.kind!=='pinch');
   if(G.mission) checkMissionB();
   afterAppearanceB();
-  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,bat:{pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
+  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
   PEN.pending=null; tradeCheck();
 }
 function addBatLine(st,start){
@@ -926,7 +926,7 @@ function penSkipB(){
   const res=teamResult(o,m); if(res==='W'&&m<=o) m=o+1; if(res==='L'&&o<=m) o=m+1;
   addBatLine(st,p.kind!=='pinch');
   afterAppearanceB();
-  recordMyGame(res,[o,m],{kind:p.kind,bat:{pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
+  recordMyGame(res,[o,m],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
   PEN.pending=null; tradeCheck();
 }
 // 打順・出番の入れ替え
