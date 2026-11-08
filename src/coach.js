@@ -11,7 +11,7 @@ const SAL_CAPS=[[26,1500000000],[21,1000000000],[15,700000000],[10,500000000],[6
 const salCap=p=>{ for(const [t,c] of SAL_CAPS) if(p>=t) return c; return 50000000; };
 const salMaxUp=s=>s<30000000?1.5:s<100000000?1.0:0.6;   // 1年で上がる幅の最大：3,000万未満+150%・1億未満+100%・1億以上+60%
 const streakBonus=n=>n>=2?Math.min(2,0.5*(n-1)):0;      // 連続タイトル：2年+0.5・3年+1・4年+1.5・5年以上+2
-const COACH_V={mental:3,analyst:4,trainer:0,agent:0,realtor:2,doctor:10,club:9,legend:7,rehab:10};   // 怪しい医者 案11（案10＋案6の緑のフラスコとシャツ）・球団コーチ 案10・伝説の野球選手 案8・リハビリトレーナー 案11（案9＋カルテボード）   // キャラクター：メンタリスト案4・アナリスト案5（大きいタブレット）・トレーナー案1（ボード）・代理人案1・不動産屋案3
+const COACH_V={mental:3,analyst:4,trainer:0,agent:0,realtor:2,doctor:10,club:9,legend:7,rehab:10,okami:0};   // 怪しい医者 案11（案10＋案6の緑のフラスコとシャツ）・球団コーチ 案10・伝説の野球選手 案8・リハビリトレーナー 案11（案9＋カルテボード）   // キャラクター：メンタリスト案4・アナリスト案5（大きいタブレット）・トレーナー案1（ボード）・代理人案1・不動産屋案3
 // 規定到達（野手：規定打席、投手：規定投球回か50登板、二刀流：どちらか）
 function isRegular(ss,bss){
   const bq=s=>!!(s&&s.pa!=null&&s.pa>=QUAL_PA), pq=s=>!!(s&&s.pa==null&&((s.outs||0)>=SEASON_GAMES*3||(s.g||0)>=50));
@@ -67,14 +67,16 @@ const cbSpark=()=>{ const m=cbOn('motion'); return m&&m.pitch||null; };
 const pinchMe=bs=>inPinch(bs)&&!cbG('yosho');   // 要所の戦い方：得点圏でも能力が下がらない
 function cbStaMul(){ let m=1; if(cbG('nebari')) m*=0.8; if(cbG('stamina')) m*=0.65; return m; }   // 疲れの影響（粘り勝つ −20%・体力トレーニング −35%）
 // 打撃の能力（シーズン後半+5・研究した球団との試合+5）
-function cbBab(a){
+function cbBab(a){ const r=cbBab0(a); return typeof fatBab==='function'?fatBab(r):r; }   // 疲労（限界）で能力ダウン
+function cbBab0(a){
   const o=cbAct(); if(!o||!a) return a; let add=0; const dAdd=o.tokushu?5:0;   // 特守：守備+5
   if(o.stamina&&PEN.day>=71) add+=5;
   if(o.scout&&PEN.pending&&PEN.pending.opp===o.scout.team) add+=5;
   if(!add&&!dAdd) return a; const r={...a}; for(const k of ['meet','power','speed','eye','def']) r[k]=Math.min(100,(a[k]??(k==='def'?70:50))+add+(k==='def'?dAdd:0)); return r;
 }
 // 投手の能力（研究した球団との試合：球速+2・コントロール+5・スタミナ+5）
-function cbAbil(a){
+function cbAbil(a){ const r=cbAbil0(a); return typeof fatAbil==='function'?fatAbil(r):r; }   // 疲労：試合の始めのスタミナが減る・限界で能力ダウン
+function cbAbil0(a){
   if(!a) return a; const s=cbOn('scout'); let r=a;
   if(s&&PEN.pending&&PEN.pending.opp===s.team) r={...r,velo:Math.min(VELO_MAX,r.velo+2),control:Math.min(100,r.control+5),stamina:Math.min(100,r.stamina+5)};
   if(cbOn('tokushu')) r={...r,control:Math.min(100,r.control+5)};   // 特守：コントロール+5
@@ -82,7 +84,8 @@ function cbAbil(a){
 }
 // スキップしたときの防御率（コーチの効果ぶん少し良くなる）
 function cbEraAdj(opp){
-  const o=cbAct(); if(!o) return 0; let d=0;
+  const lim=typeof myFat==='function'&&myFat()>=FAT_LIM?0.3:0;   // 疲労が限界だと打たれやすい
+  const o=cbAct(); if(!o) return -lim; let d=-lim;
   if(o.nebari) d+=0.12; if(o.yosho) d+=0.12; if(o.stamina) d+=0.1; if(o.motion&&o.motion.pitch) d+=0.15;
   if(o.scout&&opp&&opp===o.scout.team) d+=0.25;
   if(o.tokushu) d+=0.06; if(o.platoon) d+=0.08; if(o.run) d+=0.03;
@@ -174,6 +177,8 @@ const CB_ITEMS=[
   {id:'platoon',tier:'標準',   coach:'club',   name:'左右苦手克服',price:40000000},
   {id:'legend',tier:'標準',    coach:'legend', name:'覚醒合宿',price:50000000},
   {id:'joint', tier:'標準',    coach:'player', name:'他選手との合同自主トレーニング',price:60000000},
+  {id:'onsen', tier:'標準',    coach:'okami',  name:'温泉旅行',price:30000000},
+  {id:'toji',  tier:'高級',    coach:'okami',  name:'湯治',price:150000000},
   {id:'motion',tier:'高級',    coach:'analyst',name:'モーショントラッキング',price:200000000},
   {id:'cond',  tier:'高級',    coach:'rehab',  name:'コンディショニング',price:200000000},
   {id:'anti',  tier:'高級',    coach:'rehab',  name:'アンチエイジング',price:300000000},
@@ -212,7 +217,9 @@ function cbDesc(id){
     case 'tokushu': if(B) L.push(`${k==='W'?'打撃':'野手'}：守備+5・エラー半分`); if(P) L.push(`${k==='W'?'投球':'投手'}：コントロール+5・ピッチャーゴロ／ピッチャーライナーが少しだけ増える（ヒット性の当たりの一部がアウトに）`); break;
     case 'platoon': if(B) L.push(`${k==='W'?'打撃':'野手'}：今は「左打ちは右投手、右打ちは左投手に三振しにくい（空振り−12%）」。今季は同じ利き腕の投手にもこの有利がつく（どの投手にも両打ちのように打てる）`); if(P) L.push(`${k==='W'?'投球':'投手'}：今は「同じ利き腕の打者に有利」。今季は反対の打席の打者にも同じ有利がつく`); break;
     case 'legend': { const n=legendPool().length; L.push('まだ覚醒していない覚醒イベント（すべて。自分の立場に合うもの）から、ランダムに3つを発動'); L.push('もらった持ち点は、このあとの春季キャンプですぐ振り分けられる'); L.push(`<small>対象の覚醒：今 ${n}個／29歳までの毎年5%で現れる・生涯1回だけ</small>`); break; }
-    case 'cond': L.push('衰えの始まりを2年遅らせる（33歳50%・34歳75%・35歳100% → 35歳・36歳・37歳）'); L.push('36歳以上のシーズン後半のスランプの起きやすさを、ふつうの確率に戻す'); if(PEN.declAge) L.push(`<small>（もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない）</small>`); break;
+    case 'onsen': L.push(`去年から持ち越した疲労をすべて取る（今の疲労 ${Math.round(myFat())}）`); L.push('今季は疲労の回復が1.2倍'); break;
+    case 'toji': L.push(`回復力+8（ずっと。今 ${r1(PEN.recov??40)}）`); L.push('疲労の抜ける速さが上がる'); break;
+    case 'cond': L.push('衰えの始まりを2年遅らせる（33歳50%・34歳75%・35歳100% → 35歳・36歳・37歳）'); L.push('今季は疲労の溜まり方−20%'); if(PEN.declAge) L.push(`<small>（もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない）</small>`); break;
     case 'last': { const bs=bestSeason(); L.push(`<b>25%</b>：今シーズンの前半戦は、いちばん成績が良かった年${bs?`（${bs.year}年目・${bs.age}歳）`:''}の能力に戻る。後半戦は少しずつ下がり、レギュラーシーズン終了とともに元に戻る`); L.push(`<b>75%</b>：全能力−15${P?'（球速は−15km/h）':''}${P?'・変化球のLvが合計で3下がる（投げられなくなる球種もある）':''}。ずっと残る`); L.push('<small>35歳以上だけ・値段は全財産</small>'); break; }
     case 'money': L.push('次の年俸査定が+5〜10%（15億まで）'); L.push('FAになったら提示額+10%・契約年数が伸びやすい'); L.push(`<small>値段は今の年俸の8%（最低900万）</small>`); break;
     case 'house': L.push('買い切り・効果はずっと'); L.push('次の査定から寮費が引かれず、年俸をそのまま受け取れる'); break;
@@ -257,7 +264,7 @@ function offDecide(){
   if(sum>(PEN.money||0)) return;
   PEN.money=(PEN.money||0)-sum;
   const slots=shuffle([0,1,2]).slice(0,sel.length).sort((a,b)=>a-b), days=[null,null,null];
-  sel.forEach((id,i)=>{ days[slots[i]]={id,name:id==='joint'?'':randName()}; });
+  sel.forEach((id,i)=>{ days[slots[i]]={id,name:id==='joint'?'':cbItem(id).coach==='okami'?`${pick(SURN)} ${pick(['佳代子','美智子','千鶴','雅子','静香','和代','百合子','早苗'])}`:randName()}; });   // 女将さんは女性の名前
   Object.assign(O,{stage:'days',days,d:0,st:{},paid,sum});
   PEN.cb={y:PEN.year,on:{}};
   if(sum) penNotice(`🏝 オフにコーチを呼んだ：${sel.map(id=>`${cbItem(id).name}（${yen(paid[id])}）`).join('・')}。残りの所持金 ${yen(PEN.money)}`);
@@ -317,6 +324,8 @@ function cbTalk(D,st){
     case 'legend':{ h+=C(`……伝説の野球選手、${nm}だ。噂を聞いて来てみたが、いい目をしているな。`)+M('ほ、本物だ……！');
       const R=st.res||[]; h+=C(R.length?'お前の中に眠っている覚醒を、わしが引き出してやろう。……フンッ！':'……ふむ。お前には、もう引き出す覚醒が残っておらんな。');
       if(R.length) h+=`<div class="pcardx">${R.map(r=>`✨ ${r.name}${r.ex?`（${r.ex}）`:''}${r.pts?` 持ち点+${r.pts}`:''}`).join('<br>')}</div>`+C('持ち点は、このあとのキャンプで振り分けるといい。若いの、期待しているぞ。'); break; }
+    case 'onsen': h+=C(`ようこそおいでくださいました。女将の${nm}でございます。`)+M(myFat()>=30?'体が重くて……疲れが抜けないんです。':'シーズン前に、しっかり体を休めておきたくて。')+C('源泉かけ流しのお湯で、ゆっくり疲れを流してくださいませ。お食事も精のつくものをご用意しております。'); break;
+    case 'toji': h+=C(`女将の${nm}でございます。湯治は、お湯で体の芯から作り直すものでございます。`)+M(`疲れが抜けにくくなってきて……${PEN.age}歳ですから。`)+C('ひと月かけて、毎日少しずつ。お湯と食事と眠りで、疲れの抜けやすい体になりますよ。'); break;
     case 'cond': h+=C(`リハビリトレーナーの${nm}です。体の“衰え”は、手入れしだいで先送りできますよ。`)+M(age>=33?`${age}歳。まだまだ衰えたくないんです。`:'今のうちから準備しておきたいんです。')+C('関節の動きと、疲れの抜き方を作り直しましょう。それに、後半戦に崩れない体の使い方もね。'); break;
     case 'last':{ h+=C(`……ふふ、来たか。わしは${nm}。表の世界じゃ名乗れん医者だよ。`)+M('本当に、昔の体に戻れるんですか……？')+C('保証はせん。うまくいけば、全盛期の体がひと夏だけ戻る。しくじれば……まあ、覚悟はしておけ。');
       if(st.done) h+=st.ok?C(`……成功だ。${st.yr?`${st.yr}年目（${st.ag}歳）の`:''}全盛期の体だよ。夏が過ぎれば少しずつ元に戻るがな。`)+M('体が、軽い……！'):C('……ふむ。しくじったな。')+M('体が、重い……。')+C('だから言ったろう。全財産、確かに受け取ったよ。'); break; }
@@ -368,7 +377,9 @@ function cbDo(D,st,arg){
     case 'tokushu': on.tokushu={}; eff=[B&&`${k==='W'?'打撃：':''}守備+5・エラー半分`,P&&`${k==='W'?'投球：':''}コントロール+5・ピッチャーゴロ／ライナーが少し増える`].filter(Boolean).join('／')+'（今シーズン）'; break;
     case 'platoon': on.platoon={}; eff=[B&&`${k==='W'?'打撃：':''}同じ利き腕の投手にも左右の有利（空振り−12%）`,P&&`${k==='W'?'投球：':''}反対の打席の打者にも左右の有利`].filter(Boolean).join('／')+'（今シーズン）'; break;
     case 'legend':{ const R=legendDo(); st.res=R; const pts=R.reduce((t,r)=>t+(r.pts||0),0); eff=R.length?`覚醒を発動：${R.map(r=>r.name).join('・')}${pts?`（キャンプの持ち点 +${pts}）`:''}`:'引き出せる覚醒がなかった'; break; }
-    case 'cond': on.cond={}; eff=`衰えの始まりを2年遅らせる（35歳・36歳・37歳）・36歳以上の後半戦のスランプがふつうの確率に（今シーズン）${PEN.declAge?`<br><small>もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない</small>`:''}`; break;
+    case 'onsen': on.onsen={was:r1(myFat())}; PEN.fat=0; eff=`持ち越した疲労をすべて取った（${Math.round(on.onsen.was)}→0）・今季は疲労の回復が1.2倍`; break;
+    case 'toji': { const b=r1(PEN.recov??40); PEN.recov=r1(Math.min(100,b+8)); on.toji={}; eff=`回復力+8（${b}→${PEN.recov}）`; } break;
+    case 'cond': on.cond={}; eff=`衰えの始まりを2年遅らせる（35歳・36歳・37歳）・今季は疲労の溜まり方−20%（今シーズン）${PEN.declAge?`<br><small>もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない</small>`:''}`; break;
     case 'last':{ const r=lastDo(); on.last=r; st.ok=r.ok; st.yr=r.year; st.ag=r.age;
       eff=r.ok?`成功：前半戦は${r.year?`${r.year}年目（${r.age}歳）`:'全盛期'}の能力（${r.txt}）。後半戦は少しずつ下がり、レギュラーシーズン終了で元に戻る`:`失敗：${r.txt}（ずっと残る）`; break; }
     case 'money':{ const mm=Math.round((0.05+rnd()*0.05)*100)/100; on.money={mm}; eff=`次の年俸査定 +${Math.round(mm*100)}%（15億まで）・FAなら提示額+10%・契約年数が伸びやすい（今シーズン終わりの査定）`; break; }
@@ -453,6 +464,9 @@ function cbList(){
       case 'anti': t=`33歳を超えてからの衰えの倍率が半分${!isBat()?'・変化球が年齢で下がらない':''}（今季終わりの査定）`; break;
       case 'motion': t=[v.type&&`打者タイプ「${v.type}」`,v.pitch&&`✨${v.pitch}が打たれにくい（空振り+5%・打球の質−0.06）`].filter(Boolean).join('／'); break;
       case 'joint': t=`${v.lab} +${v.g}（${v.names.join('・')}と）※ずっと残る`; break;
+      case 'onsen': t=`持ち越した疲労をすべて取った（${Math.round(v.was||0)}→0）・疲労の回復1.2倍`; break;
+      case 'toji': t='回復力+8 ※ずっと残る'; break;
+      case 'cond': t='衰えの始まりを2年遅らせる・疲労の溜まり方−20%'; break;
       case 'money': t=`次の年俸査定 +${Math.round(v.mm*100)}%・FAなら提示額+10%`; break;
     }
     L.push({name:it.name,coach:COACH_KIND_JP[it.coach]||'他選手',t});

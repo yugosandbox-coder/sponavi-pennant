@@ -458,6 +458,8 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 .ptip b{color:#f5c542;font-size:14px;margin-right:6px}.ptip small{color:#9fb3a5}.ptip div{margin-top:3px}
 svg.crown{vertical-align:-3px;margin-right:1px}
 .sh3{font-size:12px;font-weight:800;color:var(--accent);margin:10px 0 3px;letter-spacing:.05em}.sh3 small{color:var(--mute);font-weight:400;letter-spacing:0}
+.fatline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:2px 0 6px;font-size:12.5px;color:var(--mute)}
+.fatb{display:inline-flex;align-items:center;gap:5px;vertical-align:middle}.fatb i{display:inline-block;width:70px;height:8px;background:#ffffff14;border-radius:4px;overflow:hidden}.fatb i b{display:block;height:100%}.fatb em{font-style:normal;font-weight:800;font-size:13px}.fatb small{font-size:11px;color:var(--mute)}.fatb.sm i{width:40px;height:6px}.fatb.sm em{font-size:11.5px}
 .meprof .mept{width:100%;border-collapse:collapse;font-size:13px;margin:2px 0}.meprof .mept th,.meprof .mept td{padding:5px 4px;border-bottom:1px solid #20382b;text-align:left;vertical-align:top}.meprof .mept th{color:var(--mute);font-weight:700;width:30%}.meprof .mept small{color:var(--mute)}
 .prof .meprof table{margin-top:2px}.prof .meprof .sctbl+.sctbl,#penScreen .sctbl+.sctbl{margin-top:18px}.prof .meprof .stt th{width:auto}.prof .meprof .stt th,.prof .meprof .stt td{padding:4px 4px}.prof .meprof .stt td{text-align:right}.prof .meprof .stt th:first-child,.prof .meprof .stt td:first-child{text-align:left}.prof .meprof .abtbl td{text-align:left}.prof .meprof .meseas .stt td,.prof .meprof .meseas .stt th{text-align:left;font-size:11.5px;padding:4px 3px}.prof .meprof .abtbl th{width:96px}
 .abtbl,.sctbl{width:100%;font-size:12.5px}.abtbl th{width:96px;text-align:left}.abtbl td{text-align:left}
@@ -614,7 +616,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   <div id="posSec" style="display:none">
     <div class="sh">ポジション</div>
     <div class="seg3" id="poscards"></div>
-    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は、投手（75〜130）と野手（90〜145）の持ち点を足して0.75倍した点数で、投手と打撃の能力に自由に分け合います。</div>
+    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は、投手（85〜135）と野手（100〜150）の持ち点を足して0.75倍した点数で、投手と打撃の能力に自由に分け合います。</div>
     <div id="bhandSec" style="display:none"><div class="sh">打席（打ち）</div><div class="seg3" id="bhcards"></div><div class="abhint" id="bhandNote"></div></div>
   </div>
   <div id="roleSec" style="display:none">
@@ -652,6 +654,8 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div class="abhint">ボール球を振らない・追い込まれてから狙っていない球をカットできる（低いとボール球に手を出し、狙い球でも打ち損じる）</div>
     <div id="bDefRow"><div class="abrow"><span class="abn">守備</span><input type="range" id="bDef" min="0" max="100" step="0.1"><b id="bDefV"></b></div>
     <div class="abhint">スタメン争いで有利に（捕手・遊撃手ほど大事）。チームの失点も少し減る</div></div>
+    <div id="bRecRow"><div class="abrow"><span class="abn">回復力</span><input type="range" id="bRec" min="0" max="50" step="0.1"><b id="bRecV"></b></div>
+    <div class="abhint">疲労の抜ける速さ（低いと疲れが残りやすく、スランプ・ケガが増える）。0〜50（入団時）。1ごとに1ポイント</div></div>
     <div class="abhint">どの能力も0から。1上げるごとに1ポイント（0.1で0.1ポイント）。ペナントの入団時は各能力50まで（プロのスタメンは平均60前後）</div>
     <button class="btn" id="bAuto" style="width:100%;margin-top:8px">おまかせで振り分ける</button>
   </div>
@@ -665,6 +669,8 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div class="abhint">0〜50（入団時）。1ごとに1ポイント（低いと狙ったマスからずれやすい）</div>
     <div class="abrow"><span class="abn">スタミナ</span><input type="range" id="abSta" min="0" max="50" step="0.1"><b id="abStaV"></b></div>
     <div class="abhint">0〜50（入団時）。1ごとに1ポイント（低いと早く疲れ、球数で交代される）</div>
+    <div class="abrow"><span class="abn">回復力</span><input type="range" id="abRec" min="0" max="50" step="0.1"><b id="abRecV"></b></div>
+    <div class="abhint">疲労の抜ける速さ（低いと登板の疲れが残りやすく、スランプ・ケガが増える）。0〜50（入団時）。1ごとに1ポイント</div>
     <div class="sh">変化球（ストレート以外に0〜2つ）</div>
     <div class="abhint">Lv.1＝1ポイント、そこから1段上げるごとに2・3・4・5ポイント（Lv.2＝3・Lv.3＝6・Lv.4＝10・Lv.5＝15ポイント）。ストレートの伸びも同じです。入団時はLv.5まで、プロ入り後はキャンプなどでLv.7まで上がります</div>
     <div id="abBreak"></div>

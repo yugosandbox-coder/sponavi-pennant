@@ -25,7 +25,7 @@ const mgrOrder=m=>(m&&m.o)||'std';   // 打順志向
 const mySubMgr=()=>{ const m=myMgr(); return !!(m&&m.o==='sub'); };   // 代打多用型の監督か
 const myMgr=()=>PEN?mgrOf(PEN.team):null;
 const mgrName=m=>m?`${m.sur}監督`:'監督';
-const mgrCampBonus=m=>m?Math.floor((0.2+(clamp(m.lv,1,5)-1)/4*1.8)*2+1e-9)/2:0;   // 采配レベルで+0〜+2.0（0.5刻みに切り下げ：レベル1.7未満0・1.7〜2.7で0.5・2.8〜3.8で1.0・3.9〜4.9で1.5・5.0で2.0）
+const mgrCampBonus=m=>m?r1(0.2+(clamp(m.lv,1,5)-1)/4*1.8):0;   // 采配レベルで+0.2〜+2.0
 const isFavMgr=()=>{ const m=myMgr(); return !!(m&&m.a==='fav'); };
 // 贔屓起用：お気に入り度（0〜100）。ミッション達成で上がり、失敗・打診を断ると下がる
 function favChange(d){ const m=myMgr(); if(!m||m.a!=='fav') return; const was=m.fav||0; m.fav=clamp(r1(was+d),0,100);

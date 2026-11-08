@@ -77,13 +77,32 @@ const stealTry=spd=>{ const r=typeof cbOn==='function'&&cbOn('run'), th=r?45:55;
 const B_NUM=7;   // 野手の背番号
 
 /* ---- 相手投手 ---- */
-// 相手投手：回で決まる（先発〜6回・7回・8回・9回）。スタミナが切れたら次の投手に早めに交代
+// 相手投手：G.pits＝[先発, 抑え, セットアッパー, 中継ぎ…]。CPUどうしの試合（自分が投げるときの監督）と同じ基準で代える
+//   先発：攻撃の回の始めに、スタミナの残り・失点で交代（spPullCheck）。打席の途中でスタミナが切れたら、その打席のあとに交代
+//   リリーフ：1〜2回（3〜6アウト）か3失点で交代。9回以降でリード3点以内なら抑え、8回以降はセットアッパー、それより前は下位の中継ぎから
 function cpuSta(i){ G.psta=G.psta||[]; return G.psta[i]||(G.psta[i]=staNew(((G.pits&&G.pits[i])||{}).stamina??50)); }
-function curPitIdx(){ if(!G||!G.pits||!G.pits.length) return 0; let i=G.inning<=6?0:G.inning===7?1:G.inning===8?2:3; i=Math.min(Math.max(i,G.pitMin||0),G.pits.length-1);
-  while(i<G.pits.length-1&&cpuSta(i).cur<=0&&!(G.meUp&&G.ab&&G.ab.pitches&&G.ab.pitches.length)) i++;   /* 打席の途中では代えない */ if(i>(G.pitMin||0)) G.pitMin=i; return i; }
+const oppPitState=()=>G.opS||(G.opS={cur:0,used:[0],r:0,rI:0,o:0,max:null});
+function curPitIdx(){ if(!G||!G.pits||!G.pits.length) return 0; const S=oppPitState();
+  if(cpuSta(S.cur).cur<=0&&!(G.meUp&&G.ab&&G.ab.pitches&&G.ab.pitches.length)) oppPitChange('スタミナ切れ');   /* 打席の途中では代えない */
+  return S.cur; }
+function oppRelief(){ const S=oppPitState(), un=i=>i<G.pits.length&&!S.used.includes(i), L=oppTot()-myTot(), inn=G.inning;
+  if(inn>=9&&L>0&&L<=3&&un(1)) return 1; if(inn>=8&&un(2)) return 2;
+  for(let i=3;i<G.pits.length;i++) if(un(i)) return i; for(const i of [2,1]) if(un(i)) return i; return null; }
+function oppPitChange(why){ const S=oppPitState(), n=oppRelief(); if(n==null) return false; const p0=G.pits[S.cur], p=G.pits[n];
+  S.cur=n; S.used.push(n); S.r=0; S.rI=0; S.o=0; S.max=ri(1,2)*3;
+  if(typeof addLog==='function') addLog(`<div class="relief">🔁 ${G.names&&G.names.opp?G.names.opp.name:'相手'}の投手交代：${p0?p0.name:''} → <b>${p?p.name:''}</b>${why?`（${why}）`:''}</div>`);
+  return true; }
+// 味方の攻撃の始め：相手投手を代えるか
+function oppPitHalfStart(){ if(!G||!G.pits||!G.pits.length) return; const S=oppPitState(), L=oppTot()-myTot(), inn=G.inning;
+  if(S.cur===0){ if(typeof spPullCheck==='function'&&spPullCheck(cpuSta(0),S.r,S.rI,L,inn)) oppPitChange(cpuSta(0).cur/Math.max(1,cpuSta(0).max)<0.3?'疲れが見えた':`${S.r}失点`); }
+  else if(S.o>=S.max||S.r>=3||cpuSta(S.cur).cur<=0) oppPitChange();
+  else if(inn>=9&&L>0&&L<=3&&S.cur!==1&&!S.used.includes(1)) oppPitChange('抑え');
+  S.rI=S.r; }
+const oppPitAdd=(runs,outs)=>{ if(!G||!G.pits) return; const S=oppPitState(); S.r+=runs||0; S.o+=outs||0; };   // 相手投手の失点・アウト
 const curPit=()=>G.pits[curPitIdx()];
 const curPitF=()=>G&&G.pits?staF(cpuSta(curPitIdx())):0;   // 相手投手の疲れ（0〜1.5）
 const cpuStaUse=(pit,n)=>{ const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-n); };
+const cpuStaHit=(pit,res,runs,idx)=>{ const S=cpuSta(idx??curPitIdx()), c=staHitCost(res,runs,S.S,pit?pitLv(pit,'ストレート'):3); if(c) S.cur=r1(S.cur-c); };   // 打たれると相手投手は余分にスタミナを使う
 const pitSpeed0=(pit,t)=>pit.velo-3+(VOFF[t]||0);   // その球種の平均球速（疲れる前）
 // 今の平均球速：投げている投手が疲れていると、全球種がストレートと一番遅い球の中間に近づく（球速バーにもそのまま出る）
 function pitSpeed(pit,t){ const b=pitSpeed0(pit,t); if(!G||!G.pits||!G.bat||pit!==G.pits[curPitIdx()]) return b; const f=curPitF(); if(!f) return b;
@@ -338,12 +357,13 @@ const stealKey=()=>G.inning+G.half+G.bases.join('');   // 同じ走者の状況�
 function canSteal(){ const i=meOnBase(); return !G.over&&G.half==='bot'&&G.outs<3&&(i===0||i===1)&&!G.bases[i+1]&&G.babil.speed>=35; }
 // 味方の攻撃を1打席ずつ進める。自分の番（または盗塁の判断）が来たら止まる
 function bottomRun(Q){
-  const T=G.myTeam, pit=curPit();
+  const T=G.myTeam; let pit=curPit();
   if(G.walk) return 'end';
   while(G.outs<3){
+    pit=curPit();   // スタミナ切れで代わっていればその投手
     if(canSteal()&&G.stealAsk!==stealKey()&&!G.autoMe) return 'steal';
     if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=(typeof cbG==='function'&&cbG('run')?0.65:0.75)) Q.push(doSteal()); if(G.outs>=3) break; }
-    if(G.subIn&&!G.subbed&&G.meActive&&!G.pinch&&G.inning>=G.subIn){ G.meActive=false; G.subbed=true; addLog(`<div class="ab" style="color:var(--mute)">◆ ${G.subIn}回から守備固めの選手と交代（ここからはベンチで見守る）</div>`); }   // 守備に不安があると終盤に交代
+    if(G.subIn&&!G.subbed&&G.meActive&&!G.pinch&&G.inning>=G.subIn){ G.meActive=false; G.subbed=true; addLog(`<div class="ab" style="color:var(--mute)">◆ ${G.subIn}回から${G.subFat?'疲労のため交代':'守備固めの選手と交代'}（ここからはベンチで見守る）</div>`); }   // 守備に不安があると終盤に交代
     const nx=(T.order+1)%9, pinchNow=G.pinch&&!G.pinch.done&&G.inning===G.pinch.inning&&G.halfPA>=G.pinch.after;
     if((T.lineup[nx].isMe&&G.meActive)||pinchNow){
       if(pinchNow){ G.pinch.done=true; G.me.order=nx+1; }
@@ -351,11 +371,11 @@ function bottomRun(Q){
       if(G.autoMe){ Q.push(autoMyPA(pit)); if(G.walk) return 'end'; continue; }
       startMyPA(); return 'me';
     }
-    T.order=nx; G.halfPA++;
+    T.order=nx; G.halfPA++; pit=curPit();   // 投手が代わっていればその投手
     const b=T.lineup[nx], r=simPA(b,pit.q*(1+curPitF()*0.12)*(inPinch(G.bases)?PINCH.mul:1)), kind=r==='K'?'K':r;
-    { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*S.S/(S.S+staN(S.S))); }   // 味方の打席でも相手投手はスタミナを使う
+    { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*staK(S.S)); }   // 味方の打席でも相手投手はスタミナを使う
     const adv=bAdvance(G.bases,kind,1,G.outs);
-    G.bases=adv.b; G.outs+=adv.o; const runs=adv.sc.length; if(adv.sc.includes(2)) G.st.run++;
+    G.bases=adv.b; G.outs+=adv.o; const runs=adv.sc.length; cpuStaHit(pit,r,runs); oppPitAdd(runs,adv.o); if(adv.sc.includes(2)) G.st.run++;
     G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs;
     const hit=['1B','2B','3B','HR'].includes(r); if(hit) G.hitsMy++;
     b.res.push({'1B':'安打','2B':'二塁打','3B':'三塁打','HR':'本塁打','BB':'四球','K':'三振','GO':adv.dp?'併殺':'ゴロ','FO':'飛'}[r]);
@@ -388,7 +408,7 @@ function batProceed(){
     if(G.half==='top'){
       if(G.outs<3) topHalf(Q);
       if(!G.tryout&&G.inning>=INNINGS&&myTot()>oppTot()){ G.xBottom=true; batFinish(); break; }   // 9回以降、表の終わりでリード
-      G.half='bot'; G.outs=0; G.bases=[0,0,0]; G.score.my[G.inning-1]=G.score.my[G.inning-1]||0; G.halfPA=0; G.stealAsk=null;
+      G.half='bot'; G.outs=0; G.bases=[0,0,0]; G.score.my[G.inning-1]=G.score.my[G.inning-1]||0; G.halfPA=0; G.stealAsk=null; oppPitHalfStart();
     }
     if(G.tryout&&G.st.pa>=TRYOUT_PA){ batFinish(); break; }   // トライアウトは10打席で終わり
     const st=bottomRun(Q);
@@ -441,14 +461,14 @@ function batAfterPitch(p0){
 }
 const B_LABEL={K:'三振',BB:'四球',HBP:'死球'};
 function batEndPA(kind,p){
-  const st=G.st, A=G.babil; G.meUp=false; G.abOver=true;
+  const st=G.st, A=G.babil, pi0=G.pits?curPitIdx():0; G.meUp=false; G.abOver=true;   // pi0：この打席の相手投手
   st.pa++;
   const bsU=G.bsty||'n'; G.bstyN=G.bstyLast===bsU?(G.bstyN||1)+1:1; G.bstyLast=bsU;   // 同じ打ち方の連続（試合ごとにリセット）
   if(G.tryout){ G.tryoutEnd=true; }
   let big,sub,cls,rbi=0;
   const map={'1B':'1B','IFH':'IFH','2B':'2B','3B':'3B','HR':'HR','GO':'GO','FO':'FO','LO':'LO','PO':'PO','FF':'FF','K':'K','BB':'BB','HBP':'HBP'};
   const adv=bAdvance(G.bases,map[kind],2,G.outs);
-  G.bases=adv.b; G.outs+=adv.o; const runs=adv.sc.length;
+  G.bases=adv.b; G.outs+=adv.o; const runs=adv.sc.length; if(G.pits){ cpuStaHit(G.pits[pi0],kind,runs,pi0); oppPitAdd(runs,adv.o); }
   G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs;
   if(adv.sc.includes(2)) st.run++;
   if(kind!=='GO'||!adv.dp) rbi=runs;
@@ -511,9 +531,9 @@ function autoKind(A,pit,risp){
 }
 function autoMyPA(pit){
   const kind=autoKind(G.babil,pit,inPinch(G.bases)), st=G.st; st.pa++; G.bstyLast='n'; G.bstyN=1;   // おまかせの打席は「通常」
-  { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*S.S/(S.S+staN(S.S))); }
+  { const S=cpuSta(curPitIdx()); S.cur=r1(S.cur-ri(1,7)*staK(S.S)); }
   const adv=bAdvance(G.bases,kind,2,G.outs); G.bases=adv.b; G.outs+=adv.o;
-  const runs=adv.sc.length; G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs; if(adv.sc.includes(2)) st.run++;
+  const runs=adv.sc.length; cpuStaHit(pit,kind,runs); oppPitAdd(runs,adv.o); G.score.my[G.inning-1]=(G.score.my[G.inning-1]||0)+runs; if(adv.sc.includes(2)) st.run++;
   const hit=['1B','IFH','2B','3B','HR'].includes(kind);
   if(kind==='BB') st.bb++; else if(kind==='HBP') st.hbp++; else if(!adv.sf) st.ab++;
   if(kind==='K') st.k++;
@@ -570,7 +590,11 @@ const batLineTxt=s=>`${s.ab}打数${s.h}安打${s.hr?` ${s.hr}本塁打`:''}${s.
 /* ================= 二刀流：先発の日は打席にも立つ（DHなし） ================= */
 const isTW=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.pos==='W');
 const hasBat=()=>!!(typeof PEN!=='undefined'&&PEN&&(PEN.pos==='B'||PEN.pos==='W'));
-function twBatEval(){ const r=seasonRateB(myMgr(),PEN.bss||batStat()); return r==null?priorRB():r; }   // 二刀流の打撃の評価（ノルマ方式）
+function twBatEval(){ const r=seasonRateB(myMgr(),PEN.bss||batStat()); return r==null?priorRB():r; }
+// 二刀流の指名打者の判定（シーズン中）：投手とは別に打撃だけで見る。最近10試合3：今年5：通算2で、最近の不振がすぐ響く。さらに二刀流は不利（TW_DH_PEN）
+const TW_DH_PEN=5;
+function twDhEval(){ const m=myMgr(), r=seasonRateB(m,recentBat(10)), y=seasonRateB(m,PEN.bss||batStat()), c=seasonRateB(m,PEN.bcareer||batStat()), parts=[[r,0.3],[y,0.5],[c,0.2]].filter(x=>x[0]!=null);
+  if(!parts.length) return priorRB(); const w=parts.reduce((t,x)=>t+x[1],0); return parts.reduce((t,x)=>t+x[0]*x[1],0)/w; }   // 二刀流の打撃の評価（ノルマ方式）
 // 試合を二刀流用にする（newGame のあと）
 function twSetup(lineup){
   const me=lineup.find(b=>b.isMe);
@@ -582,7 +606,7 @@ function twSetup(lineup){
 // 表が終わったら、その裏の攻撃（自分の打席は自分で打つ）
 function twBottomStart(){
   G.pctx={st:G.st,ab:G.ab,abOver:G.abOver};
-  Object.assign(G,{bat:true,half:'bot',outs:0,bases:[0,0,0],st:G.bst,ab:{balls:0,strikes:0,pitches:[]},abOver:true,halfPA:0,stealAsk:null,walk:false,meUp:false});
+  Object.assign(G,{bat:true,half:'bot',outs:0,bases:[0,0,0],st:G.bst,ab:{balls:0,strikes:0,pitches:[]},abOver:true,halfPA:0,stealAsk:null,walk:false,meUp:false}); oppPitHalfStart();
   G.score.my[G.inning-1]=0;
   addLog(`<div class="chg">― ${G.inning}回表終了　相手 ${oppTot()} − ${myTot()} 味方 ―</div>`);
   return batProceed();
@@ -883,7 +907,9 @@ function penCompete(quiet){
 }
 function makePendingB(kind,oppId){
   const d=PEN.day, p={day:d,opp:oppId||oppOf(d),kind,order:PEN.order,slot:PEN.slot};
-  if(kind==='start'&&!isTW()&&PEN.slot&&PEN.slot!=='DH'){ const bd=defBad(); if(bd>0&&rnd()<clamp(0.05+bd*0.25,0,0.45)) p.subIn=ri(7,8); }   // 守備に不安があると終盤に守備固めと交代
+  const stK=kind==='start'||kind==='bat';   // スタメンの試合（'bat'）
+  if(stK&&!isTW()&&PEN.slot&&PEN.slot!=='DH'){ const bd=defBad(); if(bd>0&&rnd()<clamp(0.05+bd*0.25,0,0.45)) p.subIn=ri(7,8); }   // 守備に不安があると終盤に守備固めと交代
+  if(stK&&!p.subIn&&typeof fatSubToday==='function'&&fatSubToday()){ p.subIn=ri(6,7); p.subFat=true; }   // 疲労が溜まっていると試合の途中で交代
   if(kind==='pinch') p.pinchInning=(typeof mySubMgr==='function'&&mySubMgr())?ri(4,7):ri(6,8);   // 代打多用型の監督は早い回から
   return p;
 }
@@ -899,12 +925,12 @@ function penPlayB(p){
   showScreen('game');
   batNewGame({OPP:{pattern:op.pattern,hand:op.hand}, lineup:op.lineup.map(deB).map(b=>({...b,res:[]})),
     myLineup:LU.map(plainB), myTeam:{name:LINEUPS[me.pattern]?LINEUPS[me.pattern].name:'',hand:HANDS[me.hand]?HANDS[me.hand].name:''},
-    pits:[gpO.sp,...gpO.pen], ours:[gpM.sp,...gpM.pen.slice(0,2)], defAdj:clamp(1-((me.fdef||50)-50)*0.003,0.9,1.1)*(me.errUp>PEN.day?1.12:1),
+    pits:[gpO.sp,...gpO.bull], ours:[gpM.sp,...gpM.pen.slice(0,2)], defAdj:clamp(1-((me.fdef||50)-50)*0.003,0.9,1.1)*(me.errUp>PEN.day?1.12:1),
     names:{my:{name:TEAM[PEN.team].short,s:TEAM[PEN.team].s,id:PEN.team},opp:{name:TEAM[p.opp].short,s:TEAM[p.opp].s,id:p.opp}},
     pname:PEN.pname, bhand:PEN.bhand||'R', babil:p.oddBabil||PEN.babil, kind:p.kind, order:myIdx>=0?myIdx+1:9, pinchInning:p.pinchInning, slot:isTW()?'DH':p.slot, ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])),
     pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})},
     mission: p.odd?null:(rnd()<(p.ps?EV_MP:0.35) ? genMissionB(p.kind) : null)});   // ポストシーズンは出やすい
-  G.subIn=p.subIn||0;
+  G.subIn=p.subIn||0; G.subFat=!!p.subFat;
   const Q=batProceed();
   // 代打はその回の少し前から見せる（それより前の回はまとめて済ませる）
   const show = p.kind==='pinch' ? Q.filter(e=>e.inning>=G.pinch.inning) : Q;
@@ -920,7 +946,7 @@ function penGameDoneB(p){
   addBatLine(st,p.kind!=='pinch');
   if(G.mission) checkMissionB();
   afterAppearanceB();
-  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,note:[G.subbed&&`${G.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
+  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,note:[G.subbed&&`${G.subIn}回から${G.subFat?'疲労で交代':'守備固めと交代'}`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
   PEN.pending=null; tradeCheck();
 }
 function addBatLine(st,start){
@@ -953,7 +979,7 @@ function penSkipB(){
   if(p.subIn) st.subIn=p.subIn;
   addBatLine(st,p.kind!=='pinch');
   afterAppearanceB();
-  recordMyGame(res,[o,m],{kind:p.kind,note:[p.subIn&&`${p.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
+  recordMyGame(res,[o,m],{kind:p.kind,note:[p.subIn&&`${p.subIn}回から${p.subFat?'疲労で交代':'守備固めと交代'}`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
   PEN.pending=null; tradeCheck();
 }
 // 打順・出番の入れ替え

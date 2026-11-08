@@ -41,20 +41,24 @@ function genFielder(pos,age,tier){
   const f={id:'f'+(Date.now()%1e6)+'_'+(FID++),n:randName(),pos,h:rnd()<0.33?'L':'R',age,pf:0,num:ri(0,99)};
   for(const k in D) f[k]=Math.round(abPerf(clamp(D[k],1,100))*10)/10;   // 試合では内部値
   if(age>=34&&rnd()<0.8) f.decl=age-ri(0,1);
+  f.rec=cpuRecGen(age); f.fat=0;   // 回復力・疲労
   return f;
 }
 // 投手を作る（tier＝平均からのずれ）。コントロール・スタミナの平均は50、球速は年齢と質で上下
-// CPUの投手：コントロール＋スタミナの合計の平均が18歳46 → 30歳134、球速の平均が18歳135 → 30歳144km/h。先発型はスタミナ、中継ぎ型はコントロール・球速に寄りがち
+// CPUの投手：コントロール＋スタミナの合計の平均が18歳46 → 30歳134、球速の平均が18歳135 → 30歳144km/h。先発型（55%）はスタミナに大きく寄り（30歳でスタミナ100近く）、中継ぎ型はコントロール・球速に寄りがち
 const CPU_PCS=a=>a<=18?CPU_G.c0:a>=30?CPU_G.c1:CPU_G.c0+(a-18)*(CPU_G.c1-CPU_G.c0)/12;
 const CPU_PV=a=>a<=18?135:a>=30?144:135+(a-18)*0.75;
 const CPU_PDECL=a=>a<=32?0:a===33?2:a===34?6:a===35?10:10+(a-35)*6;   // 作るときの衰えの目安（コントロール＋スタミナ）
+const CPU_SP_STS=0.76, CPU_SP_GW={control:20,stamina:60};   // 先発型：コントロール＋スタミナのうちスタミナに振る割合（作るとき）・伸びるときの重み（スタミナ寄り）
+const SP_STA_W=0.5;   // 先発ローテの順位で見るスタミナの重み（80を基準に1あたり0.3。60で−6・100で+6）
 function genRosterPitcher(age,tier){
-  const p=genPitcher(); p.age=age; const t=tier||0; p.prole=rnd()<0.45?'sp':'rp'; const sp=p.prole==='sp';
-  const cs=CPU_PCS(age)-CPU_PDECL(age)+t*3, stS=sp?0.62:0.45;
+  const p=genPitcher(); p.age=age; const t=tier||0; p.prole=rnd()<0.55?'sp':'rp'; const sp=p.prole==='sp';
+  const cs=CPU_PCS(age)-CPU_PDECL(age)+t*3, stS=sp?CPU_SP_STS:0.45;
   p.velo=clamp(Math.round(CPU_PV(age)-(age>=34?(age-33)*0.7:0)+t*0.35+(sp?-1:1.5)+(rnd()-.5)*14),120,VELO_MAX);
-  p.stamina=clamp(Math.round(cs*stS+(rnd()-.5)*24),1,100);   // スタミナ＝投げられる球数の目安（80で約95球）
+  p.stamina=clamp(Math.round(cs*stS+(rnd()-.5)*24),1,100);   // スタミナ＝投げられる球数の目安（80で約90〜120球）
   p.control=clamp(Math.round(cs*(1-stS)+(rnd()-.5)*24),1,100);
   if(age>=34&&rnd()<0.8) p.decl=age-ri(0,1);
+  p.rec=cpuRecGen(age,true); p.fat=0;   // 回復力・疲労（投手は少し高め）
   p.q=pitQ(p); return p;
 }
 // 投手の質 q（1より小さいほど打たれにくい）：自分と同じ式の「投手の力」→ 防御率 → リーグの試合でその防御率になる q
@@ -144,8 +148,10 @@ function staffBuild(T,id,keep,reroll){
   // 自分は配置（ローテ／ローテ外／中継ぎ／クローザー）が決まっていて、その中の番手だけが評価で決まる
   let me=null; if(id===PEN.team&&!isBat()&&!PEN.released){ const cat=myPcat(); me={id:'ME',me:true,cat,grp:cat==='rot'||cat==='out'?'start':'relief',sc:myPitEval(m,pv.ME)}; E.push(me); }
   const tr=me&&PEN.trial?PEN.trial.to:null;   // お試し中は、その配置の最下位として（人数の上限を超えてもよい）。決まったらその時の最下位と入れ替え
-  const byS=(a,b)=>b.sc-a.sc, S=E.filter(x=>x.me?x.grp==='start':x.st).sort(byS), cpuS=S.filter(x=>!x.me);
-  const rot=cpuS.slice(0,me&&me.cat==='rot'&&tr!=='rot'?N-1:N).concat(me&&me.cat==='rot'?[me]:[]);
+  const stOf=x=>(x.me?PEN.abil&&PEN.abil.stamina:x.p&&x.p.stamina)??80, rsOf=x=>x.sc+(stOf(x)-80)*SP_STA_W;   // 先発の順位：長いイニングを投げられる（スタミナが高い）ほど上（自分も同じ）
+  const byS=(a,b)=>b.sc-a.sc, S=E.filter(x=>x.me?x.grp==='start':x.st).sort((a,b)=>rsOf(b)-rsOf(a)), nRot=me&&me.cat==='rot'&&tr!=='rot'?N-1:N;
+  let cpuS=S.filter(x=>!x.me); if(cpuS.length<nRot) cpuS=cpuS.concat(E.filter(x=>!x.me&&!x.st).sort((a,b)=>(b.p.stamina??0)-(a.p.stamina??0)).slice(0,nRot-cpuS.length));   // 先発（スタミナ60以上）が足りなければ、スタミナの高い投手から
+  const rot=cpuS.slice(0,nRot).concat(me&&me.cat==='rot'?[me]:[]);
   // ローテ外の先発候補：ローテに入らなかった投手の上位から（ローテの人数−2）人まで（ブルペンに最低5人は残す）。
   //   上位半分は先発組（ロングリリーフ＋ときどき先発）、下位半分（奇数なら1人少ない）はロングリリーフのみ
   const cap=Math.max(1,N-2), rest=cpuS.filter(x=>!rot.includes(x)), nCore=E.filter(x=>!x.me&&!rot.includes(x)).length;
@@ -192,8 +198,13 @@ function rotStep(T,st,d){
   const C=ord.map((id,k)=>({id,w:1/I[k]})).concat(rotSpots(T,I[I.length-1])), ids=C.map(x=>x.id);
   for(const id in st.cred) if(!ids.includes(id)) delete st.cred[id];
   C.forEach(x=>{ st.cred[x.id]=(st.cred[x.id]||0)+x.w; });
-  let best=null; C.forEach(x=>{ if(d-(st.last[x.id]??-99)<Math.max(2,Math.floor(0.6/x.w))) return; if(best==null||st.cred[x.id]>st.cred[best]) best=x.id; });   // 間隔が短すぎる投手は休ませる
-  if(best==null) best=ord.reduce((a,b)=>st.cred[a]>=st.cred[b]?a:b);
+  let best=null; C.forEach(x=>{ if(d-(st.last[x.id]??-99)<Math.max(2,Math.floor(0.6/x.w))) return; if(typeof fatSpSkip==='function'&&d===PEN.day&&fatSpSkip(T,x.id)) return; if(best==null||st.cred[x.id]>st.cred[best]) best=x.id; });   // 間隔が短すぎる投手は休ませる。疲れている投手は先発を回避（ずらす）
+  if(best==null){ const sk=id=>typeof fatSpSkip==='function'&&d===PEN.day&&fatSpSkip(T,id), gap=id=>d-(st.last[id]??-99), now=d===PEN.day;
+    let ok=C.map(x=>x.id).filter(id=>!sk(id)&&gap(id)>=4); if(!ok.length&&now) ok=outIds(T).filter(id=>!sk(id)&&gap(id)>=4);   // 中3日以上空いた疲れていない投手（いなければローテ外の投手から）
+    if(ok.length) best=ok.reduce((a,b)=>gap(a)>gap(b)||(gap(a)===gap(b)&&(st.cred[a]||0)>=(st.cred[b]||0))?a:b);   // 間隔がいちばん空いている投手から
+    else if(now&&typeof myFat==='function'){ const by={}; (T.P||[]).forEach(p=>{ if(p.pid) by[p.pid]=p; }); const fz=id=>(id==='ME'?myFat():by[id]?(by[id].fat||0)+((by[id].out||0)>PEN.day?999:0):999)+(gap(id)<3?500:0);   // みんな疲れていたら、いちばん疲れていない投手（ローテ外も。中2日以内は最後）
+      best=[...new Set(C.map(x=>x.id).concat(outIds(T)))].reduce((a,b)=>fz(a)<=fz(b)?a:b); if(best==='ME'&&myFat()>=myFatThr()+FAT_SP) T.meSkip=null; }
+    else best=ord.reduce((a,b)=>st.cred[a]>=st.cred[b]?a:b); }
   st.cred[best]-=1; st.last[best]=d; return best;
 }
 // セーブ機会の分け合い：クローザーとセットアッパーの総合評価が近いほど、セットアッパーもセーブ機会で投げる（最大 6:4）
@@ -229,7 +240,7 @@ function bestStarters(T,id){
   return best;
 }
 function rebuildTeam(id){
-  const T=PEN.teams[id]; mgrOf(id);
+  const T=PEN.teams[id]; mgrOf(id); delete T.lineupBase;   // 疲労の入れ替えは組み直しで消える
   T.F.forEach(f=>{ f.pf=Math.round((rnd()-.5)*10); });   // 監督の評価（調子）を少し入れ替える
   const st=battingOrder(bestStarters(T,id),T.mgr);
   if(id===PEN.team&&isBat()&&PEN.bAssign&&PEN.bAssign.order&&!(PEN.favMod&&PEN.favMod.order)){ const i=st.findIndex(x=>x.me), j=PEN.bAssign.order-1; if(i>=0&&j<st.length&&i!==j){ const t=st[i]; st[i]=st[j]; st[j]=t; } }   // 打診で決まった打順
@@ -278,7 +289,7 @@ function cpuGrowF(f,pts){
 // 持ち点を能力に振る（投手）：球速0.1km/h＝0.5点・コントロール/スタミナ0.1＝0.1点・変化球のLvアップ。先発型はスタミナ、中継ぎ型はコントロール・球速に振られやすい
 function cpuGrowP(p,pts){
   if(!p.prole) p.prole=(p.stamina||0)>=70?'sp':'rp';
-  const W=p.prole==='sp'?{velo:CPU_G.pv,control:32,stamina:43,lv:5}:{velo:CPU_G.rv,control:42,stamina:18,lv:10};
+  const W=p.prole==='sp'?{velo:CPU_G.pv,control:CPU_SP_GW.control,stamina:CPU_SP_GW.stamina,lv:5}:{velo:CPU_G.rv,control:42,stamina:18,lv:10};
   let left=pts, lvP=pts*W.lv/100*(0.5+rnd()), guard=0;
   while(lvP>=1&&guard++<10){ const ts=(p.types||[]).filter(t=>t!=='ストレート'&&pitLv(p,t)<7); if(!ts.length) break; const t=pick(ts), nl=pitLv(p,t)+1, c=nl<=2?1:nl===3?3:nl; if(c>lvP) break; p.plv=p.plv||{}; p.plv[t]=nl; lvP-=c; left-=c; }
   if(left<=0) return;
@@ -315,14 +326,14 @@ function ageFielder(f,T,star,ev){
   if(f.decl){ const y=f.age-f.decl+1; for(const k of ['m','p','s','e','d']) fAddD(f,k,-((1+0.8*y)*(0.5+rnd())+(k==='s'?1:0))); }   // 衰え（年々大きくなる）
   if(ev){ if(ev.m) fAddD(f,'m',ev.m); if(ev.p) fAddD(f,'p',ev.p); }
   const pts=cpuGrowBase(f.age,false)*(f.decl?0:1)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(f.age,star));
-  cpuGrowF(f,pts); f.btype=cpuTypeOf(f,true);
+  cpuGrowF(f,pts); f.btype=cpuTypeOf(f,true); cpuRecAge(f);   // 回復力：若いうちは伸び、衰えると下がる
 }
 function agePitcher(p,T,star,ev){
   p.age++;
   if(!p.decl&&rnd()<declP(p.age)) p.decl=p.age;   // 衰えの始まり
   if(p.decl){ const y=p.age-p.decl+1, k=()=>0.5+rnd(); p.velo=clamp(Math.round((p.velo-(0.5+0.4*y)*k())*10)/10,110,VELO_MAX); p.control=clamp(Math.round((p.control-(1+0.8*y)*k())*10)/10,1,100); p.stamina=clamp(Math.round((p.stamina-(1.5+1*y)*k())*10)/10,1,100); }
   const pts=cpuGrowBase(p.age,true)*(p.decl?0:1)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(p.age,star));
-  cpuGrowP(p,pts); p.q=pitQ(p);
+  cpuGrowP(p,pts); p.q=pitQ(p); cpuRecAge(p);
 }
 function retireAndTrim(T){
   T.F=T.F.filter(f=>!(f.age>=40||(f.age>=35&&hitScore(f)<45&&rnd()<0.6)));
@@ -403,7 +414,7 @@ function gamePitchers(id,day){
 function twCompete(quiet){
   if(!isTW()) return;
   const T=myT(), a=perfB(PEN.babil);
-  const me={id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((toOldB(twBatEval())-50)*0.6),isMe:true,num:MYNUM};
+  const me={id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((toOldB(twDhEval())-50)*0.6)-TW_DH_PEN,isMe:true,num:MYNUM};   // 二刀流は指名打者の争いで少し不利
   const st=battingOrder(pickStarters(T,me)), i=st.findIndex(x=>x.me);
   const was=!!PEN.dh;
   PEN.dh=i>=0; PEN.dhOrder=i>=0?i+1:0;
@@ -413,6 +424,7 @@ function twCompete(quiet){
   PEN.dhVal=abS(hitScore(me)+me.pf); PEN.dhRival=dh?{n:dh.f.n,v:abS(hitScore(dh.f)+(dh.f.pf||0))}:null;   // 表示の目盛りで
   if(quiet||was===PEN.dh) return;
   penNotice(PEN.dh?`投げない日は指名打者（${PEN.dhOrder}番）で出場することになった！`:'打撃の評価が下がり、投げない日の指名打者から外れた');
+  if(typeof mgrSay==='function') mgrSay(PEN.dh?`打撃の調子が上がってきたな。投げない日は指名打者（${PEN.dhOrder}番）で使うぞ。`:'打撃の結果が出ていないな。投げない日の指名打者はしばらく外れてもらう。投げる方とは別に見ているからな。',PEN.dh?'起用の変更':'指名打者から外す');   // 画面にかぶせる監督との会話
 }
 
 /* ===== CPU選手のシーズン成績（チームの試合結果から1試合ずつ作る）・タイトル争いの順位 ===== */
@@ -457,10 +469,10 @@ function csTeamGame(tid,rf,ra,res,oid,me){
   if(mp){ outs-=mp.outs||0; left-=mp.runs||0; }
   const sp=gp&&gp.sp&&!(mp&&mp.kind==='start')?gp.sp:null;
   if(sp){ const s=csGet(sp.pid,true); s.g++; s.gs++;
-    let o=Math.round(clamp(14+(sp.stamina||50)*0.09+(1-(sp.q||1))*25+noise(3)-Math.max(0,ra-4)*1.6,5,Math.min(27,outs)));
+    let o=Math.round(clamp(spOutsAvg((sp.stamina||50)*(typeof fatStaMul==='function'?fatStaMul(sp.fat||0):1))+1.5+(1-(sp.q||1))*25+noise(3)-Math.max(0,ra-4)*1.6,5,Math.min(27,outs)));   // 1打席ずつ回す試合と同じくらい投げる（疲れていると短い）
     const er=Math.min(left,poisson(o/27*CS_K.era*Math.pow(sp.q||1,3)));   // 投手の質で自責点が決まる（チームの失点を超えない）
     s.outs+=o; s.er+=er; s.k+=poisson(o/27*clamp(7.2+(1-(sp.q||1))*18,4,12)); outs-=o; left-=er; used.push({p:sp,s,o,er,sp:true}); }
-  const pen=(staff(T).pen||[]).filter(p=>p.pid); let guard=0;
+  const pen0=(staff(T).pen||[]).filter(p=>p.pid), pen1=pen0.filter(p=>!(typeof cpuPTired==='function'&&cpuPTired(p,T))), pen=pen1.length>=3?pen1:pen0; let guard=0;   // 疲れた・連投の続いた中継ぎは使わない
   while(outs>0&&pen.length&&guard++<8){
     const close=res==='W'&&rf-ra<=3&&outs<=3, p=close?pen[0]:pick(pen.slice(1).length?pen.slice(1):pen);
     if(used.some(u=>u.p===p)&&!close) continue;
@@ -476,22 +488,28 @@ function csTeamGame(tid,rf,ra,res,oid,me){
 }
 /* ===== CPUの試合を選手1人ずつ1打席ずつ回す（全試合）。結果と成績はこの試合の中身そのもの ===== */
 const LG_K={q:1.05,hrCut:0,hit:0,steal:0.02};   // 見た目をNPBらしくする調整値（盗塁の多さ）。安打はミートに比例、本塁打はヒットのうちパワーで決まる割合なので、上乗せ・削りはなし
+// CPUの先発の交代（回の始めに判断）：自分が投げているときの監督（managerCheck）と同じ基準。スタミナの残り15%未満・終盤の勝負どころ・失点（大量リードなら長め）
+//   sta：スタミナ、r：この投手の失点、rI：前の回の始めの失点、L：自分のチームのリード、inn：これから始まる回。打者で出る試合の相手投手も同じ
+function spPullCheck(S,r,rI,L,inn){ const x=S.cur/Math.max(1,S.max), leash=L>=5?2:L>=3?1:0, iR=r-(rI??0);
+  if(S.cur<=0) return true; if(x<0.15&&rnd()<0.55) return true; if(x<0.3&&inn>=8&&Math.abs(L)<=2&&rnd()<0.35) return true;
+  if(r>=7+leash) return true; if(r>=5+leash&&inn<=6&&rnd()<0.6) return true; if(iR>=4+leash&&rnd()<0.75) return true; return false; }
 function simLeagueGame(aid,bid,opts){
   opts=opts||{}; ensurePids();
   const A=PEN.teams[aid], B=PEN.teams[bid], day=PEN.day, rec=opts.rec!==false;
   const side=(T,tid,errUp)=>{ const gp=gamePitchers(tid,day), st=staff(T);
-    const bull=(st.pen||[]).filter(p=>p!==gp.sp);
+    const bull0=(st.pen||[]).filter(p=>p!==gp.sp), bull1=bull0.filter(p=>!(typeof cpuPTired==='function'&&cpuPTired(p,T))), bull=bull1.length>=3?bull1:bull0;   // 疲れた・連投の続いた中継ぎは使わない
     return {T,tid,lineup:(T.lineup||[]).slice(0,9),order:-1,sp:gp.sp,bull,used:[],cur:null,curS:null,lim:0,
       fq:1+(50-(T.fdef||50))*0.004+(errUp?0.08:0), cDef:catcherDef(T)}; };
   const S={a:side(A,aid,opts.errA),b:side(B,bid,opts.errB)}, sc={a:0,b:0};
   const bs=b=>(!b||b.isMe||!b.fid||!rec)?null:csGet(b.fid,false);
   const ps=p=>(!p||!p.pid||!rec)?null:csGet(p.pid,true);
   // 投手の交代：先発は球数（スタミナ・出来）まで、そのあとは中継ぎ1〜2回ずつ、9回はリードが3点以内なら抑え
-  const setPitcher=(D,p,isSP)=>{ D.cur=p; D.curS={p,s:ps(p),outs:0,r:0,sp:!!isSP,entLead:null,sta:staNew(p.stamina??60)}; D.used.push(D.curS); if(D.curS.s){ D.curS.s.g++; if(isSP) D.curS.s.gs++; } };
+  const setPitcher=(D,p,isSP)=>{ D.cur=p; D.curS={p,s:ps(p),outs:0,r:0,sp:!!isSP,entLead:null,sta:staNew((p.stamina??60)*(isSP&&typeof fatStaMul==='function'?fatStaMul(p.fat||0):1))}; D.used.push(D.curS); if(D.curS.s){ D.curS.s.g++; if(isSP) D.curS.s.gs++; } };
   const lead=k=>k==='a'?sc.a-sc.b:sc.b-sc.a;
+  const spPull=(u,L,inn)=>spPullCheck(u.sta,u.r,u.rI,L,inn);
   const choosePitcher=(k,inn,force)=>{ const D=S[k], u=D.curS;
     if(!u){ setPitcher(D,D.sp,true); return; }
-    const L=lead(k), tired=u.sta.cur<=u.sta.max*0.12, need = u.sp ? (tired||u.r>=5||(u.r>=4&&inn>=5)) : (u.outs>=u.max||u.r>=3||u.sta.cur<=0);   // 先発はスタミナが尽きかけたら交代
+    const L=lead(k), need = u.sp ? spPull(u,L,inn) : (u.outs>=u.max||u.r>=3||u.sta.cur<=0); if(u.sp) u.rI=u.r;   // 先発は自分のときの監督と同じ判断（スタミナ・失点）
     let closer=D.bull[0]; const saveSit=inn>=9&&L>0&&L<=3;
     if(saveSit&&D.bull[1]&&!D.used.some(x=>x.p===D.bull[1])&&rnd()<saveShare(D.T)) closer=D.bull[1];   // 評価が近ければセットアッパーがセーブ機会に
     const hold=()=>{ if(u&&!u.sp&&u.s&&u.entLead!=null&&u.entLead>0&&u.entLead<=3&&u.outs>0&&L>0) u.s.hld=(u.s.hld||0)+1; };   // ホールド：セーブがつく場面で出て、リードを保ったまま降板
@@ -512,7 +530,7 @@ function simLeagueGame(aid,bid,opts){
       O.order=(O.order+1)%O.lineup.length; const b=O.lineup[O.order]; if(!b){ outs++; continue; }
       if(D.curS.sta.cur<=0){ D.curS.outs+=outs-(D.curS.o0??0); if(D.curS.s) D.curS.s.outs+=outs-(D.curS.o0??0); choosePitcher(def,inn,true); D.curS.o0=outs; }   // 回の途中でスタミナ切れ → 交代
       const P=D.cur, q=clamp((P.q||1)*D.fq*LG_K.q*(1+staF(D.curS.sta)*0.09)*(inPinch(bases)?PINCH.mul:1),0.6,1.6);   /* ピンチではわずかに乱れる */ let r=simPA(b,q); const s=bs(b); if(s) s.pa++;
-      { const st=D.curS.sta; st.cur=r1(st.cur-ri(1,7)*st.S/(st.S+staN(st.S))); }   // 1打席で1〜7球ぶんのスタミナを使う
+      { const st=D.curS.sta; st.cur=r1(st.cur-ri(1,7)*staK(st.S)); }   // 1打席で1〜7球ぶんのスタミナを使う（自分と同じ量）
       if(r==='HR'&&rnd()<LG_K.hrCut) r='FO'; else if((r==='GO'||r==='FO'||r==='K')&&rnd()<LG_K.hit) r='1B';
       if(P.rn!=null){ const d=(P.rn-72.5)*0.00258; if(d>0){ if((r==='GO'||r==='FO')&&rnd()<d/0.45) r='K'; } else if(r==='K'&&rnd()<-d/0.21) r='GO'; }   // 力のある投手ほど三振が多い（自分と同じ奪三振率の式）
       let runs=0, sc0=[];
@@ -529,6 +547,7 @@ function simLeagueGame(aid,bid,opts){
       const outsAdd=(r==='K'||r==='GO'||r==='FO')?1:0;   // （併殺は下で）
       if(s&&runs) s.rbi+=(r==='GO'&&runs&&outs>=2)?0:runs;
       score(runs,sc0);
+      { const c=staHitCost(r,runs,D.curS.sta.S,pitLv(P,'ストレート')); if(c) D.curS.sta.cur=r1(D.curS.sta.cur-c); }   // 打たれると余分にスタミナを使う（自分と同じ）
       // 盗塁：一塁に出た足に自信のある走者（二塁が空いていて2アウト未満）
       if(outs<2&&bases[0]&&!bases[1]&&(r==='1B'||r==='BB')){ const R=bases[0], sp=R.speed||50;
         if(sp>=60&&rnd()<(sp-55)*LG_K.steal){ const rs=bs(R), ok=rnd()<cpuStealP(sp,D.cDef,(P.velo||145)-8);

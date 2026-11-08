@@ -72,6 +72,12 @@ const COACH_LOOK={
     {lab:'晩年の大打者（白髪まじり）',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#8c8c8c',face:'smile',acc:['bat','brow','wrinkle']},
     {lab:'老いた大打者（白髪・太い眉）',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#f2f2f2',face:'calm',acc:['bat','browbig','wrinkle']},
   ],
+  // ---- 女将さん（温泉旅行・湯治）
+  okami:[
+    {lab:'藤色の着物の若女将',skin:0,outfit:'kimono',top:'#8e6bb0',shirt:'#f3ecd8',hair:'bun',hc:'#1a1a1a',face:'smile',acc:[]},
+    {lab:'紺の着物の女将',skin:1,outfit:'kimono',top:'#22325a',shirt:'#f3ecd8',hair:'bun',hc:'#2a1a12',face:'calm',acc:['towel']},
+    {lab:'白髪の大女将',skin:1,outfit:'kimono',top:'#7a2e3a',shirt:'#f3ecd8',hair:'bun',hc:'#d9d9d9',face:'smile',acc:['wrinkle']},
+  ],
   // ---- リハビリトレーナー（ヨガ教室・アンチエイジング・コンディショニング）
   rehab:[
     {lab:'白ポロのリハビリ担当',skin:1,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'smile',acc:['clipboard']},
@@ -96,7 +102,7 @@ const COACH_LOOK={
     {lab:'青スーツの新人営業',skin:0,outfit:'suit',top:'#1f6fd6',shirt:'#ffffff',tie:'#f5c542',hair:'short',hc:'#2b1d14',face:'grin',acc:['nametag','house']},
   ],
 };
-const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋',doctor:'怪しい医者',club:'球団コーチ',legend:'伝説の野球選手',rehab:'リハビリトレーナー'};
+const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋',doctor:'怪しい医者',club:'球団コーチ',legend:'伝説の野球選手',rehab:'リハビリトレーナー',okami:'女将さん'};
 let CSVG_N=0;
 function svgCoach(kind,i){
   const L=(COACH_LOOK[kind]||COACH_LOOK.mental)[i||0]||COACH_LOOK.mental[0];
