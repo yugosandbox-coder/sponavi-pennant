@@ -496,6 +496,18 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
 .sbq{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:10.5px;line-height:15px;color:var(--ink);cursor:pointer;vertical-align:1px}
 .sbticks{font-size:10px}
 .pl .nm{font-size:14.5px}
+.pnm{text-decoration:underline dotted #ffffff70;text-underline-offset:3px;cursor:pointer}
+#pnPop{position:fixed;inset:0;z-index:90;background:#000b;display:flex;align-items:center;justify-content:center;padding:16px}
+#pnPop .pnbox{background:#14261b;border:1px solid #2c4a36;border-radius:12px;padding:12px;max-width:420px;width:100%;max-height:86vh;overflow:auto;color:#eee}
+#pnPop .pnc+.pnc{margin-top:12px;border-top:1px solid #2c4a36;padding-top:10px}
+#pnPop .pnh{font-size:15px;margin-bottom:6px}#pnPop .pnh small{color:#9ab;font-size:11px}
+#pnPop .pnb{display:grid;grid-template-columns:96px 1fr 52px;align-items:center;gap:6px;font-size:12px;margin:3px 0}
+#pnPop .pnb i{height:8px;background:#ffffff14;border-radius:4px;overflow:hidden}#pnPop .pnb i b{display:block;height:100%}
+#pnPop .pnb em{font-style:normal;font-weight:700;text-align:right}
+#pnPop .pnk{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}#pnPop .pnk span{font-size:11px;background:#ffffff12;border-radius:6px;padding:2px 6px}
+#pnPop .pnt{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px}#pnPop .pnt th,#pnPop .pnt td{padding:3px 2px;text-align:center;border-bottom:1px solid #ffffff12}#pnPop .pnt th{color:#9ab;font-weight:600}
+#pnPop .pnr td,#pnPop .pnr th{font-size:11px;padding:3px 1px}#pnPop .pnr .l{text-align:left}#pnPop .pnr td:nth-child(3){white-space:nowrap}
+.teamc{cursor:pointer}
 </style>
 </head>
 <body>
@@ -592,7 +604,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   <div id="posSec" style="display:none">
     <div class="sh">ポジション</div>
     <div class="seg3" id="poscards"></div>
-    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は、投手（85〜135）と野手（100〜150）の持ち点を足して0.75倍した点数で、投手と打撃の能力に自由に分け合います。</div>
+    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は、投手（75〜130）と野手（90〜145）の持ち点を足して0.75倍した点数で、投手と打撃の能力に自由に分け合います。</div>
     <div id="bhandSec" style="display:none"><div class="sh">打席（打ち）</div><div class="seg3" id="bhcards"></div><div class="abhint" id="bhandNote"></div></div>
   </div>
   <div id="roleSec" style="display:none">

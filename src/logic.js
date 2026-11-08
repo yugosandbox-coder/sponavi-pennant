@@ -1156,10 +1156,10 @@ const avgLin=(c,s)=>{ const d=typeof abShow==='function'?abShow(c??50):(c??50); 
 const HR_SHARE=Object.assign({max:0.25,e:1},(typeof process!=='undefined'&&process.env&&process.env.HRSH)?JSON.parse(process.env.HRSH):{});
 const HR_ME=Object.assign({k:1.0},(typeof process!=='undefined'&&process.env&&process.env.HRME)?JSON.parse(process.env.HRME):{});   // 自分の打席の本塁打の割合の調整（1＝CPU・スキップと同じ）
 const hrShare=p=>HR_SHARE.max*Math.pow(clamp((typeof abShow==='function'?abShow(p??50):(p??50))/100,0,1),HR_SHARE.e);
-const SIM_AVG=Object.assign({k:1.085},(typeof process!=='undefined'&&process.env&&process.env.SIMAVG)?JSON.parse(process.env.SIMAVG):{});   // 自動で進む打席（CPU同士・スキップ）の打率が avgLin になるようにする調整
+const SIM_AVG=Object.assign({k:1.085,bt:0.25},(typeof process!=='undefined'&&process.env&&process.env.SIMAVG)?JSON.parse(process.env.SIMAVG):{});   // 自動で進む打席（CPU同士・スキップ）の打率が avgLin になるようにする調整
 function simPA(b,q){
   const BT=b.type, bb=clamp((0.04+b.eye*0.0007)*SIM_K.bb,0.04,0.15);
-  const hit=clamp(avgLin(b.contact,b.speed)*SIM_AVG.k*0.8*q+btFx(BT,'hit')*0.7,0,0.5), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);   // ヒット（本塁打を含む）はミートで決まる
+  const hit=clamp(avgLin(b.contact,b.speed)*SIM_AVG.k*0.8*q+btFx(BT,'hit')*SIM_AVG.bt,0,0.5), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);   // ヒット（本塁打を含む）はミートで決まる
   const x=rnd();
   if(x<bb) return 'BB';
   if(x<bb+hit){   // ヒットの中身（本塁打・二塁打）はパワーで決まる（三塁打は足）

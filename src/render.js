@@ -949,11 +949,11 @@ function renderAbil(){
 });
 $('abAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { abAuto(true); renderAbil(); } };
 let dRole='start', dTeam='', dPos='P', dBpos='SS', dBhand='L', dGenius=false;
-// 最初の持ち点：野手100〜150・投手85〜135の中でランダム（1%で天才：野手200・投手150）。二刀流は投手と野手の持ち点をそれぞれ出して足し、0.75倍（天才は350）
+// 最初の持ち点：野手90〜145・投手75〜130の中でランダム（1%で天才：野手200・投手150）。二刀流は投手と野手の持ち点をそれぞれ出して足し、0.75倍（天才は350）
 let dU=0.5, dU2=0.5;
-const budgetOf=pos=>{ pos=pos||dPos; if(dGenius) return pos==='B'?200:pos==='W'?350:150; const b=100+Math.round(dU*50), p=85+Math.round(dU2*50); return pos==='B'?b:pos==='W'?Math.round((b+p)*0.75):p; };
+const budgetOf=pos=>{ pos=pos||dPos; if(dGenius) return pos==='B'?200:pos==='W'?350:150; const b=90+Math.round(dU*55), p=75+Math.round(dU2*55); return pos==='B'?b:pos==='W'?Math.round((b+p)*0.75):p; };
 const setBudget=()=>{ AB.budget=budgetOf(); };
-const rangeTxt=()=>dPos==='B'?'（100〜150の中でランダム。1%で「天才」の200）':dPos==='W'?'（投手85〜135と野手100〜150をそれぞれランダムに出して足し、0.75倍。1%で「天才」の350）':'（85〜135の中でランダム。1%で「天才」の150）';
+const rangeTxt=()=>dPos==='B'?'（90〜145の中でランダム。1%で「天才」の200）':dPos==='W'?'（投手75〜130と野手90〜145をそれぞれランダムに出して足し、0.75倍。1%で「天才」の350）':'（75〜130の中でランダム。1%で「天才」の150）';
 // 持ち点の振り直し：ペナントの準備のときに3回まで（同じ決め方）。振り直すと能力の割り振りはおまかせに戻る
 const ROLL_MAX=3; let ROLL_LEFT=ROLL_MAX;
 function rollBudget(){ dGenius=rnd()<0.01; dU=rnd(); dU2=rnd(); setBudget(); }
@@ -1069,6 +1069,134 @@ document.addEventListener('click',e=>{
   if(ptipEl&&!(e.target.closest&&e.target.closest('.ptip'))) ptipHide();
 },true);
 window.addEventListener('scroll',()=>ptipHide(),{passive:true});
+
+
+/* ================================================================
+   選手名を押すと、その選手の能力と成績を見られる（すべての画面）
+   画面に出た文字の中から、今いる選手（12球団の選手・自分・試合中の相手）の名前を見つけて押せるようにする
+   （引退した選手や過去の記録だけに出てくる名前は対象外）
+   ================================================================ */
+let PN_IDX=null, PN_KEY='', PN_RE=null, PN_Q=new Set(), PN_T=0;
+function pnIndex(){
+  if(typeof PEN==='undefined'||!PEN||!PEN.teams) return null;
+  const g=(typeof G!=='undefined'&&G)?G:null, gl=g&&g.lineup&&g.lineup[0]?g.lineup[0].name:'';
+  const key=PEN.year+'|'+PEN.day+'|'+(PEN.pname||'')+'|'+NPB.map(t=>{ const T=PEN.teams[t.id]; return T?(T.F||[]).length+'.'+(T.P||[]).length:'0'; }).join(',')+'|'+gl+'|'+(g&&g.pits?g.pits.length:0);
+  if(key===PN_KEY&&PN_IDX) return PN_IDX;
+  const M=new Map(), add=(n,e)=>{ if(!n||n.length<2) return; if(!M.has(n)) M.set(n,[]); M.get(n).push(e); };
+  for(const t of NPB){ const T=PEN.teams[t.id]; if(!T) continue; (T.F||[]).forEach(f=>add(f.n,{k:'F',team:t.id,o:f})); (T.P||[]).forEach(p=>add(p.name,{k:'P',team:t.id,o:p})); }
+  if(PEN.pname) add(PEN.pname,{k:'ME'});
+  if(g){ const known=new Set(M.keys());   // 試合中だけの相手（WBCの他国の選手など）
+    [...(g.lineup||[]),...((g.myTeam&&g.myTeam.lineup)||[])].forEach(b=>{ if(b&&b.name&&!b.isMe&&!known.has(b.name)) add(b.name,{k:'GB',o:b}); });
+    [...(g.pits||[]),...(g.ours||[])].forEach(p=>{ if(p&&p.name&&!p.isMe&&!known.has(p.name)) add(p.name,{k:'GP',o:p}); }); }
+  PN_IDX=M; PN_KEY=key;
+  const L=[...M.keys()].sort((a,b)=>b.length-a.length).map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  PN_RE=L.length?new RegExp(L.join('|'),'g'):null;
+  return M;
+}
+const PN_SKIP='button,textarea,input,select,option,script,style,svg,.pnm,[data-nopn],#pnPop';
+function pnScan(root){
+  if(!root||!pnIndex()||!PN_RE) return;
+  if(root.nodeType===1&&root.closest&&root.closest(PN_SKIP)) return;
+  const W=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode(n){ const p=n.parentNode; if(!p||!n.nodeValue||n.nodeValue.length<2) return NodeFilter.FILTER_REJECT; return p.closest&&p.closest(PN_SKIP)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT; }});
+  const list=[]; let n; while((n=W.nextNode())) list.push(n);
+  for(const t of list){ const s=t.nodeValue; PN_RE.lastIndex=0; if(!PN_RE.test(s)) continue; PN_RE.lastIndex=0;
+    const fr=document.createDocumentFragment(); let last=0, m;
+    while((m=PN_RE.exec(s))){ if(m.index>last) fr.appendChild(document.createTextNode(s.slice(last,m.index))); const sp=document.createElement('span'); sp.className='pnm'; sp.textContent=m[0]; fr.appendChild(sp); last=m.index+m[0].length; }
+    if(last<s.length) fr.appendChild(document.createTextNode(s.slice(last)));
+    t.parentNode.replaceChild(fr,t); }
+}
+function pnFlush(){ PN_T=0; const Q=[...PN_Q]; PN_Q.clear(); for(const el of Q) if(el.isConnected) pnScan(el); }
+function pnInit(){
+  if(typeof document==='undefined'||typeof MutationObserver==='undefined'||!document.body) return;
+  const ob=new MutationObserver(ms=>{ for(const m of ms){ if(m.type==='characterData'){ if(m.target.parentNode) PN_Q.add(m.target.parentNode); } else m.addedNodes.forEach(x=>{ if(x.nodeType===1) PN_Q.add(x); else if(x.nodeType===3&&x.parentNode) PN_Q.add(x.parentNode); }); }
+    if(!PN_T) PN_T=requestAnimationFrame(pnFlush); });
+  ob.observe(document.body,{childList:true,subtree:true,characterData:true});
+  document.addEventListener('click',e=>{ const s=e.target&&e.target.closest&&e.target.closest('.pnm'); if(!s) return; e.preventDefault(); e.stopPropagation(); pnShow(s.textContent); },true);
+  pnScan(document.body);
+}
+// ---- 選手カード
+const pnCol=v=>v>=90?'#e2b33a':v>=80?'#e74c3c':v>=70?'#e67e22':v>=60?'#f1c40f':v>=50?'#2ecc71':v>=40?'#3498db':'#7f8c8d';
+const pnBar=(l,v,txt)=>{ const w=Math.max(0,Math.min(100,v)); return `<div class="pnb"><span>${l}</span><i><b style="width:${w}%;background:${pnCol(v)}"></b></i><em>${txt??Math.round(v)}</em></div>`; };
+const pnF3=(h,ab)=>ab?f3(h/ab):'-';
+function pnBatTbl(rows){
+  const r=rows.filter(x=>x[1]&&(x[1].pa||x[1].ab)); if(!r.length) return '<div class="hint" style="margin:4px 0">まだ成績はありません</div>';
+  return `<table class="pnt"><tr><th></th><th>打席</th><th>打率</th><th>本塁打</th><th>打点</th><th>盗塁</th><th>OPS</th></tr>${r.map(([l,s])=>{ const ab=s.ab||0, obp=s.pa?((s.h||0)+(s.bb||0)+(s.hbp||0))/s.pa:0, slg=ab?((s.h||0)+(s.d2||0)+2*(s.d3||0)+3*(s.hr||0))/ab:0;
+    return `<tr><th>${l}</th><td>${s.pa||0}</td><td>${pnF3(s.h||0,ab)}</td><td>${s.hr||0}</td><td>${s.rbi!=null?s.rbi:'-'}</td><td>${s.sb||0}</td><td>${s.pa?f3(obp+slg):'-'}</td></tr>`; }).join('')}</table>`;
+}
+function pnPitTbl(rows){
+  const r=rows.filter(x=>x[1]&&x[1].outs); if(!r.length) return '<div class="hint" style="margin:4px 0">まだ成績はありません</div>';
+  return `<table class="pnt"><tr><th></th><th>登板</th><th>勝-敗</th><th>S</th><th>H</th><th>投球回</th><th>防御率</th><th>奪三振</th></tr>${r.map(([l,s])=>{ const er=s.er!=null?s.er:(s.runs||0);
+    return `<tr><th>${l}</th><td>${s.g!=null?s.g:'-'}</td><td>${s.w!=null?`${s.w}-${s.l||0}`:'-'}</td><td>${s.sv!=null?s.sv:'-'}</td><td>${s.hld!=null?s.hld:'-'}</td><td>${fmtIP(s.outs)}</td><td>${(er*27/s.outs).toFixed(2)}</td><td>${s.k!=null?s.k:'-'}</td></tr>`; }).join('')}</table>`;
+}
+const pnHand=h=>h==='L'?'左':h==='S'?'両':'右';
+function pnCard(e){
+  const tm=e.team&&TEAM[e.team]?TEAM[e.team].short:'';
+  if(e.k==='F'){ const f=e.o, cs=PEN.cs&&PEN.cs[f.id];
+    return `<div class="pnc"><div class="pnh"><b>${f.n}</b> <small>${tm}・#${f.num??'-'}・${POS_JP[f.pos]||f.pos}・${f.age}歳・${pnHand(f.h)}打${f.btype?`・${f.btype}`:''}</small></div>
+      ${[['ミート',f.m],['パワー',f.p],['走力',f.s],['選球眼・技術',f.e],['守備',f.d]].map(([l,v])=>pnBar(l,abShow(v))).join('')}
+      ${pnBatTbl([['今季',cs],['昨季',f.ly],['通算',f.car]])}</div>`; }
+  if(e.k==='P'){ const p=e.o, cs=PEN.cs&&p.pid&&PEN.cs[p.pid];
+    return `<div class="pnc"><div class="pnh"><b>${p.name}</b> <small>${tm}・#${p.num??'-'}・投手（${p.prole==='sp'?'先発':'中継ぎ'}）・${p.age}歳・${pnHand(p.hand)}投</small></div>
+      ${pnBar('球速',(p.velo-120)*2.5,`${Math.round(p.velo)}km/h`)}${pnBar('コントロール',p.control)}${pnBar('スタミナ',p.stamina)}
+      <div class="pnk">${(p.types||[]).map(t=>`<span>${t} Lv.${(p.plv&&p.plv[t])||'-'}</span>`).join('')}</div>
+      ${pnPitTbl([['今季',cs],['昨季',p.ly],['通算',p.car]])}</div>`; }
+  if(e.k==='ME'){ const B=hasBat(), P=!isBat(), a=PEN.abil||{}, b=PEN.babil||{};
+    const role=isBat()?(PEN.role==='スタメン'?`${PEN.order}番・${POS_JP[PEN.slot]||''}`:PEN.role||''):(typeof pitRoleLabel==='function'?pitRoleLabel():PEN.role||'');
+    return `<div class="pnc"><div class="pnh"><b>${PEN.pname}</b> <small>（あなた）${TEAM[PEN.team]?TEAM[PEN.team].short:''}・${role}・${PEN.age}歳</small></div>
+      ${B?[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],['守備','def']].filter(([l,k])=>k!=='def'||isBat()).map(([l,k])=>pnBar(l,b[k]??0)).join(''):''}
+      ${P?`${pnBar('球速',((a.velo||130)-120)*2.5,`${Math.round(a.velo||0)}km/h`)}${pnBar('コントロール',a.control||0)}${pnBar('スタミナ',a.stamina||0)}<div class="pnk">${(PEN.rep||[]).map(t=>`<span>${t} Lv.${(PEN.plev&&PEN.plev[t])||'-'}</span>`).join('')}</div>`:''}
+      ${B?pnBatTbl([['今季',isTW()?PEN.bss:PEN.ss],['通算',isTW()?PEN.bcareer:PEN.career]]):''}${P?pnPitTbl([['今季',PEN.ss],['通算',PEN.career]]):''}</div>`; }
+  if(e.k==='GB'){ const x=e.o;
+    return `<div class="pnc"><div class="pnh"><b>${x.name}</b> <small>${x.team&&TEAM[x.team]?TEAM[x.team].short+'・':''}${x.type||''}${x.hand?`・${pnHand(x.hand)}打`:''}</small></div>
+      ${[['ミート',x.contact],['パワー',x.power],['走力',x.speed],['選球眼・技術',x.eye]].filter(r=>r[1]!=null).map(([l,v])=>pnBar(l,abShow(v))).join('')}
+      ${x.avg!=null?`<div class="hint" style="margin:4px 0">打率 ${f3(x.avg)}</div>`:''}</div>`; }
+  if(e.k==='GP'){ const p=e.o, lv=p.plv||{};
+    return `<div class="pnc"><div class="pnh"><b>${p.name}</b> <small>投手${p.hand?`・${pnHand(p.hand)}投`:''}</small></div>
+      ${p.velo?pnBar('球速',(p.velo-120)*2.5,`${Math.round(p.velo)}km/h`):''}${p.control!=null?pnBar('コントロール',p.control):''}${p.stamina!=null?pnBar('スタミナ',p.stamina):''}
+      <div class="pnk">${(p.types||[]).map(t=>`<span>${t}${lv[t]?` Lv.${lv[t]}`:''}</span>`).join('')}</div></div>`; }
+  return '';
+}
+function pnShow(name){
+  const L=(pnIndex()&&PN_IDX.get(name))||[]; if(!L.length) return;
+  let el=document.getElementById('pnPop');
+  if(!el){ el=document.createElement('div'); el.id='pnPop'; el.setAttribute('data-nopn',''); document.body.appendChild(el); pnPopBind(el); }
+  const back=el.dataset.team||''; el.dataset.team='';   // チームの選手一覧から開いたときは「一覧に戻る」
+  el.innerHTML=`<div class="pnbox">${L.length>1?`<div class="hint" style="margin:0 0 6px">同じ名前の選手が${L.length}人います</div>`:''}${L.map(pnCard).join('')}${back?`<button class="btn pnback" data-back="${back}" style="width:100%;margin-top:10px">← 選手一覧に戻る</button>`:''}<button class="btn pnx" style="width:100%;margin-top:8px">閉じる</button></div>`;
+  el.scrollTop=0;
+}
+// ---- チームの選手一覧（日程画面のチームの成績のカードを押すと開く）。名前を押すとその選手の能力と成績
+const PN_POS={C:'捕','1B':'一','2B':'二','3B':'三',SS:'遊',LF:'左',CF:'中',RF:'右',OF:'外',DH:'指'}, PN_PORD=['C','1B','2B','3B','SS','LF','CF','RF','OF','DH'];
+function pnTeam(id){
+  if(typeof PEN==='undefined'||!PEN||!PEN.teams||!PEN.teams[id]) return;
+  const T=PEN.teams[id], cs=PEN.cs||{}, mine=id===PEN.team, byF={}; (T.F||[]).forEach(f=>byF[f.id]=f);
+  const nm=(n,isMe)=>`<span class="pnm">${n}</span>${isMe?' <small style="color:var(--accent)">あなた</small>':''}`;
+  const meB=()=>{ const b=PEN.babil||{}, s=isTW()?(PEN.bss||{}):PEN.ss||{}; return `<td>${isTW()?'-':PEN.age}</td><td>${['meet','power','speed','eye','def'].map(k=>b[k]!=null?Math.round(b[k]):'-').join('/')}</td><td>${s.ab?f3(s.h/s.ab):'-'}</td><td>${s.hr||0}</td>`; };
+  const fCells=f=>{ const c=cs[f.id]||{}; return `<td>${f.age}</td><td>${[f.m,f.p,f.s,f.e,f.d].map(v=>Math.round(abShow(v))).join('/')}</td><td>${c.ab?f3(c.h/c.ab):'-'}</td><td>${c.hr||0}</td>`; };
+  const L=(T.lineup||[]).map((b,i)=>({b,i,pos:(T.lpos||[])[i]||b.pos,f:b.fid?byF[b.fid]:null})), inL=new Set(L.map(x=>x.f&&x.f.id).filter(Boolean));
+  const meInL=L.some(x=>x.b.isMe);
+  let rows=L.map(x=>`<tr><td>${x.i+1}</td><td>${PN_POS[x.pos]||x.pos||''}</td><td class="l">${x.b.isMe?nm(PEN.pname,true):x.f?nm(x.f.n):x.b.name}</td>${x.b.isMe?meB():x.f?fCells(x.f):'<td></td><td></td><td></td><td></td>'}</tr>`).join('');
+  const bench=(T.F||[]).filter(f=>!inL.has(f.id)).sort((a,b)=>PN_PORD.indexOf(a.pos)-PN_PORD.indexOf(b.pos));
+  let rowsB=bench.map(f=>`<tr><td></td><td>${PN_POS[f.pos]||f.pos}</td><td class="l">${nm(f.n)}</td>${fCells(f)}</tr>`).join('');
+  if(mine&&isBat()&&!meInL) rowsB=`<tr><td></td><td>${PN_POS[(PEN.bposs||[])[0]]||''}</td><td class="l">${nm(PEN.pname,true)}</td>${meB()}</tr>`+rowsB;
+  const S=typeof staff==='function'?staff(T):{rot:[],pen:[]};
+  const pCells=p=>{ const c=(p.pid&&cs[p.pid])||{}; return `<td>${p.age}</td><td>${Math.round(p.velo)}/${Math.round(p.control)}/${Math.round(p.stamina)}</td><td>${c.outs?(c.er*27/c.outs).toFixed(2):'-'}</td><td>${c.g?`${c.w||0}-${c.l||0}${c.sv?` ${c.sv}S`:''}${c.hld?` ${c.hld}H`:''}`:'-'}</td>`; };
+  const meP=()=>{ const a=PEN.abil||{}, s=PEN.ss||{}; return `<td>${PEN.age}</td><td>${Math.round(a.velo||0)}/${Math.round(a.control||0)}/${Math.round(a.stamina||0)}</td><td>${s.outs?(s.runs*27/s.outs).toFixed(2):'-'}</td><td>${s.g?`${s.w||0}-${s.l||0}${s.sv?` ${s.sv}S`:''}${s.hld?` ${s.hld}H`:''}`:'-'}</td>`; };
+  const pRow=(lab,p)=>`<tr><td>${lab}</td><td class="l">${nm(p.name)}</td>${pCells(p)}</tr>`;
+  let rowsP=S.rot.map((p,i)=>pRow(`先${i+1}`,p)).join('')+S.pen.map((p,i)=>pRow(i===0?'抑':i===1?'SU':'中',p)).join('');
+  if(mine&&!isBat()) rowsP=`<tr><td>${typeof isStarter==='function'&&isStarter(PEN.role)?'先':'中'}</td><td class="l">${nm(PEN.pname,true)}</td>${meP()}</tr>`+rowsP;
+  let el=document.getElementById('pnPop');
+  if(!el){ el=document.createElement('div'); el.id='pnPop'; el.setAttribute('data-nopn',''); document.body.appendChild(el); pnPopBind(el); }
+  el.dataset.team=id;
+  el.innerHTML=`<div class="pnbox"><div class="pnh"><b>${TEAM[id].name}</b> <small>選手一覧（名前を押すと能力と成績）</small></div>
+    <div class="sh2" style="margin:6px 0 2px">野手 <small style="color:#9ab;font-weight:400">能力＝ミート/パワー/走力/選球眼・技術/守備</small></div>
+    <table class="pnt pnr"><tr><th></th><th>守</th><th class="l">名前</th><th>年齢</th><th>能力</th><th>打率</th><th>本</th></tr>${rows}${rowsB?`<tr><th colspan="7" class="l" style="padding-top:6px">控え</th></tr>${rowsB}`:''}</table>
+    <div class="sh2" style="margin:10px 0 2px">投手 <small style="color:#9ab;font-weight:400">能力＝球速/コントロール/スタミナ</small></div>
+    <table class="pnt pnr"><tr><th></th><th class="l">名前</th><th>年齢</th><th>能力</th><th>防御率</th><th>勝敗</th></tr>${rowsP}</table>
+    <button class="btn pnx" style="width:100%;margin-top:10px">閉じる</button></div>`;
+  el.scrollTop=0;
+}
+function pnPopBind(el){ el.addEventListener('click',e=>{ const bk=e.target.closest&&e.target.closest('.pnback'); if(bk){ pnTeam(bk.dataset.back); return; } if(e.target===el||(e.target.closest&&e.target.closest('.pnx'))) el.remove(); }); }
+if(typeof document!=='undefined'){ if(document.body) pnInit(); else document.addEventListener('DOMContentLoaded',pnInit); }
 
 </script>
 </body>

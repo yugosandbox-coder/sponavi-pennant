@@ -133,19 +133,23 @@ function cbDaily(){
   const half=Math.ceil(SEASON_GAMES/2), d=PEN.day, fr=d<half?1:Math.max(0,(SEASON_GAMES-d)/(SEASON_GAMES-half));
   lastApply(L,fr);
 }
-/* ---- 覚醒合宿（伝説の野球選手・29歳までの毎年5%・生涯1回）：すり抜けた覚醒（条件を満たしたのに覚醒しなかったもの）からランダムに3つ ---- */
+/* ---- 覚醒合宿（伝説の野球選手・29歳までの毎年5%・生涯1回）：まだ覚醒していない覚醒イベント（すべて。自分の立場に合うもの）からランダムに3つ ---- */
 const AWK_SEASON={avg300:['安打製造機の覚醒',10,'ミート+5'],hr10:['長距離砲の覚醒',10,'パワー+5'],era300:['エースピッチャーへの兆し',20,''],kaido:['怪童への道',0,'']};
+const AWK_BAT=new Set(['tl1','hr1','h100','h500','h1000','avg300','hr10']);
 function legendPool(){
-  const A=PEN.awake||{done:{},log:[]}, got=new Set((A.log||[]).map(l=>l.name)), out=[];
-  for(const [id,pts,pr,name] of AWAKE) if(A.done&&A.done[id]&&!got.has(name)) out.push({id,name,pts});   // 条件を満たしたのに覚醒しなかった
-  for(const id in (A.miss||{})) if(A.miss[id]&&!(A.done&&A.done[id])&&AWK_SEASON[id]) out.push({id,name:AWK_SEASON[id][0],pts:AWK_SEASON[id][1],season:true});
+  const A=PEN.awake||{done:{},log:[]}, got=new Set((A.log||[]).map(l=>l.name)), out=[], B=hasBat(), P=!isBat();
+  const okPos=id=>AWK_BAT.has(id)?B:P;
+  for(const [id,pts,pr,name] of AWAKE) if(okPos(id)&&!got.has(name)) out.push({id,name,pts});   // まだ覚醒していない（条件を満たしていないものも、すり抜けたものも）
+  for(const id in AWK_SEASON) if(okPos(id)&&!(A.done&&A.done[id])) out.push({id,name:AWK_SEASON[id][0],pts:AWK_SEASON[id][1],season:true});
+  const tm=PEN.team; if(MR_NAME[tm]&&!(A.done&&A.done['mr_'+tm])) out.push({id:'mr_'+tm,name:`ミスター${MR_NAME[tm]}`,pts:20,mr:true});
+  out.push({id:'ongaeshi',name:'恩返し',pts:5,ong:true});
   return out;
 }
 function legendDo(){
   const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); A.legendDone=true;
   const R=shuffle(legendPool()).slice(0,3), out=[];
   for(const e of R){
-    if(!e.season){ A.bank=r1((A.bank||0)+e.pts); A.log.push({y:PEN.year,name:e.name,pts:e.pts,legend:true}); out.push({name:e.name,pts:e.pts}); continue; }
+    if(!e.season){ if(A.done&&!e.ong) A.done[e.id]=true; A.bank=r1((A.bank||0)+e.pts); A.log.push({y:PEN.year,name:e.name,pts:e.pts,legend:true}); out.push({name:e.name,pts:e.pts}); continue; }
     A.done[e.id]=true; if(A.miss) delete A.miss[e.id];
     if(e.id==='avg300'&&PEN.babil){ PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); }
     if(e.id==='hr10'&&PEN.babil){ PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); }
@@ -207,7 +211,7 @@ function cbDesc(id){
     case 'run': if(B) L.push(`${k==='W'?'打撃':'野手'}：盗塁の成功率+10%・おまかせでも走る回数が増える（足が少し遅くても走る）`); if(P) L.push(`${k==='W'?'投球':'投手'}：クイック・牽制が上手くなり、走られにくい（盗塁を試みられるのが半分・成功率−15%）`); break;
     case 'tokushu': if(B) L.push(`${k==='W'?'打撃':'野手'}：守備+5・エラー半分`); if(P) L.push(`${k==='W'?'投球':'投手'}：コントロール+5・ピッチャーゴロ／ピッチャーライナーが少しだけ増える（ヒット性の当たりの一部がアウトに）`); break;
     case 'platoon': if(B) L.push(`${k==='W'?'打撃':'野手'}：今は「左打ちは右投手、右打ちは左投手に三振しにくい（空振り−12%）」。今季は同じ利き腕の投手にもこの有利がつく（どの投手にも両打ちのように打てる）`); if(P) L.push(`${k==='W'?'投球':'投手'}：今は「同じ利き腕の打者に有利」。今季は反対の打席の打者にも同じ有利がつく`); break;
-    case 'legend': { const n=legendPool().length; L.push('これまでの覚醒イベントで、条件を満たしたのに覚醒しなかったもの（すり抜けた覚醒）から、ランダムに3つを発動'); L.push('もらった持ち点は、このあとの春季キャンプですぐ振り分けられる'); L.push(`<small>すり抜けた覚醒：今 ${n}個${n<3?'（3つ未満のときは、あるぶんだけ）':''}／29歳までの毎年5%で現れる・生涯1回だけ</small>`); break; }
+    case 'legend': { const n=legendPool().length; L.push('まだ覚醒していない覚醒イベント（すべて。自分の立場に合うもの）から、ランダムに3つを発動'); L.push('もらった持ち点は、このあとの春季キャンプですぐ振り分けられる'); L.push(`<small>対象の覚醒：今 ${n}個／29歳までの毎年5%で現れる・生涯1回だけ</small>`); break; }
     case 'cond': L.push('衰えの始まりを2年遅らせる（33歳50%・34歳75%・35歳100% → 35歳・36歳・37歳）'); L.push('36歳以上のシーズン後半のスランプの起きやすさを、ふつうの確率に戻す'); if(PEN.declAge) L.push(`<small>（もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない）</small>`); break;
     case 'last': { const bs=bestSeason(); L.push(`<b>25%</b>：今シーズンの前半戦は、いちばん成績が良かった年${bs?`（${bs.year}年目・${bs.age}歳）`:''}の能力に戻る。後半戦は少しずつ下がり、レギュラーシーズン終了とともに元に戻る`); L.push(`<b>75%</b>：全能力−15${P?'（球速は−15km/h）':''}${P?'・変化球のLvが合計で3下がる（投げられなくなる球種もある）':''}。ずっと残る`); L.push('<small>35歳以上だけ・値段は全財産</small>'); break; }
     case 'money': L.push('次の年俸査定が+5〜10%（15億まで）'); L.push('FAになったら提示額+10%・契約年数が伸びやすい'); L.push(`<small>値段は今の年俸の8%（最低900万）</small>`); break;
@@ -311,7 +315,7 @@ function cbTalk(D,st){
     case 'tokushu': h+=C(`${TEAM[PEN.team].short}の守備コーチ、${nm}だ。今日は特守。泥だらけになってもらうぞ！`)+M('は、はい……！')+C(B?'グラブさばきは嘘をつかない。今季のエラーは半分になるはずだ。':'投手も9人目の野手だ。フィールディングと、狙ったところに投げきる制球を徹底的に鍛える。'); break;
     case 'platoon': h+=C(`${TEAM[PEN.team].short}の打撃コーチ、${nm}だ。左右の苦手を消しに来た。`)+M(B?'同じ利き腕のピッチャー、どうも球の出どころが見づらくて……。':'反対の打席の打者が、どうも怖くて……。')+C(B?'目が慣れるまで打ち込むぞ。今季はどの投手にも、両打ちのつもりで立てばいい。':'内角の使い方を変えれば、反対の打席の打者も怖くない。'); break;
     case 'legend':{ h+=C(`……伝説の野球選手、${nm}だ。噂を聞いて来てみたが、いい目をしているな。`)+M('ほ、本物だ……！');
-      const R=st.res||[]; h+=C(R.length?'お前がこれまで取りこぼしてきた覚醒を、わしが引き出してやろう。……フンッ！':'……ふむ。お前には、取りこぼした覚醒が見当たらんな。');
+      const R=st.res||[]; h+=C(R.length?'お前の中に眠っている覚醒を、わしが引き出してやろう。……フンッ！':'……ふむ。お前には、もう引き出す覚醒が残っておらんな。');
       if(R.length) h+=`<div class="pcardx">${R.map(r=>`✨ ${r.name}${r.ex?`（${r.ex}）`:''}${r.pts?` 持ち点+${r.pts}`:''}`).join('<br>')}</div>`+C('持ち点は、このあとのキャンプで振り分けるといい。若いの、期待しているぞ。'); break; }
     case 'cond': h+=C(`リハビリトレーナーの${nm}です。体の“衰え”は、手入れしだいで先送りできますよ。`)+M(age>=33?`${age}歳。まだまだ衰えたくないんです。`:'今のうちから準備しておきたいんです。')+C('関節の動きと、疲れの抜き方を作り直しましょう。それに、後半戦に崩れない体の使い方もね。'); break;
     case 'last':{ h+=C(`……ふふ、来たか。わしは${nm}。表の世界じゃ名乗れん医者だよ。`)+M('本当に、昔の体に戻れるんですか……？')+C('保証はせん。うまくいけば、全盛期の体がひと夏だけ戻る。しくじれば……まあ、覚悟はしておけ。');
@@ -363,7 +367,7 @@ function cbDo(D,st,arg){
     case 'run': on.run={}; eff=[B&&`${k==='W'?'打撃：':''}盗塁の成功率+10%・おまかせでも走る回数が増える`,P&&`${k==='W'?'投球：':''}盗塁を試みられるのが半分・成功率−15%`].filter(Boolean).join('／')+'（今シーズン）'; break;
     case 'tokushu': on.tokushu={}; eff=[B&&`${k==='W'?'打撃：':''}守備+5・エラー半分`,P&&`${k==='W'?'投球：':''}コントロール+5・ピッチャーゴロ／ライナーが少し増える`].filter(Boolean).join('／')+'（今シーズン）'; break;
     case 'platoon': on.platoon={}; eff=[B&&`${k==='W'?'打撃：':''}同じ利き腕の投手にも左右の有利（空振り−12%）`,P&&`${k==='W'?'投球：':''}反対の打席の打者にも左右の有利`].filter(Boolean).join('／')+'（今シーズン）'; break;
-    case 'legend':{ const R=legendDo(); st.res=R; const pts=R.reduce((t,r)=>t+(r.pts||0),0); eff=R.length?`すり抜けた覚醒を発動：${R.map(r=>r.name).join('・')}${pts?`（キャンプの持ち点 +${pts}）`:''}`:'すり抜けた覚醒がなかった'; break; }
+    case 'legend':{ const R=legendDo(); st.res=R; const pts=R.reduce((t,r)=>t+(r.pts||0),0); eff=R.length?`覚醒を発動：${R.map(r=>r.name).join('・')}${pts?`（キャンプの持ち点 +${pts}）`:''}`:'引き出せる覚醒がなかった'; break; }
     case 'cond': on.cond={}; eff=`衰えの始まりを2年遅らせる（35歳・36歳・37歳）・36歳以上の後半戦のスランプがふつうの確率に（今シーズン）${PEN.declAge?`<br><small>もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない</small>`:''}`; break;
     case 'last':{ const r=lastDo(); on.last=r; st.ok=r.ok; st.yr=r.year; st.ag=r.age;
       eff=r.ok?`成功：前半戦は${r.year?`${r.year}年目（${r.age}歳）`:'全盛期'}の能力（${r.txt}）。後半戦は少しずつ下がり、レギュラーシーズン終了で元に戻る`:`失敗：${r.txt}（ずっと残る）`; break; }

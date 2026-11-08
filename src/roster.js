@@ -26,8 +26,8 @@ const AGE_ADJ=a=>a<=18?-13:a<=24?-13+(a-18)*2:a<=27?-1+(a-24)*1:a<=31?3-(a-29>0?
 const FTYPE_W=[['power',22],['contact',22],['speed',16],['defense',16],['balance',24]];
 const FTYPE_ADJ={power:{p:15,m:-4,s:-6,d:-5},contact:{m:15,p:-8,e:5,d:-2},speed:{s:18,d:4,p:-12,m:-2},defense:{d:16,p:-8,m:-4,e:-2},balance:{}};
 // 野手を作る（tier＝平均からのずれ。レギュラー級はプラス、控えはマイナス）
-// CPUの年齢ごとの能力（表示の値）：野手は5つの能力の合計の平均が18歳125 → 30歳300（そのあとは衰えが始まるまで横ばい）
-const CPU_SUM=a=>a<=18?125:a>=30?300:125+(a-18)*175/12;
+// CPUの年齢ごとの能力（表示の値）：野手は5つの能力の合計の平均が18歳118 → 30歳290（そのあとは衰えが始まるまで横ばい）
+const CPU_SUM=a=>a<=18?CPU_G.s0:a>=30?CPU_G.s1:CPU_G.s0+(a-18)*(CPU_G.s1-CPU_G.s0)/12;
 const CPU_DECL_GEN=a=>a<=32?0:a===33?1.5:a===34?4:a===35?7:7+(a-35)*4;   // 作るときの衰えの目安（1能力あたり・平均）
 const CPU_TIER_D=1.5;   // tier（平均からのずれ）1あたりの表示の値
 function genFielder(pos,age,tier){
@@ -44,8 +44,8 @@ function genFielder(pos,age,tier){
   return f;
 }
 // 投手を作る（tier＝平均からのずれ）。コントロール・スタミナの平均は50、球速は年齢と質で上下
-// CPUの投手：コントロール＋スタミナの合計の平均が18歳50 → 30歳140、球速の平均が18歳135 → 30歳144km/h。先発型はスタミナ、中継ぎ型はコントロール・球速に寄りがち
-const CPU_PCS=a=>a<=18?50:a>=30?140:50+(a-18)*7.5;
+// CPUの投手：コントロール＋スタミナの合計の平均が18歳46 → 30歳134、球速の平均が18歳135 → 30歳144km/h。先発型はスタミナ、中継ぎ型はコントロール・球速に寄りがち
+const CPU_PCS=a=>a<=18?CPU_G.c0:a>=30?CPU_G.c1:CPU_G.c0+(a-18)*(CPU_G.c1-CPU_G.c0)/12;
 const CPU_PV=a=>a<=18?135:a>=30?144:135+(a-18)*0.75;
 const CPU_PDECL=a=>a<=32?0:a===33?2:a===34?6:a===35?10:10+(a-35)*6;   // 作るときの衰えの目安（コントロール＋スタミナ）
 function genRosterPitcher(age,tier){
@@ -260,16 +260,19 @@ function cpuEvents(age,star){   // 覚醒・タイトル相当の持ち点（確
   return p;
 }
 // CPUの1年の基本の持ち点（若いうちは大きく伸び、30〜32歳は少し。衰えが始まったらなし）
-const CPU_G=Object.assign({fy:9.5,fm:0.5,py:8.5,pm:0.5,off:2,pv:14,rv:22},(typeof process!=='undefined'&&process.env&&process.env.CPUG)?JSON.parse(process.env.CPUG):{});
+const CPU_G=Object.assign({fy:8,fm:0.5,py:8.2,pm:0.5,off:2,pv:14,rv:22,s0:118,s1:290,c0:46,c1:134,e0:80,ev:0.04},(typeof process!=='undefined'&&process.env&&process.env.CPUG)?JSON.parse(process.env.CPUG):{});
 const cpuGrowBase=(age,isP)=>age<=30?(isP?CPU_G.py:CPU_G.fy):age<=32?(isP?CPU_G.pm:CPU_G.fm):0;
 const CPU_WEIGHT={'フルスイング':{p:4,m:2,e:1,s:1,d:1},'ヒットメーカー':{m:4,e:2,s:1,p:1,d:1},'スピードスター':{s:4,d:2,m:1,e:1,p:1},'守備職人':{d:4,s:1,m:1,e:1,p:1},'代打男':{m:3,p:3,e:1,s:1,d:1},'アスリート':{m:2,p:2,s:2,e:1,d:2},'バランス':{m:2,p:2,s:1,e:2,d:2}};
+// CPUの成長は能力が高いほど伸びにくい（表示の値で80から上は効きが落ち、90で6割・95で4割・100の手前で1/4）。100近い能力を2つ以上持つ野手は数年に1人くらい
+const cpuEff=v=>v<CPU_G.e0?1:Math.max(0.25,1-(v-CPU_G.e0)*CPU_G.ev), cpuEffV=v=>v<150?1:Math.max(0.25,1-(v-150)*0.05);
 // 持ち点を能力に振る（野手）：表示の値で1点＝1。タイプで振られやすい能力が違う（ランダム）
 function cpuGrowF(f,pts){
   const W=CPU_WEIGHT[f.btype]||CPU_WEIGHT['バランス'], keys=Object.keys(W), D={}; keys.forEach(k=>D[k]=abShow(f[k]));
+  const R={}; keys.forEach(k=>R[k]=W[k]*(0.3+rnd()*1.4));   // その年の振られやすさ（ランダム）
   let left=pts, guard=0;
-  while(left>0.05&&guard++<20){ const open=keys.filter(k=>D[k]<100); if(!open.length) break;
-    const w={}; open.forEach(k=>w[k]=W[k]*(0.3+rnd()*1.4)); const sw=open.reduce((t,k)=>t+w[k],0); let used=0;
-    open.forEach(k=>{ const a=Math.min(100-D[k],left*w[k]/sw); D[k]+=a; used+=a; }); left-=used; if(used<1e-6) break; }
+  while(left>0.05&&guard++<200){ const open=keys.filter(k=>D[k]<100); if(!open.length) break;
+    const step=Math.min(left,2), sw=open.reduce((t,k)=>t+R[k],0); let used=0;
+    open.forEach(k=>{ const e=cpuEff(D[k]), g=Math.min(100-D[k],step*R[k]/sw*e); D[k]+=g; used+=g/e; }); left-=used; if(used<1e-6) break; }
   keys.forEach(k=>f[k]=clamp(Math.round(abPerf(D[k])*10)/10,1,100));
 }
 // 持ち点を能力に振る（投手）：球速0.1km/h＝0.5点・コントロール/スタミナ0.1＝0.1点・変化球のLvアップ。先発型はスタミナ、中継ぎ型はコントロール・球速に振られやすい
@@ -280,9 +283,9 @@ function cpuGrowP(p,pts){
   while(lvP>=1&&guard++<10){ const ts=(p.types||[]).filter(t=>t!=='ストレート'&&pitLv(p,t)<7); if(!ts.length) break; const t=pick(ts), nl=pitLv(p,t)+1, c=nl<=2?1:nl===3?3:nl; if(c>lvP) break; p.plv=p.plv||{}; p.plv[t]=nl; lvP-=c; left-=c; }
   if(left<=0) return;
   const r={velo:W.velo*(0.5+rnd()),control:W.control*(0.5+rnd()),stamina:W.stamina*(0.5+rnd())}, sw=r.velo+r.control+r.stamina;
-  p.velo=Math.round(Math.min(VELO_MAX,p.velo+left*r.velo/sw/5)*10)/10;
-  p.control=Math.round(Math.min(100,p.control+left*r.control/sw)*10)/10;
-  p.stamina=Math.round(Math.min(100,p.stamina+left*r.stamina/sw)*10)/10;
+  p.velo=Math.round(Math.min(VELO_MAX,p.velo+left*r.velo/sw/5*cpuEffV(p.velo))*10)/10;
+  p.control=Math.round(Math.min(100,p.control+left*r.control/sw*cpuEff(p.control))*10)/10;
+  p.stamina=Math.round(Math.min(100,p.stamina+left*r.stamina/sw*cpuEff(p.stamina))*10)/10;
 }
 // 去年の成績から決まるCPUの持ち点（自分と同じように、活躍・覚醒・タイトルで増える）
 //  ev：{pts, m, p}（m/p＝覚醒でミート・パワーが直接+5）

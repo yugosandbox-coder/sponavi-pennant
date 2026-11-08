@@ -25,7 +25,7 @@ const mgrOrder=m=>(m&&m.o)||'std';   // 打順志向
 const mySubMgr=()=>{ const m=myMgr(); return !!(m&&m.o==='sub'); };   // 代打多用型の監督か
 const myMgr=()=>PEN?mgrOf(PEN.team):null;
 const mgrName=m=>m?`${m.sur}監督`:'監督';
-const mgrCampBonus=m=>m?r1(0.2+(clamp(m.lv,1,5)-1)/4*1.8):0;   // 采配レベル1.0で+0.2、5.0で+2.0
+const mgrCampBonus=m=>m?Math.floor((0.2+(clamp(m.lv,1,5)-1)/4*1.8)*2+1e-9)/2:0;   // 采配レベルで+0〜+2.0（0.5刻みに切り下げ：レベル1.7未満0・1.7〜2.7で0.5・2.8〜3.8で1.0・3.9〜4.9で1.5・5.0で2.0）
 const isFavMgr=()=>{ const m=myMgr(); return !!(m&&m.a==='fav'); };
 // 贔屓起用：お気に入り度（0〜100）。ミッション達成で上がり、失敗・打診を断ると下がる
 function favChange(d){ const m=myMgr(); if(!m||m.a!=='fav') return; const was=m.fav||0; m.fav=clamp(r1(was+d),0,100);
@@ -86,12 +86,15 @@ function mgrRatingB(m,s){
    野手：打率.270・本塁打20本・OPS.800・15盗塁・三振率18%（三振÷打席）／投手：防御率3.00・WHIP1.25・奪三振率6.0
    達成度＝ノルマちょうどで1。0になるのは 打率.170・OPS.500・0本・0盗塁・三振率30%／防御率5.00・WHIP1.75・奪三振率0（本塁打・盗塁は600打席あたり）
    評価点＝78×（監督の性格で重みをつけた達成度の平均）。ノルマの2/3で52点（年俸±0）
-   若手（24歳まで。監督の性格で前後：若手優先26・贔屓起用25・実力主義24・ベテラン優先22歳まで）のシーズン後の評価は若手のノルマ：
+   若手（25歳まで。監督の性格で前後）のシーズン後の評価は若手のノルマ（若いほど評価が甘い・26歳は大人との間・27歳から大人）：
    野手：打率.250・本塁打5本・OPS.500・5盗塁（三振率は18%のまま）／投手：防御率4.00・WHIP1.75・奪三振率6.0（0点になる値はノルマから同じ幅だけ下）
    シーズン中の評価（evalR：スタメン争い・投手の配置の打診・画面の「評価」）も同じノルマ方式。投手陣の順位（総合評価）の成績の部分も、ノルマの達成度で見る（pPerfR） */
 const NORM_B={avg:0.270,hr:20,ops:0.800,sb:15,k:0.18}, NORM_P={era:3.00,whip:1.25,k9:6}, NORM_RATE=78;
 const NORM_BY={avg:0.250,hr:5,ops:0.500,sb:5,k:0.18}, NORM_PY={era:4.00,whip:1.75,k9:6};   // 若手のノルマ
-const YOUTH_AGE={young:26,fav:25,merit:24,vet:22}, youthAge=m=>YOUTH_AGE[m&&m.a]??24, isYouth=m=>(PEN&&PEN.age||18)<=youthAge(m);
+// 若手の基準（シーズン後の評価）：25歳までは若手のノルマで、若いほど評価を甘く（18歳で1.2倍 → 25歳で1倍＝ノルマの2/3で52点）。
+//  26歳は若手と大人の基準の間（大人の基準60%。25歳より甘くはならない）、27歳から大人の基準。監督の性格で前後（若手優先+2歳・贔屓起用+1歳・実力主義±0・ベテラン優先−2歳）
+const YOUTH_SHIFT={young:2,fav:1,merit:0,vet:-2}, youthShift=m=>YOUTH_SHIFT[m&&m.a]??0;
+function youthSpec(m){ const a=(PEN&&PEN.age||18)-youthShift(m); if(a<=25) return {w:0,L:1+0.2*clamp(25-a,0,7)/7}; if(a<27) return {w:Math.min(1,0.6*(a-25)),L:1}; return null; }
 const NORM_W_B={std:{avg:1,hr:1,ops:1.5,sb:0.5,k:0.35},k:{avg:0.75,hr:1.5,ops:1.5,sb:0.5,k:0},avg:{avg:3,hr:0.5,ops:1,sb:0.5,k:0.75},slg:{avg:0.5,hr:2.5,ops:1.5,sb:0.25,k:0.1},spd:{avg:1,hr:0.5,ops:1,sb:2.5,k:0.35},def:{avg:1,hr:0.75,ops:1,sb:1,k:0.35}};   // 三振は気にしない監督は三振率を見ない
 const NORM_W_P={std:{era:1.5,whip:1,k9:1},bb:{era:1.5,whip:1,k9:1},k:{era:1,whip:0.75,k9:2},era:{era:3,whip:0.75,k9:0.25}};
 const achB=(avg,ops,hr6,sb6,kr,N)=>{ N=N||NORM_B; return {avg:clamp(1+(avg-N.avg)/0.10,-0.5,2.5),ops:clamp(1+(ops-N.ops)/0.30,-0.5,2.5),hr:clamp(hr6/N.hr,0,2.5),sb:clamp(sb6/N.sb,0,2.5),k:clamp(1+(N.k-(kr??N.k))/0.12,-0.5,2.5)}; };
@@ -114,18 +117,20 @@ function pPerfR(s,m){
 }
 // 野手：打席が少ないうちは能力から見込んだ評価に寄せる（60打席で半々）
 //  youth＝若手のノルマで見る（シーズン後の評価だけ。シーズン中の起用はいつも大人のノルマ）
-function seasonRateB(m,s,youth){
+//  ys＝若手の基準（youthSpec）：w＝大人の基準の割合・L＝若手の評価の倍率。null なら大人の基準
+const ysMix=(ys,y,a)=>!ys?a:ys.w?y*ys.L*(1-ys.w)+a*ys.w:y*ys.L;
+function seasonRateB(m,s,ys){
   if(!s||s.pa<10) return null;
-  const raw=normScore(achB(bAvg(s),bObp(s)+bSlg(s),s.hr/s.pa*600,(s.sb||0)/s.pa*600,(s.k||0)/s.pa,youth?NORM_BY:NORM_B),normWB(m));
-  const prior=priorRB(youth);
+  const sc=N=>normScore(achB(bAvg(s),bObp(s)+bSlg(s),s.hr/s.pa*600,(s.sb||0)/s.pa*600,(s.k||0)/s.pa,N),normWB(m));
+  const raw=ysMix(ys,ys?sc(NORM_BY):0,!ys||ys.w?sc(NORM_B):0), prior=ysMix(ys,ys?priorRB(true):0,!ys||ys.w?priorRB(false):0);
   return Math.max(0,prior+(raw-prior)*s.pa/(s.pa+60));
 }
 // 投手：投球回が少ないうちは能力から見込んだ評価に寄せる（15回で半々）。与四死球を気にしない監督はWHIPに四死球を数えない（平均的な四死球のぶん0.35を足す）
-function seasonRateP(m,st,youth){
+function seasonRateP(m,st,ys){
   if(!st||st.outs<6) return null;
   const ip=st.outs/3, bbX=!!(m&&m.p==='bb'), era=st.runs*9/ip, whip=(st.hits+(bbX?0:st.bb))/ip+(bbX?0.35:0), k9=st.k*9/ip, W=normWP(m);
-  const raw=normScore(achP(era,whip,k9,youth?NORM_PY:NORM_P),W);
-  const prior=priorRP(m,youth);
+  const raw=ysMix(ys,ys?normScore(achP(era,whip,k9,NORM_PY),W):0,!ys||ys.w?normScore(achP(era,whip,k9,NORM_P),W):0);
+  const prior=ysMix(ys,ys?priorRP(m,true):0,!ys||ys.w?priorRP(m,false):0);
   return Math.max(0,prior+(raw-prior)*ip/(ip+15));
 }
 /* ---- 贔屓起用の打診 ---- */
