@@ -248,7 +248,7 @@ let ME_PF_ADD=0;
 const myPositions=()=>PEN.favMod&&PEN.favMod.pos?[PEN.favMod.pos]:PEN.bAssign&&PEN.bAssign.pos&&isBat()?[PEN.bAssign.pos]:(PEN.bposs&&PEN.bposs.length?PEN.bposs:[PEN.bpos||'OF']);   // 打診で決まった守備位置があればそこだけ
 function myFielder(pos){
   const a=perfB(PEN.babil);   // 内部値でCPUと比べる
-  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6)+ME_PF_ADD,num:B_NUM,isMe:true};
+  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6)+ME_PF_ADD-((pos||myPositions()[0])!=='DH'?Math.round(defBad()*6):0),num:B_NUM,isMe:true};   // 失策が多い・UZRが低いと、DH以外ではスタメンに選ばれにくい
 }
 
 /* ---- 年をまたぐとき：成長・衰え・引退、ドラフト ---- */

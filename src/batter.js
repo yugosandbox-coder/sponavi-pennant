@@ -8,8 +8,28 @@
 const B_ROLE_NAME={'スタメン':'スタメン','代打':'控え（代打）'};
 const isBat=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.pos==='B');
 const roleName=r=>B_ROLE_NAME[r]||(typeof PEN!=='undefined'&&PEN&&r===PEN.role&&!isBat()&&typeof pitRoleLabel==='function'?pitRoleLabel():ROLE_NAME[r])||r;   // 投手の今の役割は「先発◯番手」など
-const batStat=()=>({g:0,gs:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,run:0,bb:0,hbp:0,k:0,sb:0,cs:0,tl:0,php:0,pha:0,phh:0,ds:0,gp:0,pr:0,err:0,fg:0,mBonus:0,mOK:0,mNG:0});   // tl＝タイムリー（打点のついた安打）、php/pha/phh＝代打の打席・打数・安打、ds＝守備固め出場、gp＝守備の好プレー
-const B_KEYS=['pa','ab','h','d2','d3','hr','rbi','run','bb','hbp','k','sb','cs','tl','php','pha','phh','ds','gp','pr','err','fg'];
+const batStat=()=>({g:0,gs:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,run:0,bb:0,hbp:0,k:0,sb:0,cs:0,tl:0,php:0,pha:0,phh:0,ds:0,gp:0,pr:0,err:0,fg:0,uzr:0,mBonus:0,mOK:0,mNG:0});   // tl＝タイムリー（打点のついた安打）、php/pha/phh＝代打の打席・打数・安打、ds＝守備固め出場、gp＝守備の好プレー
+const B_KEYS=['pa','ab','h','d2','d3','hr','rbi','run','bb','hbp','k','sb','cs','tl','php','pha','phh','ds','gp','pr','err','fg','uzr'];
+/* ---- 守備の成績：失策（守備×0.65＋選球眼・技術×0.35 が高いほど少ない）とUZR（守備×0.6＋走力×0.4 が高いほど高い。失策の多さも入る） ----
+   守備力60の選手が1年（143試合）守ったときの失策のおおよそ：捕手6・一塁6・二塁8・遊撃12・三塁12・外野3〜4。UZRは守備範囲の得点（±0が平均） */
+const ERR_E={C:6,'1B':6,'2B':8,SS:12,'3B':12,LF:3,CF:3,RF:4,OF:3.5}, UZR_K={C:0.3,'1B':0.4,'2B':0.9,SS:1,'3B':0.7,LF:0.7,CF:1,RF:0.7,OF:0.8};
+const fmtUZR=s=>(s&&((s.fg||0)+(s.ds||0))>0)?((s.uzr||0)>=0?'+':'')+(s.uzr||0).toFixed(1):'-';
+function fieldGame(st,pos,part){
+  if(!pos||pos==='DH'||!ERR_E[pos]||!PEN||!PEN.babil) return 0;
+  const a=(typeof cbBab==='function'?cbBab(PEN.babil):PEN.babil), d=a.def??50, e=a.eye??50, s=a.speed??50, t=myBtype(), w=part||1;
+  const e0=ERR_E[pos]/SEASON_GAMES*w, em=e0*Math.exp(-((d*0.65+e*0.35)-60)*0.028)*(t==='守備職人'?0.75:1)*(typeof cbOn==='function'&&cbOn('tokushu')?0.5:1);   // 特守：エラー半分
+  const er=poisson(em), K=UZR_K[pos];
+  st.err=(st.err||0)+er;
+  st.uzr=(st.uzr||0)+((d*0.6+s*0.4)-60)*0.5*K/SEASON_GAMES*w+(rnd()-0.5)*0.5*K*w-(er-e0)*0.6;
+  return er;
+}
+// 守備の不安（失策が多すぎる・UZRが低すぎる）：0〜1.5。守った試合が少ないうちは割り引く
+function defBad(){
+  if(!PEN||!isBat()) return 0; const s=PEN.ss||{}, g=(s.fg||0)+(s.ds||0)*0.3; if(g<5) return 0;
+  const pos=PEN.slot&&PEN.slot!=='DH'?PEN.slot:((PEN.bposs||[])[0]||'OF'), E=ERR_E[pos]||8, w=g/(g+20);
+  const uz=(s.uzr||0)*SEASON_GAMES/g*w, ep=(s.err||0)*SEASON_GAMES/g*w+E*(1-w);
+  return clamp(Math.max(-uz/10,(ep-E*1.4)/E),0,1.5);
+}
 const bAvg=s=>s.ab?s.h/s.ab:0, bObp=s=>s.pa?(s.h+s.bb+s.hbp)/s.pa:0, bSlg=s=>s.ab?(s.h+s.d2+2*s.d3+3*s.hr)/s.ab:0;
 const f3=v=>v.toFixed(3).replace(/^0/,'');
 // 能力 → 打撃の数字
@@ -51,7 +71,9 @@ const HR_ME_K=0.9;   // 自分の本塁打率（パワー依存）：打球に�
 const HR_TOP=(p,k)=>p>50?1+k*Math.pow((p-50)/50,2):1;
 const cpuHrRate=p=>myHrRate(p)*HR_TOP(p,0.25);   // CPUの打者と、自分のおまかせ打席（リーグの試合と同じ計算）
 const myHrRate=p=>clamp(0.006+Math.pow(clamp(p,0,100)/100,2)*HR_MAX*HR_ME_K,HR_MIN*0.5,HR_MAX*2);
-const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0),toThird?0.08:0.25,0.95);   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
+const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0)+(typeof cbOn==='function'&&cbOn('run')?0.10:0),toThird?0.08:0.25,0.95);   // 走塁・盗塁講習：+10%
+// おまかせで盗塁を試みるか（走塁・盗塁講習：走力が少し低くても走り、回数1.5倍）
+const stealTry=spd=>{ const r=typeof cbOn==='function'&&cbOn('run'), th=r?45:55; return spd>=th&&rnd()<(0.1+(spd-th)*0.006)*(r?1.5:1); };   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
 const B_NUM=7;   // 野手の背番号
 
 /* ---- 相手投手 ---- */
@@ -185,7 +207,7 @@ function batResolve(p){
   const eye=A.eye/100, meet=A.meet/100, two=ab.strikes===2;
   // 球の質：変化球はLv（Lv.2が普通、Lv.7でいちばん打ちにくい）、ストレートは球速
   const lvP = p.pt==='ストレート' ? clamp((pitLv(pit,'ストレート')-3)*0.5,-1,2) : clamp((pitLv(pit,p.pt)-2)*0.45,-0.5,2.2), pfT=curPitF(), pq=pit.q*(1+pfT*0.12)*(inPinch(G.bases)?1+PINCH.q*2:1);   // ストレートもLv（3が標準）。疲れた投手は球威が落ちる
-  const platoon=(G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L');   // 左打ちは右投手、右打ちは左投手に少し三振しづらい
+  const platoon=(G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L')||!!(typeof cbG==='function'&&cbG('platoon'));   // 左右苦手克服：同じ利き腕の投手にも   // 左打ちは右投手、右打ちは左投手に少し三振しづらい
   const fx=pitchFx({pt:p.pt,r:p.r,c:p.c,sr:p.sr0??p.sr,sc:p.sc0??p.sc,hand:G.bhand,phand:pit.hand,mainT:main,mainSpd:T.spd,stSpd:pitSpeed(pit,'ストレート')});   // 球種の特徴（ストライク→ボール・本命とのずれ など）
   let mode;
   if(inT&&tq>0) mode='hit';
@@ -320,7 +342,8 @@ function bottomRun(Q){
   if(G.walk) return 'end';
   while(G.outs<3){
     if(canSteal()&&G.stealAsk!==stealKey()&&!G.autoMe) return 'steal';
-    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=0.75) Q.push(doSteal()); if(G.outs>=3) break; }
+    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=(typeof cbG==='function'&&cbG('run')?0.65:0.75)) Q.push(doSteal()); if(G.outs>=3) break; }
+    if(G.subIn&&!G.subbed&&G.meActive&&!G.pinch&&G.inning>=G.subIn){ G.meActive=false; G.subbed=true; addLog(`<div class="ab" style="color:var(--mute)">◆ ${G.subIn}回から守備固めの選手と交代（ここからはベンチで見守る）</div>`); }   // 守備に不安があると終盤に交代
     const nx=(T.order+1)%9, pinchNow=G.pinch&&!G.pinch.done&&G.inning===G.pinch.inning&&G.halfPA>=G.pinch.after;
     if((T.lineup[nx].isMe&&G.meActive)||pinchNow){
       if(pinchNow){ G.pinch.done=true; G.me.order=nx+1; }
@@ -806,7 +829,7 @@ function bindSpeedBar(){
 }
 function batRows(s){
   return [['打席',s.pa],['打数',s.ab],['安打',s.h],['二塁打',s.d2],['三塁打',s.d3],['本塁打',s.hr,1],['打点',s.rbi],['得点',s.run],['四死球',s.bb+s.hbp],['三振',s.k],['盗塁',s.sb],['盗塁死',s.cs],
-    ['打率','<b>'+(s.ab?f3(bAvg(s)):'-')+'</b>',1],['出塁率',s.pa?f3(bObp(s)):'-'],['長打率',s.ab?f3(bSlg(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-',1],['代打',`${s.php||0}打席${s.pha?`・打率${f3((s.phh||0)/s.pha)}`:''}`],['代走',s.pr||0],['守備固め',s.ds||0],['守備の好プレー',s.gp||0],['失策',s.err||0]];
+    ['打率','<b>'+(s.ab?f3(bAvg(s)):'-')+'</b>',1],['出塁率',s.pa?f3(bObp(s)):'-'],['長打率',s.ab?f3(bSlg(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-',1],['代打',`${s.php||0}打席${s.pha?`・打率${f3((s.phh||0)/s.pha)}`:''}`],['代走',s.pr||0],['守備固め',s.ds||0],['守備の好プレー',s.gp||0],['失策',s.err||0],['UZR',fmtUZR(s)]];
 }
 function renderStatsBat(){
   const g=batRows(G.st), y=batRows(isTW()?(PEN.bss||batStat()):isBat()?PEN.ss:batStat()), c=batRows(isTW()?(PEN.bcareer||batStat()):isBat()?PEN.career:batStat());
@@ -837,7 +860,7 @@ function renderScoutBat(){
 function abilityRB(){ const a=perfB(PEN.babil); return clamp(18+a.meet*0.25+a.power*0.2+a.speed*0.08+a.eye*0.12+(a.def??50)*0.04,25,85); }
 // 成績の評価（OPS中心。打席が少ないうちは能力の見込みに寄せる）
 function ratingB(s){ return mgrRatingB(myMgr(),s); }   // 監督の志向で評価の重みが変わる（manager.js）
-const pinchProb=()=>clamp(0.25+(evalOld()-40)/40*0.25,0.15,0.5);
+const pinchProb=()=>clamp(0.25+(evalOld()-40)/40*0.25+defBad()*0.08,0.15,0.5);   // 守備に不安がある打者は代打での出番が増える
 const orderFor=r=>r==='代打'?0:(PEN.order||9);   // 打順はスタメン争い（penCompete）で決まる
 // スタメン争い：守備位置ごとに能力＋監督の評価で決める（シーズン開始時と10試合ごと）
 function penCompete(quiet){
@@ -860,6 +883,7 @@ function penCompete(quiet){
 }
 function makePendingB(kind,oppId){
   const d=PEN.day, p={day:d,opp:oppId||oppOf(d),kind,order:PEN.order,slot:PEN.slot};
+  if(kind==='start'&&!isTW()&&PEN.slot&&PEN.slot!=='DH'){ const bd=defBad(); if(bd>0&&rnd()<clamp(0.05+bd*0.25,0,0.45)) p.subIn=ri(7,8); }   // 守備に不安があると終盤に守備固めと交代
   if(kind==='pinch') p.pinchInning=(typeof mySubMgr==='function'&&mySubMgr())?ri(4,7):ri(6,8);   // 代打多用型の監督は早い回から
   return p;
 }
@@ -880,6 +904,7 @@ function penPlayB(p){
     pname:PEN.pname, bhand:PEN.bhand||'R', babil:p.oddBabil||PEN.babil, kind:p.kind, order:myIdx>=0?myIdx+1:9, pinchInning:p.pinchInning, slot:isTW()?'DH':p.slot, ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])),
     pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})},
     mission: p.odd?null:(rnd()<(p.ps?EV_MP:0.35) ? genMissionB(p.kind) : null)});   // ポストシーズンは出やすい
+  G.subIn=p.subIn||0;
   const Q=batProceed();
   // 代打はその回の少し前から見せる（それより前の回はまとめて済ませる）
   const show = p.kind==='pinch' ? Q.filter(e=>e.inning>=G.pinch.inning) : Q;
@@ -891,24 +916,25 @@ function penPlayB(p){
 // 試合が終わったとき（野手）
 function penGameDoneB(p){
   const st=G.st, res=G.result.res;
+  if(G.subbed) st.subIn=G.subIn;
   addBatLine(st,p.kind!=='pinch');
   if(G.mission) checkMissionB();
   afterAppearanceB();
-  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
+  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,note:[G.subbed&&`${G.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
   PEN.pending=null; tradeCheck();
 }
 function addBatLine(st,start){
   if(isTW()){ addTwBat(st); return; }   // 二刀流の指名打者の日は打撃成績へ
   if(!start&&!st.ds){ st.php=st.pa; st.pha=st.ab; st.phh=st.h; }   // 代打の成績
-  if(start&&PEN.slot&&PEN.slot!=='DH') st.fg=1;   // 守備についた試合（ゴールデン・グラブ賞用）
-  for(const T of [PEN.ss,PEN.career]){ for(const k of B_KEYS) T[k]+=st[k]||0; T.g++; if(start) T.gs++; }
+  if(start&&PEN.slot&&PEN.slot!=='DH'){ st.fg=1; fieldGame(st,PEN.slot,st.subIn?0.75:1); }   // 守備についた試合（ゴールデン・グラブ賞用）・失策とUZR
+  for(const T of [PEN.ss,PEN.career]){ for(const k of B_KEYS) T[k]=(T[k]||0)+(st[k]||0); T.g++; if(start) T.gs++; }
   awakeCheck();
   PEN.roleApps++;
 }
 // スキップ（野手）：能力から打席の結果をおまかせで決める
 function penSkipB(){
   const p=PEN.pending, A=effBabil(PEN.babil,p.kind), A2=myT(), B=PEN.teams[p.opp]||A2;
-  const npa = p.kind==='pinch' ? 1 : Math.max(2,Math.round((p.order<=2?4.6:p.order<=5?4.3:3.9)+(rnd()-.5)*1.6));
+  const npa = p.kind==='pinch' ? 1 : Math.max(2,Math.round((p.order<=2?4.6:p.order<=5?4.3:3.9)+(rnd()-.5)*1.6))-(p.subIn?1:0);   // 守備固めと交代したら1打席少ない
   const st=batStat(); let bases=[0,0,0];
   for(let i=0;i<npa;i++){
     const on=rnd()<0.42?ri(1,2):0, k=autoKind(A,null,on&&rnd()<0.6); st.pa++;
@@ -918,15 +944,16 @@ function penSkipB(){
     // 打点・得点・盗塁のおおよそ
     if(k==='HR'){ st.rbi+=1+Math.min(on,poisson(0.6)); st.run++; st.tl=(st.tl||0)+1; }
     else if(['1B','IFH','2B','3B'].includes(k)){ if(on&&rnd()<(k==='1B'||k==='IFH'?0.45:0.7)){ st.rbi+=1; st.tl=(st.tl||0)+1; } if(rnd()<0.35+A.speed*0.002) st.run++;
-      if((k==='1B'||k==='IFH')&&A.speed>=55&&rnd()<0.1+(A.speed-55)*0.006){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
-    else if(k==='BB'||k==='HBP'){ if(rnd()<0.3) st.run++; if(A.speed>=55&&rnd()<0.1+(A.speed-55)*0.006){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
+      if((k==='1B'||k==='IFH')&&stealTry(A.speed)){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
+    else if(k==='BB'||k==='HBP'){ if(rnd()<0.3) st.run++; if(stealTry(A.speed)){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
     else if((k==='FO'||k==='GO')&&on&&rnd()<0.12) st.rbi++;
   }
   let o=poisson(Math.max(1.6,3.85+B.off-A2.def)), m=Math.max(st.rbi,poisson(Math.max(1.6,3.85+A2.off-B.def))+Math.round(st.rbi*0.4));
   const res=teamResult(o,m); if(res==='W'&&m<=o) m=o+1; if(res==='L'&&o<=m) o=m+1;
+  if(p.subIn) st.subIn=p.subIn;
   addBatLine(st,p.kind!=='pinch');
   afterAppearanceB();
-  recordMyGame(res,[o,m],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
+  recordMyGame(res,[o,m],{kind:p.kind,note:[p.subIn&&`${p.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
   PEN.pending=null; tradeCheck();
 }
 // 打順・出番の入れ替え

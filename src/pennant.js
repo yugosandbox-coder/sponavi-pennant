@@ -118,6 +118,7 @@ function recordMyGame(res,score,me,simmed){
   if(me) slumpAfterGame(me);   // スランプ（発生・試合数・終わり）
   if(me&&typeof injuryRoll==='function') injuryRoll();   // 出場した試合のあと：怪我
   PEN.day++;
+  if(typeof cbDaily==='function') cbDaily();   // 最後の輝き：後半戦は少しずつ元の能力へ
   if(typeof injuryTick==='function') injuryTick();
   if(typeof allstarCheck==='function') allstarCheck();   // 第75試合のあとにオールスター
   favExpire();
@@ -132,7 +133,7 @@ function recordMyGame(res,score,me,simmed){
    その5試合の成績が悪すぎると（野手：打率.150未満／投手：防御率6.00以上）5試合延長（最大10試合）。終わると能力は元に戻る */
 const SLUMP_P=0.01;
 // 36歳以上（35歳を超えた選手）はシーズン後半（72試合目から）にスランプがとても起きやすい：36歳6%・1歳ごとに+1%（最大12%）
-const slumpP=()=>{ const age=PEN.age||22, p=age>35&&PEN.day>=Math.ceil(SEASON_GAMES/2)?Math.min(0.12,0.06+0.01*(age-36)):SLUMP_P; return typeof cbOn==='function'&&cbOn('antei')?p/5:p; };   // 安定した戦い方：1/5
+const slumpP=()=>{ const age=PEN.age||22, p=age>35&&PEN.day>=Math.ceil(SEASON_GAMES/2)&&!(typeof cbOn==='function'&&cbOn('cond'))?Math.min(0.12,0.06+0.01*(age-36)):SLUMP_P; return typeof cbOn==='function'&&cbOn('antei')?p/5:p; };   // 安定した戦い方：1/5
 const slumpSnap=()=>{ const s=PEN.ss||{}, b=isBat()?PEN.ss:isTW()?(PEN.bss||{}):null; return {outs:isBat()?0:(s.outs||0),runs:isBat()?0:(s.runs||0),ab:b?(b.ab||0):0,h:b?(b.h||0):0}; };
 function slumpAfterGame(me){
   if(!PEN||PEN.day>=SEASON_GAMES) return;
@@ -429,6 +430,7 @@ function defsubGame(){
     const pOut=clamp((tough?0.35:0.93)+(d-50)*0.006-((b.speed||50)-50)*0.003-((b.power||50)-50)*0.002+btFx(t,'fld')+btFx(t,'dive'),0.05,0.98);
     if(rnd()<pOut){ if(tough){ st.gp++; notes.push(t==='守備職人'||rnd()<0.3?'ダイビングキャッチ':'好捕'); } }
     else if(!tough){ st.err++; notes.push('失策'); } }
+  { const b=PEN.babil||{}, pos=(PEN.bposs||[])[0]||'OF', K=UZR_K[pos]||0.7; st.uzr=((b.def??50)*0.6+(b.speed??50)*0.4-60)*0.5*K/SEASON_GAMES*0.3-(st.err-0.02)*0.6+(st.gp||0)*0.3; }   // 守備固めのUZR
   addBatLine(st,false);
   const note=`守備固めで出場${notes.length?`（${notes.join('・')}）`:''}${st.pa?`・${st.pa}打席${st.h?`${st.h}安打`:''}`:''}`;
   recordMyGame(g.res,[g.o,g.m],{kind:'defsub',note,bat:{pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},gp:st.gp,played:false});
@@ -757,18 +759,18 @@ function awakeSeason(){
   const b=isBat()?PEN.ss:isTW()?PEN.bss:null, p=isBat()?null:PEN.ss, halfPA=Math.ceil(QUAL_PA/2), halfOuts=Math.ceil(SEASON_GAMES*3/2);
   if((PEN.age||99)<=25){
     if(b&&b.pa>=halfPA){
-      if(!A.done.avg300&&bAvg(b)>=0.300){ if(rnd()<pr){ A.done.avg300=true; PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); awakeGive('安打製造機の覚醒',10,'ミート+5'); } else penNotice(`打率${bAvg(b).toFixed(3).replace(/^0/,'')}を達成！（今回は覚醒しなかった）`); }
-      if(!A.done.hr10&&b.hr>=10){ if(rnd()<pr){ A.done.hr10=true; PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); awakeGive('長距離砲の覚醒',10,'パワー+5'); } else penNotice(`${b.hr}本塁打を達成！（今回は覚醒しなかった）`); }
+      if(!A.done.avg300&&bAvg(b)>=0.300){ if(rnd()<pr){ A.done.avg300=true; PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); awakeGive('安打製造機の覚醒',10,'ミート+5'); } else { (A.miss||(A.miss={})).avg300=true; penNotice(`打率${bAvg(b).toFixed(3).replace(/^0/,'')}を達成！（今回は覚醒しなかった）`); } }
+      if(!A.done.hr10&&b.hr>=10){ if(rnd()<pr){ A.done.hr10=true; PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); awakeGive('長距離砲の覚醒',10,'パワー+5'); } else { (A.miss||(A.miss={})).hr10=true; penNotice(`${b.hr}本塁打を達成！（今回は覚醒しなかった）`); } }
     }
     if(p&&(p.outs||0)>=halfOuts&&!A.done.era300){ const era=p.runs*27/p.outs;
-      if(era<=3.0){ if(rnd()<pr){ A.done.era300=true; awakeGive('エースピッチャーへの兆し',20); } else penNotice(`防御率${era.toFixed(2)}を達成！（今回は覚醒しなかった）`); } }
+      if(era<=3.0){ if(rnd()<pr){ A.done.era300=true; awakeGive('エースピッチャーへの兆し',20); } else { (A.miss||(A.miss={})).era300=true; penNotice(`防御率${era.toFixed(2)}を達成！（今回は覚醒しなかった）`); } } }
     // 怪童への道：シーズンでストレートの奪三振50以上（33%）→ ストレートLv+1（最大なら持ち点+5）・球速+2〜5
     const sk=p&&p.byType&&p.byType['ストレート']?p.byType['ストレート'].k||0:0;
     if(p&&!A.done.kaido&&sk>=50){ if(rnd()<0.33+(PEN.team==='M'?0.05:0)){ A.done.kaido=true;
         const lv=lvOf('ストレート'), dv=ri(2,5), a=PEN.abil; a.velo=r1(Math.min(VELO_MAX,a.velo+dv)); let ex=`球速+${dv}km/h`, pts=0;
         if(lv<LV_MAX){ PEN.plev['ストレート']=lv+1; ex=`ストレートLv.${lv+1}・`+ex; } else pts=5;
         if(pts) awakeGive('怪童への道',pts,ex); else { A.log.push({y:PEN.year,name:'怪童への道',pts:0}); penNotice(`✨ 覚醒！ 怪童への道（${ex}）`); } }
-      else penNotice(`ストレートで${sk}奪三振を達成！（今回は覚醒しなかった）`); }
+      else { (A.miss||(A.miss={})).kaido=true; penNotice(`ストレートで${sk}奪三振を達成！（今回は覚醒しなかった）`); } }
   }
   // ミスター○○：同じ球団に10年、10年とも毎年スタメン（投手は登板）が1試合以上 → +20（球団ごとに1回）
   const tm=PEN.team, key='mr_'+tm, S=PEN.seasons||[];
@@ -1215,9 +1217,9 @@ function salaryExtra(){
   return {pct:Math.round(pct*1000)/1000,why};
 }
 // 衰えの始まり（33歳で50%・34歳で75%・35歳以上で100%）：シーズンの終わりに1年に1回だけ判定
-function declineCheck(){
+function declineCheck(){   // コンディショニング中は衰えの始まりを2年遅らせる
   if(!PEN||PEN.declAge||PEN.declChk===PEN.year) return; PEN.declChk=PEN.year;
-  if(rnd()<declP(PEN.age||18)){ PEN.declAge=PEN.age; penNotice(`⏳ ${PEN.age}歳。体の衰えが始まった（これから能力が下がりやすくなる）`); }
+  if(rnd()<declP((PEN.age||18)-(typeof cbOn==='function'&&cbOn('cond')?2:0))){ PEN.declAge=PEN.age; penNotice(`⏳ ${PEN.age}歳。体の衰えが始まった（これから能力が下がりやすくなる）`); }
 }
 const REL_LINE={y:33,c:37};   // 戦力外の基準：今年の評価がこれ未満、かつ通算もこれ未満（前は38・42）
 function yearReview(){
@@ -1678,7 +1680,7 @@ function renderCamp(el){
       <div class="hint">守備の能力はそのまま。守れる位置が複数あると、スタメン争いでチームにいちばん必要な位置で出場します。残りのポイントは能力に使えます。</div></div></details>`;
   }
   el.innerHTML=`<div class="pen">
-    <h2>⛺ 春季キャンプ　${P.year}年目</h2>
+    <h2>⛺ 春季キャンプ　${P.year}年目 <small>（${P.age}歳）</small></h2>
     ${draftNewsHTML()}
     ${managerSay(P.year===1?`ようこそ${TEAM[P.team].short}へ。監督の${myMgr().sur}だ。開幕までのキャンプで何を鍛えるか、自分で決めてみろ。`:myMgr().y===P.year?`今年から監督になった${myMgr().sur}だ。${P.age}歳のシーズン、何を伸ばす？ 俺の見方は下に書いてある。`:`今年のキャンプだ。${P.age}歳のシーズン、何を伸ばす？`,true)}
     ${P.mgrNews&&P.mgrNews.length?`<div class="hint" style="margin:-2px 0 6px">他球団の監督交代：${P.mgrNews.join('／')}</div>`:''}
@@ -1877,7 +1879,7 @@ function renderPennant0(){
   }
   const recent=P.days.slice(-10).reverse().map(g=>{
     const m={W:'○',L:'●',T:'△'}[g.res];
-    const me=g.me&&g.me.note?`<span class="me">${g.me.note}</span>` : g.me&&g.me.bat?`<span class="me">${g.me.kind==='pinch'?'代打':g.me.kind==='defsub'?'守備固め':'スタメン'}${g.me.gp?' 🧤好プレー':''} ${g.me.bat.pa?`${g.me.bat.ab}打数${g.me.bat.h}安打${g.me.bat.hr?` ${g.me.bat.hr}本`:''}${g.me.bat.rbi?` ${g.me.bat.rbi}打点`:''}${g.me.bat.sb?` ${g.me.bat.sb}盗塁`:''}${g.me.bat.bb?` ${g.me.bat.bb}四死球`:''}`:'打席なし'}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`
+    const me=g.me&&g.me.note&&(!g.me.bat||g.me.kind==='defsub'||g.me.kind==='runner')?`<span class="me">${g.me.note}</span>` : g.me&&g.me.bat?`<span class="me">${g.me.kind==='pinch'?'代打':g.me.kind==='defsub'?'守備固め':'スタメン'}${g.me.gp?' 🧤好プレー':''} ${g.me.bat.pa?`${g.me.bat.ab}打数${g.me.bat.h}安打${g.me.bat.hr?` ${g.me.bat.hr}本`:''}${g.me.bat.rbi?` ${g.me.bat.rbi}打点`:''}${g.me.bat.sb?` ${g.me.bat.sb}盗塁`:''}${g.me.bat.bb?` ${g.me.bat.bb}四死球`:''}`:'打席なし'}${g.me.note?`・${g.me.note}`:''}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`
       : g.me?`<span class="me">${{start:'先発',relief:'中継ぎ',closer:'抑え'}[g.me.kind]} ${fmtIP(g.me.outs)}回${g.me.runs}失点${g.me.dec!=='－'?' '+({勝:'勝',負:'負',S:'S',H:'H'}[g.me.dec]):''}${g.me.tb?`／${g.me.tb.ab}打数${g.me.tb.h}安打${g.me.tb.hr?` ${g.me.tb.hr}本`:''}${g.me.tb.rbi?` ${g.me.tb.rbi}打点`:''}`:''}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`:'';
     return `<div class="dayr"><span class="rm ${g.res}">${m}</span> ${gameMD(g.d-1)} 第${g.d}試合 vs ${g.oid?tchip(g.oid):g.opp} ${g.score[1]}-${g.score[0]} ${me}</div>`}).join('')||'<div class="hint">まだ試合はありません</div>';
   const rk=rankOf(P.team), st=standings(T.lg), gb=rk>1?((st[0].w-st[0].l)-(rec.w-rec.l))/2:0;
@@ -2025,7 +2027,7 @@ function myAbilHTML(){
 function myStatsHTML(){
   const P=PEN, f2=(n,o)=>o?(n*27/o).toFixed(2):'-.--';
   const rowsP=s=>[['登板',s.g],['先発',s.gs],['勝利',s.w],['敗戦',s.l],['セーブ',s.sv],['ホールド',s.hld||0],['投球回',fmtIP(s.outs)],['奪三振',s.k],['四球',s.bb],['防御率',f2(s.runs,s.outs)],['WHIP',s.outs?((s.hits+s.bb)*3/s.outs).toFixed(2):'-.--']];
-  const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-']];
+  const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-'],['失策',s.fg||s.ds?(s.err||0):'-'],['UZR',fmtUZR(s)]];
   const tbl=(title,a,b)=>`<table class="stt sctbl"><thead><tr><th>${title}</th><th>今季</th><th>通算</th></tr></thead><tbody>${a.map((r,i)=>`<tr><th>${r[0]}</th><td>${r[1]}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
   if(isBat()) return tbl('打撃',rowsB(P.ss),rowsB(P.career));
   let h=tbl('投手',rowsP(P.ss),rowsP(P.career));

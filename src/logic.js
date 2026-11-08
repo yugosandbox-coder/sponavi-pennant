@@ -623,7 +623,7 @@ function simulatePitch(r,c,pt,note){
   const oppG=!hitG&&guesses.some(g=>oppPitch(g,pt)), trioG=!hitG&&TRIO.has(pt)&&guesses.some(g=>TRIO.has(g));   // 逆の球／直球系の打ち損じ
   const gK=clamp((gdS-5)/30,0,1);
   // 投手と打者の左右：同じ利き腕は投手有利。打者から逃げていく変化球は打ちにくい
-  const samePH = PHAND===b.hand;
+  const samePH = PHAND===b.hand||!!(typeof cbG==='function'&&cbG('platoon'));   // 左右苦手克服：反対の打席の打者にも同じ有利
   const bx=breakX(pt);
   const away = b.hand==='R' ? bx<-0.3 : bx>0.3;   // 投手目線：右打者は右に立つので、左へ曲がる球が逃げていく
   // 曲がる前のマスと球種の特徴
@@ -866,6 +866,8 @@ function resolveBIP(r,c,pt,q,b){
   hitP+=btFx(BT,'hit');
   hitP=clamp(hitP,b.sure!==undefined?0:0.03,0.85);   // 自分の打席は下限なし（ミートが低いほど打てない）
 
+  if(!meB&&(kind==='ground'||kind==='liner')&&typeof cbG==='function'&&cbG('tokushu')&&G&&G.pen&&!isBat()&&rnd()<0.05)   // 特守（投手）：ピッチャーゴロ・ライナーが少しだけ増える
+    return kind==='ground'?{res:'GO',out:true,fielder:'P',cls:'out',big:'ピッチャーゴロ',text:'鋭い打球をしっかりさばいてピッチャーゴロ'}:{res:'LO',out:true,fielder:'P',cls:'out',big:'ピッチャーライナー',text:'ピッチャー返しをがっちりつかんでピッチャーライナー'};
   if(rnd()<hitP||(b.sure&&rnd()<b.sure)){   // 自分の打席：本命が芯ならミートに応じて確実にヒット性
     if(meB&&rnd()<clamp(hrShare(b.power)*(b.hrMul??1)*HR_ME.k*(1+btFx(BT,'hr')*4)*(1+PX.xbh),0,0.95)) return hrRes();   // 自分の打席：ヒットのうち本塁打になる割合はパワーで決まる
     if(kind==='ground'){
@@ -936,12 +938,12 @@ function r1Update(done,b){
 function cpuStealDecide(){
   const R=G.r1; if(!R||R.tried||!G.bases[0]||G.bases[1]||G.outs>=2||typeof cpuStealP!=='function') return null;
   if(cpuStealP(R.spd,myCatcherDef(),136)<0.7) return null;   // 自信がなければ走らない
-  if(rnd()>(R.spd-60)*0.008) return null;
+  if(rnd()>(R.spd-60)*0.008*(typeof cbG==='function'&&cbG('run')?0.5:1)) return null;   // 走塁・盗塁講習（クイック・牽制）：走られるのが半分
   R.tried=true; return {R};
 }
 function cpuStealResolve(stl,p){
   if(p.kind==='foul'||p.kind==='foulout'||!G.bases[0]||G.bases[1]) return '';
-  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0),0.05,0.97), ok=rnd()<pr;
+  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0)-(typeof cbG==='function'&&cbG('run')?0.15:0),0.05,0.97), ok=rnd()<pr;   // 走塁・盗塁講習：成功率−15%
   G.bases[0]=0; G.r1=null;
   let msg;
   if(ok){ G.bases[1]=1; msg=`一塁走者 ${stl.R.name} が二盗成功`; }
