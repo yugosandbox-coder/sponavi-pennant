@@ -783,7 +783,8 @@ function bar10(v){ return `<span style="display:inline-block;width:110px;height:
 function showProfile(o){
   let h='';
   const cellNames=(set,hand)=>[...(set||[])].map(k=>{const[r,c]=String(k).split(',').map(Number);return courseName(r,c,hand)}).join('、')||'-';
-  if(o.isMe&&typeof isBat==='function'&&isBat()){
+  if(o.isMe&&typeof meProfileHTML==='function'&&typeof PEN!=='undefined'&&PEN&&PEN.teams&&(SCREEN==='pennant'||(G&&G.pen))){ h=meProfileHTML(); }   // ペナント：起用方法・年俸・契約・評価・能力・成績をまとめて
+  else if(o.isMe&&typeof isBat==='function'&&isBat()){
     const a=PEN.babil;
     h=`<h2>${PEN.pname}</h2><div class="prow"><span class="hb ${PEN.bhand}">${bhandJP(PEN.bhand)}</span><span class="rbadge">${roleName(PEN.role)}${PEN.order?`・${PEN.order}番`:''}</span>${btypeBadge(PEN.btype)}${tchip(PEN.team)}<span class="hint">${PEN.age}歳・${POS_JP[PEN.bpos]}${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span></div>
       <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(abPerf(a.meet))}マス・球速 −${meetTol(abPerf(a.meet))}〜+${meetUp(abPerf(a.meet))}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>走力</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
@@ -1113,6 +1114,7 @@ function pnInit(){
   ob.observe(document.body,{childList:true,subtree:true,characterData:true});
   document.addEventListener('click',e=>{ const s=e.target&&e.target.closest&&e.target.closest('.pnm'); if(!s) return; e.preventDefault(); e.stopPropagation();
     const go=s.closest('#mainWrap')&&pnGameObj(s.textContent); if(go){ showProfile(go); return; }   // 試合中は前と同じ細かいプロフィール
+    if(typeof PEN!=='undefined'&&PEN&&PEN.pname===s.textContent&&typeof meProfileHTML==='function'){ const pp=document.getElementById('pnPop'); if(pp) pp.remove(); showProfile({isMe:true}); return; }   // 自分の名前：まとめのプロフィール
     pnShow(s.textContent); },true);
   pnScan(document.body);
 }

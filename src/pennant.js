@@ -1820,7 +1820,7 @@ function renderPennant0(){
       <div class="pcardx ${rv.released?'bad':''}">${rv.faNone?`FAで行き先が見つからず、<b>自由契約</b>になりました（年俸0円）`:rv.twAns==='rel'?`二刀流へのこだわりを通し、<b>戦力外通告</b>を受けました（年俸0円）`:rv.released?`今年も通算も成績が悪く、<b>戦力外通告</b>を受けました（年俸0円）`:
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）${rv.twAns==='ok'?`<br>来季から<b>${rv.twConv==='P'?'投手':'野手（外野手）'}に専念</b>`:rv.twAns==='stay'?'<br>二刀流を続ける代わりに大幅ダウン':''}`}
         <div class="hint">${rv.yRB!=null?'投手：':''}今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${evB}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.places||[]).length?`／タイトル争い${rv.places.map(p=>p.name+p.rank+'位').join('・')}で+${Math.round(placeBonus(rv.places)*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
-      <div class="hint">${rv.ys?`<b style="color:var(--ink)">${PEN.age}歳：${rv.ys.w?`若手と大人の基準の間（大人の基準${Math.round(rv.ys.w*100)}%）`:`若手の基準${rv.ys.L>1.001?`・評価${Math.round(rv.ys.L*100)}%（若いほど甘い）`:''}`}</b>（${mgrName(myMgr())}・${MGR_JP(myMgr().a,'a')[1]}）。`:''}評価＝ノルマ（${hasBat()?(rv.ys&&rv.ys.w<1?'野手：打率.250・5本塁打・OPS.500・5盗塁・三振率18%':'野手：打率.270・20本塁打・OPS.800・15盗塁・三振率18%'):''}${isTW()?'／':''}${isBat()?'':(rv.ys&&rv.ys.w<1?'投手：防御率4.00・WHIP1.75・奪三振率6.0':'投手：防御率3.00・WHIP1.25・奪三振率6.0')}）の達成度を、監督の性格で重みをつけて合計。ノルマの2/3で52点（年俸±0）、ノルマちょうどで78点。今年${REL_LINE.y}点未満で通算も${REL_LINE.c}点未満だと戦力外</div>
+      <div class="hint">${rateBasisTxt(rv.ys)}</div>
       ${rv.abil?(rv.twConv==='B'?(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):''):rv.twConv==='P'?abilChangeHTML(rv.abil):isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
@@ -2016,6 +2016,58 @@ function titleRaceHTML(lg){
 }
 // 自分の能力（入団時からの伸びを+nで）と成績（今季｜通算）
 function growTxt(now,base,unit){ const d=r1((now||0)-(base??now??0)); return `${now}${unit||''}${d?` <small class="${d>0?'up':'dn'}">(${d>0?'+':''}${d})</small>`:''}`; }
+// 年俸査定の評価の基準（若手の基準・ノルマ・戦力外のライン）の説明
+function rateBasisTxt(ys){
+  return `${ys?`<b style="color:var(--ink)">${PEN.age}歳：${ys.w?`若手と大人の基準の間（大人の基準${Math.round(ys.w*100)}%）`:`若手の基準${ys.L>1.001?`・評価${Math.round(ys.L*100)}%（若いほど甘い）`:''}`}</b>（${mgrName(myMgr())}・${MGR_JP(myMgr().a,'a')[1]}）。`:''}評価＝ノルマ（${hasBat()?(ys&&ys.w<1?'野手：打率.250・5本塁打・OPS.500・5盗塁・三振率18%':'野手：打率.270・20本塁打・OPS.800・15盗塁・三振率18%'):''}${isTW()?'／':''}${isBat()?'':(ys&&ys.w<1?'投手：防御率4.00・WHIP1.75・奪三振率6.0':'投手：防御率3.00・WHIP1.25・奪三振率6.0')}）の達成度を、監督の性格で重みをつけて合計。ノルマの2/3で52点（年俸±0）、ノルマちょうどで78点。今年${REL_LINE.y}点未満で通算も${REL_LINE.c}点未満だと戦力外`;
+}
+// ---- 自分の名前を押したとき：起用方法・年俸・契約・評価・能力・成績（今季・通算・年度別）をまとめて見せる
+function meContractTxt(){
+  const P=PEN, c=P.contract;
+  if(c&&c.until>P.year){ const st=c.until-c.years;
+    if(P.year<st) return `来季から<b>${c.years}年契約</b>（年俸${yen(c.salary)}で固定）`;
+    return `<b>${c.years}年契約の${P.year-st+1}年目</b>${P.year<c.until-1?`（あと${c.until-1-P.year}年は年俸固定・戦力外なし）`:'（今年で契約が終わり、オフに年俸査定）'}`; }
+  return `1年契約（毎年オフに年俸査定）${isDevP()?'・育成期間なので戦力外なし':''}`;
+}
+function meRoleRows(){
+  const P=PEN, rows=[];
+  if(isBat()){
+    rows.push(['起用',`<b>${P.role==='スタメン'?`スタメン・${P.order||'-'}番・${POS_JP[P.slot]||P.slot||'-'}`:roleName(P.role)||'-'}</b>${P.bAssign&&P.bAssign.fixed?'<br><small>（監督と相談して決めた打順・守備位置）</small>':''}`]);
+    rows.push(['守れる位置',myPosAll().map(p=>POS_JP[p]||p).join('・')]);
+  }else{
+    rows.push(['起用',`<b>${typeof pitRoleLabel==='function'?pitRoleLabel():roleName(P.role)}</b>（${PCAT_JP[myPcat()]||''}）`]);
+    if(isTW()) rows.push(['投げない日',P.dh?`指名打者（${P.dhOrder}番）で出場`:'出場なし（指名打者の争いに負けている）']);
+  }
+  if(P.trial){ const T=P.trial; rows.push([T.down?'見極め中':'お試し中',`${PCAT_JP[T.to]||''}　${T.n||0}／5登板${T.down?`（元の${PCAT_JP[T.from]||''}に戻れるかの見極め）`:''}`]); }
+  if(P.btrial){ const T=P.btrial; rows.push([T.down?'見極め中':'お試し中',`${bUseTxt(T.to)}　${T.n||0}／5試合${T.down?`（${T.fromTxt||''}に戻れるかの見極め）`:''}`]); }
+  return rows;
+}
+function meRateNow(){
+  const m=myMgr(), sp=stagPenalty(), adj=v=>v==null?null:Math.max(0,v-sp), ys=youthSpec(m), B=isBat();
+  const r={ys, y:adj(B?seasonRateB(m,PEN.ss,ys):seasonRateP(m,PEN.ss,ys)), c:adj(B?seasonRateB(m,PEN.career,ys):seasonRateP(m,PEN.career,ys))};
+  if(isTW()){ r.yB=adj(seasonRateB(m,PEN.bss||batStat(),ys)); r.cB=adj(seasonRateB(m,PEN.bcareer||batStat(),ys)); }
+  return r;
+}
+function meProfileHTML(){
+  const P=PEN, B=isBat(), W=isTW(), tm=TEAM[P.team], rt=meRateNow(), pt=v=>v==null?'-<small>（出場が少ない）</small>':`${Math.round(v)}点`;
+  const col=v=>v==null?'var(--mute)':v>=78?'#e2b33a':v>=52?'#2ecc71':v>=REL_LINE.y?'#f1c40f':'#e74c3c';
+  const rr=(lab,y,c)=>`<tr><th>${lab}</th><td>今年 <b style="color:${col(y)}">${pt(y)}</b>　通算 <b style="color:${col(c)}">${pt(c)}</b></td></tr>`;
+  const T=(rows)=>`<table class="mept">${rows.map(([n,v])=>`<tr><th>${n}</th><td>${v}</td></tr>`).join('')}</table>`;
+  const hb=B?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span>`:`<span class="hb ${P.hand||PHAND}">${(P.hand||PHAND)==='L'?'左投':'右投'}</span>${W?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span>`:''}`;
+  const meet=hasBat()?`<div class="hint">ミート：狙えるコース${meetCells(abPerf(P.babil.meet))}マス・球速 −${meetTol(abPerf(P.babil.meet))}〜+${meetUp(abPerf(P.babil.meet))}km/h</div>`:'';
+  return `<div class="meprof"><h2>${P.pname} <small style="font-size:13px;color:var(--mute)">（あなた）</small></h2>
+    <div class="prow">${hb}${tm?tchip(P.team):''}${(B||W)&&P.btype?btypeBadge(P.btype):''}<span class="hint">${P.age}歳・${P.year}年目${P.draft?`・ドラフト${P.draft.pick}位`:''}${P.genius?'・✨天才':''}</span></div>
+    <div class="sh3">起用方法</div>${T(meRoleRows())}
+    <div class="sh3">年俸・契約</div>${T([['年俸',`<b>${yen(P.salary)}</b>`],['契約',meContractTxt()],['所持金',`${yen(P.money||0)}${P.house?'　🏠':''}`]])}
+    <div class="sh3">評価</div><table class="mept"><tr><th>起用の評価</th><td><b>${Math.round(evalR())}点</b><br><small>シーズン中のスタメン・配置転換の判断に使う（大人の基準・最近の調子も入る）</small></td></tr>
+      ${rr(W?'年俸査定（投手）':'年俸査定',rt.y,rt.c)}${W?rr('年俸査定（打撃）',rt.yB,rt.cB):''}</table>
+    <div class="hint">年俸査定の見込み＝今の成績のままシーズンが終わったときの評価。${rateBasisTxt(rt.ys)}</div>
+    <div class="sh3">能力 <small>（かっこ内は入団時からの伸び）</small></div>${myAbilHTML()}${meet}
+    <div class="sh3">成績</div>${myStatsHTML()}
+    ${P.seasons&&P.seasons.length?`<div class="sh3">年度別</div><div class="meseas">${seasonTable()}</div>`:''}
+    ${P.titles&&P.titles.length?`<div class="sh3">タイトル・表彰</div><div class="hint">${titleList()}</div>`:''}
+    ${typeof cbList==='function'&&cbList().length?`<div class="sh3">コーチ</div><div class="hint">${cbList().map(x=>`<b>${x.name}</b>：${x.t}`).join('<br>')}</div>`:''}
+  </div>`;
+}
 function myAbilHTML(){
   const P=PEN, rows=[];
   if(!isBat()){ const a=P.abil, a0=P.abil0||{};
