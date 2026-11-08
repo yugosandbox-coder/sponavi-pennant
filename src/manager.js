@@ -103,7 +103,12 @@ const normScore=(a,W)=>{ let s=0,w=0; for(const k in W){ s+=W[k]*a[k]; w+=W[k]; 
 const normWB=m=>NORM_W_B[m&&m.b]||NORM_W_B.std, normWP=m=>NORM_W_P[m&&m.p]||NORM_W_P.std;
 // 能力から見込んだ評価（成績がまだ無い・少ないとき）
 const priorRB=y=>y?clamp(112.5+3.9*(abilityRB()-50.5),5,150):clamp(58+4*(abilityRB()-51.3),5,110);   // 能力→評価の目安（CPUのレギュラーの成績から。若手のノルマなら高め）
-const priorRP=(m,y)=>{ const R=abilityR(), e0=eraOfR(R); return normScore(achP(e0,0.8+0.13*e0,k9OfR(R),y?NORM_PY:NORM_P),normWP(m)); };
+// 見込みのWHIP：コントロールから出す四球と能力から出す被安打（おまかせの試合と同じ式）に、実際に出した被安打・四球の数を合わせる（実際の投球回が多いほど実際の数に近づく。30回で半々）
+const PRIOR_WHIP_K=30, P_SHRINK=8;   // P_SHRINK：投手の評価で、成績と見込みが半々になる投球回（少ない投球回でも成績を重く見る）
+function priorWhip(e0,bbX){ const ctl=PEN&&PEN.abil?PEN.abil.control:50, c=(PEN&&PEN.career)||{}, ip=(c.outs||0)/3;
+  const h=clamp(0.85+(e0-3.6)*0.09,0.6,1.4), b=clamp(0.33+(50-ctl)*0.004,0.15,0.6);
+  return bbX?(h*PRIOR_WHIP_K+(c.hits||0))/(PRIOR_WHIP_K+ip)+0.35:((h+b)*PRIOR_WHIP_K+(c.hits||0)+(c.bb||0))/(PRIOR_WHIP_K+ip); }
+const priorRP=(m,y)=>{ const R=abilityR(), e0=eraOfR(R); return normScore(achP(e0,priorWhip(e0,!!(m&&m.p==='bb')),k9OfR(R),y?NORM_PY:NORM_P),normWP(m)); };
 // ノルマ方式の評価 → 前の物差し（起用の打診・代打の出番・オールスター・トレードなどの細かい基準に使う。だいたい同じ成績なら前と同じ判断になる）
 const toOldB=v=>(v+10.1)/1.583, toOldP=v=>(v+10.4)/1.475;
 const evalOld=()=>{ const v=evalR(); return isBat()?toOldB(v):toOldP(v); };
@@ -125,13 +130,13 @@ function seasonRateB(m,s,ys){
   const raw=ysMix(ys,ys?sc(NORM_BY):0,!ys||ys.w?sc(NORM_B):0), prior=ysMix(ys,ys?priorRB(true):0,!ys||ys.w?priorRB(false):0);
   return Math.max(0,prior+(raw-prior)*s.pa/(s.pa+60));
 }
-// 投手：投球回が少ないうちは能力から見込んだ評価に寄せる（15回で半々）。与四死球を気にしない監督はWHIPに四死球を数えない（平均的な四死球のぶん0.35を足す）
+// 投手：投球回が少ないうちは能力から見込んだ評価に寄せる（8回で半々）。与四死球を気にしない監督はWHIPに四死球を数えない（平均的な四死球のぶん0.35を足す）
 function seasonRateP(m,st,ys){
   if(!st||st.outs<6) return null;
   const ip=st.outs/3, bbX=!!(m&&m.p==='bb'), era=st.runs*9/ip, whip=(st.hits+(bbX?0:st.bb))/ip+(bbX?0.35:0), k9=st.k*9/ip, W=normWP(m);
   const raw=ysMix(ys,ys?normScore(achP(era,whip,k9,NORM_PY),W):0,!ys||ys.w?normScore(achP(era,whip,k9,NORM_P),W):0);
   const prior=ysMix(ys,ys?priorRP(m,true):0,!ys||ys.w?priorRP(m,false):0);
-  return Math.max(0,prior+(raw-prior)*ip/(ip+15));
+  return Math.max(0,prior+(raw-prior)*ip/(ip+P_SHRINK));
 }
 /* ---- 贔屓起用の打診 ---- */
 function favProposal(){

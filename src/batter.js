@@ -1046,7 +1046,7 @@ function applyAbilityChangeB(ch){ if(!ch) return; const a=PEN.babil; for(const k
 function abilChangeHTMLB(ch,tw){
   const a=PEN.babil, f=v=>v>0?`<span class="up">+${v}</span>`:v<0?`<span class="dn">${v}</span>`:'±0';
   const rows=[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${r1(clamp((a[k]??50)+(ch[k]||0),0,100))}</b>（${f(r1(ch[k]||0))}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
-  return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり（'+declY()+'年目）、下がらないための基準が厳しく、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
+  return `<div class="sh2">${tw?'<span class="tg tgB"><span class="tgt">打撃</span></span> 能力の変化':'能力の変化'}（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり（'+declY()+'年目）、下がらないための基準が厳しく、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
 }
 function batLine(s){
   return `${s.g}試合（スタメン${s.gs}）　打率 <b>${s.ab?f3(bAvg(s)):'-'}</b>　${s.hr}本塁打 ${s.rbi}打点 ${s.sb}盗塁<br>${s.h}安打（二塁打${s.d2}・三塁打${s.d3}）　出塁率 ${s.pa?f3(bObp(s)):'-'}　OPS ${s.pa?f3(bObp(s)+bSlg(s)):'-'}`;

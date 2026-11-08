@@ -1154,10 +1154,10 @@ function pnCard(e){
   if(e.k==='ME'){ const B=hasBat(), P=!isBat(), a=PEN.abil||{}, b=PEN.babil||{};
     const role=isBat()?(PEN.role==='スタメン'?`${PEN.order}番・${POS_JP[PEN.slot]||''}`:PEN.role||''):(typeof pitRoleLabel==='function'?pitRoleLabel():PEN.role||'');
     const info=typeof meContractTxt==='function'?`<div class="hint" style="margin:2px 0 6px;line-height:1.6">年俸 <b style="color:var(--ink)">${yen(PEN.salary)}</b>　${meContractTxt()}<br>起用の評価 <b style="color:var(--ink)">${Math.round(evalR())}点</b></div>`:'';
-    return `<div class="pnc"><div class="pnh"><b>${PEN.pname}</b> <small>（あなた）${TEAM[PEN.team]?TEAM[PEN.team].short:''}・${role}・${PEN.age}歳</small></div>${info}
-      ${B?[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],['守備','def']].filter(([l,k])=>k!=='def'||isBat()).map(([l,k])=>pnBar(l,b[k]??0)).join(''):''}
-      ${P?`${pnBar('球速',((a.velo||130)-120)*2.5,`${Math.round(a.velo||0)}km/h`)}${pnBar('コントロール',a.control||0)}${pnBar('スタミナ',a.stamina||0)}<div class="pnk">${(PEN.rep||[]).map(t=>`<span>${t} Lv.${(PEN.plev&&PEN.plev[t])||'-'}</span>`).join('')}</div>`:''}
-      ${B?pnBatTbl([['今季',isTW()?PEN.bss:PEN.ss],['通算',isTW()?PEN.bcareer:PEN.career]]):''}${P?pnPitTbl([['今季',PEN.ss],['通算',PEN.career]]):''}</div>`; }
+    const W=B&&P, hP=W?'<div class="tgh"><span class="tg tgP">投手</span></div>':'', hB=W?'<div class="tgh"><span class="tg tgB"><span class="tgt">打撃</span></span></div>':'';   // 二刀流は投手と打撃に分けて見出し
+      return `<div class="pnc"><div class="pnh"><b>${PEN.pname}</b> <small>（あなた）${TEAM[PEN.team]?TEAM[PEN.team].short:''}・${role}・${PEN.age}歳</small></div>${info}
+      ${P?`${hP}${pnBar('球速',((a.velo||130)-120)*2.5,`${Math.round(a.velo||0)}km/h`)}${pnBar('コントロール',a.control||0)}${pnBar('スタミナ',a.stamina||0)}<div class="pnk">${(PEN.rep||[]).map(t=>`<span>${t} Lv.${(PEN.plev&&PEN.plev[t])||'-'}</span>`).join('')}</div>${pnPitTbl([['今季',PEN.ss],['通算',PEN.career]])}`:''}
+      ${B?`${hB}${[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],['守備','def']].filter(([l,k])=>k!=='def'||isBat()).map(([l,k])=>pnBar(l,b[k]??0)).join('')}${pnBatTbl([['今季',isTW()?PEN.bss:PEN.ss],['通算',isTW()?PEN.bcareer:PEN.career]])}`:''}</div>`; }
   if(e.k==='GB'){ const x=e.o;
     return `<div class="pnc"><div class="pnh"><b>${x.name}</b> <small>${x.team&&TEAM[x.team]?TEAM[x.team].short+'・':''}${x.type||''}${x.hand?`・${pnHand(x.hand)}打`:''}</small></div>
       ${[['ミート',x.contact],['パワー',x.power],['走力',x.speed],['選球眼・技術',x.eye]].filter(r=>r[1]!=null).map(([l,v])=>pnBar(l,abShow(v))).join('')}

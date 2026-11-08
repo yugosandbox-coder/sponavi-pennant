@@ -459,10 +459,18 @@ svg.tgo{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;p
 svg.crown{vertical-align:-3px;margin-right:1px}
 .sh3{font-size:12px;font-weight:800;color:var(--accent);margin:10px 0 3px;letter-spacing:.05em}.sh3 small{color:var(--mute);font-weight:400;letter-spacing:0}
 .meprof .mept{width:100%;border-collapse:collapse;font-size:13px;margin:2px 0}.meprof .mept th,.meprof .mept td{padding:5px 4px;border-bottom:1px solid #20382b;text-align:left;vertical-align:top}.meprof .mept th{color:var(--mute);font-weight:700;width:30%}.meprof .mept small{color:var(--mute)}
-.prof .meprof table{margin-top:2px}.prof .meprof .stt th{width:auto}.prof .meprof .stt th,.prof .meprof .stt td{padding:4px 4px}.prof .meprof .stt td{text-align:right}.prof .meprof .stt th:first-child,.prof .meprof .stt td:first-child{text-align:left}.prof .meprof .abtbl td{text-align:left}.prof .meprof .meseas .stt td,.prof .meprof .meseas .stt th{text-align:left;font-size:11.5px;padding:4px 3px}.prof .meprof .abtbl th{width:96px}
+.prof .meprof table{margin-top:2px}.prof .meprof .sctbl+.sctbl,#penScreen .sctbl+.sctbl{margin-top:18px}.prof .meprof .stt th{width:auto}.prof .meprof .stt th,.prof .meprof .stt td{padding:4px 4px}.prof .meprof .stt td{text-align:right}.prof .meprof .stt th:first-child,.prof .meprof .stt td:first-child{text-align:left}.prof .meprof .abtbl td{text-align:left}.prof .meprof .meseas .stt td,.prof .meprof .meseas .stt th{text-align:left;font-size:11.5px;padding:4px 3px}.prof .meprof .abtbl th{width:96px}
 .abtbl,.sctbl{width:100%;font-size:12.5px}.abtbl th{width:96px;text-align:left}.abtbl td{text-align:left}
 .sctbl th{text-align:left}.sctbl td{text-align:right;width:34%}.sctbl thead th{text-align:right}.sctbl thead th:first-child{text-align:left}
-.sctbl th,.sctbl td,.abtbl th,.abtbl td{padding:3px 6px}.sctbl.c3 td{width:23%}.sctbl.c3 th,.sctbl.c3 td{padding:3px 4px}
+.sctbl th,.sctbl td,.abtbl th,.abtbl td{padding:3px 6px}
+/* 投手と打撃の見出し（二刀流などで並ぶとき見分けやすく）：投手＝赤っぽいピンク・打撃＝左半分黄色・右半分緑 */
+.tg{display:inline-block;font-size:12px;font-weight:900;padding:2px 8px;border-radius:99px;line-height:1.5;vertical-align:1px}   /* 役割のバッジ（.rbadge）と同じ形 */
+.tgP{background:#e91e63;color:#fff}
+.tgB{background:linear-gradient(90deg,var(--accent) 50%,var(--green) 50%);color:#1b1b1b}
+.tg.sm{font-size:10.5px;padding:1px 6px;margin:1px 0}
+.tgB .tgt{color:#1b1b1b}   /* 打撃の見出しの文字は黒 */
+.sctbl+.sctbl,.abtbl+.tgh,.sctbl+.tgh,.pnt+.tgh{margin-top:16px}.sctbl thead th:first-child{padding-left:2px}.tgh{margin:8px 0 3px}
+.sctbl.pit thead th{border-bottom:2px solid #e91e63}.sctbl.bat thead th{border-bottom:2px solid var(--green)}.sctbl.bat thead th:nth-child(-n+2){border-bottom-color:var(--accent)}.sctbl thead th{padding-bottom:6px}.sctbl.c3 td{width:23%}.sctbl.c3 th,.sctbl.c3 td{padding:3px 4px}
 small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
 .evone{border-top:1px solid #ffffff14;padding:6px 0}.evone:first-child{border-top:0}.evone>summary{cursor:pointer;list-style:none}.evone>summary::before{content:'▸ ';color:var(--mute)}.evone[open]>summary::before{content:'▾ '}
 .trbox{margin:0 0 10px}.trh{font-weight:800;font-size:13px;margin-bottom:2px}.trh small{color:var(--mute);font-weight:400;margin-left:6px;font-size:11px}
