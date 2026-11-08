@@ -9079,8 +9079,8 @@ function renderMode(){
   on('mPenNew',function(){ if(!armed){armed=true;this.textContent='もう一度押すと、今のペナントを消して最初から';return} openSetup('pennant'); });
 }
 // 選手データ画面（名前をタップ）
-const PROF={}; let PROFN=0;
-function plinkKey(obj){ if(PROFN>600){ for(const k in PROF) delete PROF[k]; PROFN=0; } const k='p'+(PROFN++); PROF[k]=obj; return k; }
+const PROF={}, PLINK_N={}; let PROFN=0;
+function plinkKey(obj){ if(PROFN>600){ for(const k in PROF) delete PROF[k]; for(const k in PLINK_N) delete PLINK_N[k]; PROFN=0; } const k='p'+(PROFN++); PROF[k]=obj; if(obj&&obj.name&&!obj.isMe) PLINK_N[obj.name]=obj; return k; }
 const plink=(obj,label)=>`<span class="plink" data-pk="${plinkKey(obj)}">${label}</span>`;
 document.addEventListener('click',e=>{ const t=e.target.closest&&e.target.closest('.plink'); if(t&&PROF[t.dataset.pk]) showProfile(PROF[t.dataset.pk]); });
 function bar10(v){ return `<span style="display:inline-block;width:110px;height:7px;background:#2b3d33;border-radius:9px;vertical-align:middle;overflow:hidden"><i style="display:block;height:100%;width:${v}%;background:linear-gradient(90deg,#3fb96b,#f5c542)"></i></span> ${v}`; }
@@ -9397,7 +9397,7 @@ function pnIndex(){
   PN_RE=L.length?new RegExp(L.join('|'),'g'):null;
   return M;
 }
-const PN_SKIP='button,textarea,input,select,option,script,style,svg,.pnm,[data-nopn],#pnPop';
+const PN_SKIP='button,textarea,input,select,option,script,style,svg,.pnm,[data-nopn],#pnPop,#mainWrap .plink,#profScreen';   // 試合中の選手名（.plink）は前と同じ細かいプロフィール
 function pnScan(root){
   if(!root||!pnIndex()||!PN_RE) return;
   if(root.nodeType===1&&root.closest&&root.closest(PN_SKIP)) return;
@@ -9415,8 +9415,17 @@ function pnInit(){
   const ob=new MutationObserver(ms=>{ for(const m of ms){ if(m.type==='characterData'){ if(m.target.parentNode) PN_Q.add(m.target.parentNode); } else m.addedNodes.forEach(x=>{ if(x.nodeType===1) PN_Q.add(x); else if(x.nodeType===3&&x.parentNode) PN_Q.add(x.parentNode); }); }
     if(!PN_T) PN_T=requestAnimationFrame(pnFlush); });
   ob.observe(document.body,{childList:true,subtree:true,characterData:true});
-  document.addEventListener('click',e=>{ const s=e.target&&e.target.closest&&e.target.closest('.pnm'); if(!s) return; e.preventDefault(); e.stopPropagation(); pnShow(s.textContent); },true);
+  document.addEventListener('click',e=>{ const s=e.target&&e.target.closest&&e.target.closest('.pnm'); if(!s) return; e.preventDefault(); e.stopPropagation();
+    const go=s.closest('#mainWrap')&&pnGameObj(s.textContent); if(go){ showProfile(go); return; }   // 試合中は前と同じ細かいプロフィール
+    pnShow(s.textContent); },true);
   pnScan(document.body);
+}
+// 試合中の選手（名前から試合のデータを探す）：見つかれば前と同じ細かいプロフィール（showProfile）を出す
+function pnGameObj(name){
+  if(typeof G==='undefined'||!G||!name) return null;
+  if(name===(G.pname||'')||(typeof PEN!=='undefined'&&PEN&&name===PEN.pname)) return {isMe:true};
+  const L=[...(G.lineup||[]),...((G.myTeam&&G.myTeam.lineup)||[]),...(G.pits||[]),...(G.ours||[])]; if(G.oppPitcher) L.push(G.oppPitcher);
+  return L.find(x=>x&&x.name===name&&!x.isMe)||PLINK_N[name]||null;
 }
 // ---- 選手カード
 const pnCol=v=>v>=90?'#e2b33a':v>=80?'#e74c3c':v>=70?'#e67e22':v>=60?'#f1c40f':v>=50?'#2ecc71':v>=40?'#3498db':'#7f8c8d';
