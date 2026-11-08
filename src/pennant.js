@@ -1219,7 +1219,7 @@ function yearReview(){
   if(typeof cbSeasonEnd==='function') cbSeasonEnd();   // コーチの効果のうち、能力・タイプを元に戻す
   // シーズン後の評価：ノルマ（野手：打率.270・20本・OPS.800・15盗塁／投手：防御率3.00・WHIP1.25・奪三振率6.0）の達成度（manager.js）
   const m=myMgr(), B=isBat(), W=isTW(), sp=stagPenalty(), adj=v=>v==null?null:Math.max(0,v-sp);
-  const rtB=s=>seasonRateB(m,s), rtP=s=>seasonRateP(m,s);
+  const yth=isYouth(m), rtB=s=>seasonRateB(m,s,yth), rtP=s=>seasonRateP(m,s,yth);   // 若手（24歳まで・監督の性格で前後）は若手のノルマで
   const yR=adj(B?rtB(PEN.ss):rtP(PEN.ss)), cR=adj(B?rtB(PEN.career):rtP(PEN.career)), y=yR==null?35:yR, vol=PEN.ss.outs;
   const bs=W?(PEN.bss||batStat()):null, yRB=W?adj(rtB(bs)):null, cRB=W?adj(rtB(PEN.bcareer||batStat())):null, yB=yRB==null?35:yRB;   // 二刀流：打撃の評価
   const tP=B?[]:titleRace(), tB=B?titleRaceB():W?titleRaceB(bs):[], titles=tP.concat(tB), nT=titles.filter(t=>t.won).length, places=titlePlaces(titles);
@@ -1246,7 +1246,7 @@ function yearReview(){
   const ab=released?null:(B?abilityChangeB():abilityChange()); if(ab&&W) ab.bat=abilityChangeB(bs,40);
   var salaryEx=ex;
   if(ab) agingAmplify(ab);   // 33歳を超えると衰えが年々大きくなる
-  const rv={stage:'ps',yR:y,cR,chg,nT,titles,places,fin,released,newSal,abil:ab,ct:!!ct,fa:!released&&!twAsk&&faEligible(),ps:psInit(fin),ex:salaryEx};
+  const rv={stage:'ps',yR:y,cR,chg,nT,titles,places,fin,released,newSal,abil:ab,ct:!!ct,fa:!released&&!twAsk&&faEligible(),ps:psInit(fin),ex:salaryEx,youth:yth?youthAge(m):0};
   if(W){ rv.yRB=yB; rv.cRB=cRB; }
   if(twAsk){ rv.twAsk=twAsk;   // 専念したときの年俸の上がり下がり（投手：投手の分＋順位など／野手：打撃の分）
     rv.chgKeepP=clamp(chgP+ex.pct+nTP*TITLE_BONUS+placeBonus(plP),-0.5,capUp);
@@ -1808,7 +1808,7 @@ function renderPennant0(){
       <div class="pcardx ${rv.released?'bad':''}">${rv.faNone?`FAで行き先が見つからず、<b>自由契約</b>になりました（年俸0円）`:rv.twAns==='rel'?`二刀流へのこだわりを通し、<b>戦力外通告</b>を受けました（年俸0円）`:rv.released?`今年も通算も成績が悪く、<b>戦力外通告</b>を受けました（年俸0円）`:
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）${rv.twAns==='ok'?`<br>来季から<b>${rv.twConv==='P'?'投手':'野手（外野手）'}に専念</b>`:rv.twAns==='stay'?'<br>二刀流を続ける代わりに大幅ダウン':''}`}
         <div class="hint">${rv.yRB!=null?'投手：':''}今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${evB}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.places||[]).length?`／タイトル争い${rv.places.map(p=>p.name+p.rank+'位').join('・')}で+${Math.round(placeBonus(rv.places)*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
-      <div class="hint">評価＝ノルマ（${hasBat()?'野手：打率.270・20本塁打・OPS.800・15盗塁・三振率18%':''}${isTW()?'／':''}${isBat()?'':'投手：防御率3.00・WHIP1.25・奪三振率6.0'}）の達成度を、監督の性格で重みをつけて合計。ノルマの2/3で52点（年俸±0）、ノルマちょうどで78点。今年${REL_LINE.y}点未満で通算も${REL_LINE.c}点未満だと戦力外</div>
+      <div class="hint">${rv.youth?`<b style="color:var(--ink)">${rv.youth}歳までは若手の基準</b>（${mgrName(myMgr())}・${MGR_JP(myMgr().a,'a')[1]}）。`:''}評価＝ノルマ（${hasBat()?(rv.youth?'野手：打率.250・5本塁打・OPS.500・5盗塁・三振率18%':'野手：打率.270・20本塁打・OPS.800・15盗塁・三振率18%'):''}${isTW()?'／':''}${isBat()?'':(rv.youth?'投手：防御率4.00・WHIP1.75・奪三振率6.0':'投手：防御率3.00・WHIP1.25・奪三振率6.0')}）の達成度を、監督の性格で重みをつけて合計。ノルマの2/3で52点（年俸±0）、ノルマちょうどで78点。今年${REL_LINE.y}点未満で通算も${REL_LINE.c}点未満だと戦力外</div>
       ${rv.abil?(rv.twConv==='B'?(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):''):rv.twConv==='P'?abilChangeHTML(rv.abil):isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
