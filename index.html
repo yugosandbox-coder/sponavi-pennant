@@ -1280,7 +1280,7 @@ function simulatePitch(r,c,pt,note){
   const oppG=!hitG&&guesses.some(g=>oppPitch(g,pt)), trioG=!hitG&&TRIO.has(pt)&&guesses.some(g=>TRIO.has(g));   // 逆の球／直球系の打ち損じ
   const gK=clamp((gdS-5)/30,0,1);
   // 投手と打者の左右：同じ利き腕は投手有利。打者から逃げていく変化球は打ちにくい
-  const samePH = PHAND===b.hand;
+  const samePH = PHAND===b.hand||!!(typeof cbG==='function'&&cbG('platoon'));   // 左右苦手克服：反対の打席の打者にも同じ有利
   const bx=breakX(pt);
   const away = b.hand==='R' ? bx<-0.3 : bx>0.3;   // 投手目線：右打者は右に立つので、左へ曲がる球が逃げていく
   // 曲がる前のマスと球種の特徴
@@ -1523,6 +1523,8 @@ function resolveBIP(r,c,pt,q,b){
   hitP+=btFx(BT,'hit');
   hitP=clamp(hitP,b.sure!==undefined?0:0.03,0.85);   // 自分の打席は下限なし（ミートが低いほど打てない）
 
+  if(!meB&&(kind==='ground'||kind==='liner')&&typeof cbG==='function'&&cbG('tokushu')&&G&&G.pen&&!isBat()&&rnd()<0.05)   // 特守（投手）：ピッチャーゴロ・ライナーが少しだけ増える
+    return kind==='ground'?{res:'GO',out:true,fielder:'P',cls:'out',big:'ピッチャーゴロ',text:'鋭い打球をしっかりさばいてピッチャーゴロ'}:{res:'LO',out:true,fielder:'P',cls:'out',big:'ピッチャーライナー',text:'ピッチャー返しをがっちりつかんでピッチャーライナー'};
   if(rnd()<hitP||(b.sure&&rnd()<b.sure)){   // 自分の打席：本命が芯ならミートに応じて確実にヒット性
     if(meB&&rnd()<clamp(hrShare(b.power)*(b.hrMul??1)*HR_ME.k*(1+btFx(BT,'hr')*4)*(1+PX.xbh),0,0.95)) return hrRes();   // 自分の打席：ヒットのうち本塁打になる割合はパワーで決まる
     if(kind==='ground'){
@@ -1593,12 +1595,12 @@ function r1Update(done,b){
 function cpuStealDecide(){
   const R=G.r1; if(!R||R.tried||!G.bases[0]||G.bases[1]||G.outs>=2||typeof cpuStealP!=='function') return null;
   if(cpuStealP(R.spd,myCatcherDef(),136)<0.7) return null;   // 自信がなければ走らない
-  if(rnd()>(R.spd-60)*0.008) return null;
+  if(rnd()>(R.spd-60)*0.008*(typeof cbG==='function'&&cbG('run')?0.5:1)) return null;   // 走塁・盗塁講習（クイック・牽制）：走られるのが半分
   R.tried=true; return {R};
 }
 function cpuStealResolve(stl,p){
   if(p.kind==='foul'||p.kind==='foulout'||!G.bases[0]||G.bases[1]) return '';
-  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0),0.05,0.97), ok=rnd()<pr;
+  const cd=myCatcherDef(), pr=clamp(cpuStealP(stl.R.spd,cd,p.speed)+(p.kind==='swing'?0.03:0)-(typeof cbG==='function'&&cbG('run')?0.15:0),0.05,0.97), ok=rnd()<pr;   // 走塁・盗塁講習：成功率−15%
   G.bases[0]=0; G.r1=null;
   let msg;
   if(ok){ G.bases[1]=1; msg=`一塁走者 ${stl.R.name} が二盗成功`; }
@@ -2229,6 +2231,7 @@ function recordMyGame(res,score,me,simmed){
   if(me) slumpAfterGame(me);   // スランプ（発生・試合数・終わり）
   if(me&&typeof injuryRoll==='function') injuryRoll();   // 出場した試合のあと：怪我
   PEN.day++;
+  if(typeof cbDaily==='function') cbDaily();   // 最後の輝き：後半戦は少しずつ元の能力へ
   if(typeof injuryTick==='function') injuryTick();
   if(typeof allstarCheck==='function') allstarCheck();   // 第75試合のあとにオールスター
   favExpire();
@@ -2243,7 +2246,7 @@ function recordMyGame(res,score,me,simmed){
    その5試合の成績が悪すぎると（野手：打率.150未満／投手：防御率6.00以上）5試合延長（最大10試合）。終わると能力は元に戻る */
 const SLUMP_P=0.01;
 // 36歳以上（35歳を超えた選手）はシーズン後半（72試合目から）にスランプがとても起きやすい：36歳6%・1歳ごとに+1%（最大12%）
-const slumpP=()=>{ const age=PEN.age||22, p=age>35&&PEN.day>=Math.ceil(SEASON_GAMES/2)?Math.min(0.12,0.06+0.01*(age-36)):SLUMP_P; return typeof cbOn==='function'&&cbOn('antei')?p/5:p; };   // 安定した戦い方：1/5
+const slumpP=()=>{ const age=PEN.age||22, p=age>35&&PEN.day>=Math.ceil(SEASON_GAMES/2)&&!(typeof cbOn==='function'&&cbOn('cond'))?Math.min(0.12,0.06+0.01*(age-36)):SLUMP_P; return typeof cbOn==='function'&&cbOn('antei')?p/5:p; };   // 安定した戦い方：1/5
 const slumpSnap=()=>{ const s=PEN.ss||{}, b=isBat()?PEN.ss:isTW()?(PEN.bss||{}):null; return {outs:isBat()?0:(s.outs||0),runs:isBat()?0:(s.runs||0),ab:b?(b.ab||0):0,h:b?(b.h||0):0}; };
 function slumpAfterGame(me){
   if(!PEN||PEN.day>=SEASON_GAMES) return;
@@ -2540,6 +2543,7 @@ function defsubGame(){
     const pOut=clamp((tough?0.35:0.93)+(d-50)*0.006-((b.speed||50)-50)*0.003-((b.power||50)-50)*0.002+btFx(t,'fld')+btFx(t,'dive'),0.05,0.98);
     if(rnd()<pOut){ if(tough){ st.gp++; notes.push(t==='守備職人'||rnd()<0.3?'ダイビングキャッチ':'好捕'); } }
     else if(!tough){ st.err++; notes.push('失策'); } }
+  { const b=PEN.babil||{}, pos=(PEN.bposs||[])[0]||'OF', K=UZR_K[pos]||0.7; st.uzr=((b.def??50)*0.6+(b.speed??50)*0.4-60)*0.5*K/SEASON_GAMES*0.3-(st.err-0.02)*0.6+(st.gp||0)*0.3; }   // 守備固めのUZR
   addBatLine(st,false);
   const note=`守備固めで出場${notes.length?`（${notes.join('・')}）`:''}${st.pa?`・${st.pa}打席${st.h?`${st.h}安打`:''}`:''}`;
   recordMyGame(g.res,[g.o,g.m],{kind:'defsub',note,bat:{pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},gp:st.gp,played:false});
@@ -2868,18 +2872,18 @@ function awakeSeason(){
   const b=isBat()?PEN.ss:isTW()?PEN.bss:null, p=isBat()?null:PEN.ss, halfPA=Math.ceil(QUAL_PA/2), halfOuts=Math.ceil(SEASON_GAMES*3/2);
   if((PEN.age||99)<=25){
     if(b&&b.pa>=halfPA){
-      if(!A.done.avg300&&bAvg(b)>=0.300){ if(rnd()<pr){ A.done.avg300=true; PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); awakeGive('安打製造機の覚醒',10,'ミート+5'); } else penNotice(`打率${bAvg(b).toFixed(3).replace(/^0/,'')}を達成！（今回は覚醒しなかった）`); }
-      if(!A.done.hr10&&b.hr>=10){ if(rnd()<pr){ A.done.hr10=true; PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); awakeGive('長距離砲の覚醒',10,'パワー+5'); } else penNotice(`${b.hr}本塁打を達成！（今回は覚醒しなかった）`); }
+      if(!A.done.avg300&&bAvg(b)>=0.300){ if(rnd()<pr){ A.done.avg300=true; PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); awakeGive('安打製造機の覚醒',10,'ミート+5'); } else { (A.miss||(A.miss={})).avg300=true; penNotice(`打率${bAvg(b).toFixed(3).replace(/^0/,'')}を達成！（今回は覚醒しなかった）`); } }
+      if(!A.done.hr10&&b.hr>=10){ if(rnd()<pr){ A.done.hr10=true; PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); awakeGive('長距離砲の覚醒',10,'パワー+5'); } else { (A.miss||(A.miss={})).hr10=true; penNotice(`${b.hr}本塁打を達成！（今回は覚醒しなかった）`); } }
     }
     if(p&&(p.outs||0)>=halfOuts&&!A.done.era300){ const era=p.runs*27/p.outs;
-      if(era<=3.0){ if(rnd()<pr){ A.done.era300=true; awakeGive('エースピッチャーへの兆し',20); } else penNotice(`防御率${era.toFixed(2)}を達成！（今回は覚醒しなかった）`); } }
+      if(era<=3.0){ if(rnd()<pr){ A.done.era300=true; awakeGive('エースピッチャーへの兆し',20); } else { (A.miss||(A.miss={})).era300=true; penNotice(`防御率${era.toFixed(2)}を達成！（今回は覚醒しなかった）`); } } }
     // 怪童への道：シーズンでストレートの奪三振50以上（33%）→ ストレートLv+1（最大なら持ち点+5）・球速+2〜5
     const sk=p&&p.byType&&p.byType['ストレート']?p.byType['ストレート'].k||0:0;
     if(p&&!A.done.kaido&&sk>=50){ if(rnd()<0.33+(PEN.team==='M'?0.05:0)){ A.done.kaido=true;
         const lv=lvOf('ストレート'), dv=ri(2,5), a=PEN.abil; a.velo=r1(Math.min(VELO_MAX,a.velo+dv)); let ex=`球速+${dv}km/h`, pts=0;
         if(lv<LV_MAX){ PEN.plev['ストレート']=lv+1; ex=`ストレートLv.${lv+1}・`+ex; } else pts=5;
         if(pts) awakeGive('怪童への道',pts,ex); else { A.log.push({y:PEN.year,name:'怪童への道',pts:0}); penNotice(`✨ 覚醒！ 怪童への道（${ex}）`); } }
-      else penNotice(`ストレートで${sk}奪三振を達成！（今回は覚醒しなかった）`); }
+      else { (A.miss||(A.miss={})).kaido=true; penNotice(`ストレートで${sk}奪三振を達成！（今回は覚醒しなかった）`); } }
   }
   // ミスター○○：同じ球団に10年、10年とも毎年スタメン（投手は登板）が1試合以上 → +20（球団ごとに1回）
   const tm=PEN.team, key='mr_'+tm, S=PEN.seasons||[];
@@ -3326,9 +3330,9 @@ function salaryExtra(){
   return {pct:Math.round(pct*1000)/1000,why};
 }
 // 衰えの始まり（33歳で50%・34歳で75%・35歳以上で100%）：シーズンの終わりに1年に1回だけ判定
-function declineCheck(){
+function declineCheck(){   // コンディショニング中は衰えの始まりを2年遅らせる
   if(!PEN||PEN.declAge||PEN.declChk===PEN.year) return; PEN.declChk=PEN.year;
-  if(rnd()<declP(PEN.age||18)){ PEN.declAge=PEN.age; penNotice(`⏳ ${PEN.age}歳。体の衰えが始まった（これから能力が下がりやすくなる）`); }
+  if(rnd()<declP((PEN.age||18)-(typeof cbOn==='function'&&cbOn('cond')?2:0))){ PEN.declAge=PEN.age; penNotice(`⏳ ${PEN.age}歳。体の衰えが始まった（これから能力が下がりやすくなる）`); }
 }
 const REL_LINE={y:33,c:37};   // 戦力外の基準：今年の評価がこれ未満、かつ通算もこれ未満（前は38・42）
 function yearReview(){
@@ -3789,7 +3793,7 @@ function renderCamp(el){
       <div class="hint">守備の能力はそのまま。守れる位置が複数あると、スタメン争いでチームにいちばん必要な位置で出場します。残りのポイントは能力に使えます。</div></div></details>`;
   }
   el.innerHTML=`<div class="pen">
-    <h2>⛺ 春季キャンプ　${P.year}年目</h2>
+    <h2>⛺ 春季キャンプ　${P.year}年目 <small>（${P.age}歳）</small></h2>
     ${draftNewsHTML()}
     ${managerSay(P.year===1?`ようこそ${TEAM[P.team].short}へ。監督の${myMgr().sur}だ。開幕までのキャンプで何を鍛えるか、自分で決めてみろ。`:myMgr().y===P.year?`今年から監督になった${myMgr().sur}だ。${P.age}歳のシーズン、何を伸ばす？ 俺の見方は下に書いてある。`:`今年のキャンプだ。${P.age}歳のシーズン、何を伸ばす？`,true)}
     ${P.mgrNews&&P.mgrNews.length?`<div class="hint" style="margin:-2px 0 6px">他球団の監督交代：${P.mgrNews.join('／')}</div>`:''}
@@ -3988,7 +3992,7 @@ function renderPennant0(){
   }
   const recent=P.days.slice(-10).reverse().map(g=>{
     const m={W:'○',L:'●',T:'△'}[g.res];
-    const me=g.me&&g.me.note?`<span class="me">${g.me.note}</span>` : g.me&&g.me.bat?`<span class="me">${g.me.kind==='pinch'?'代打':g.me.kind==='defsub'?'守備固め':'スタメン'}${g.me.gp?' 🧤好プレー':''} ${g.me.bat.pa?`${g.me.bat.ab}打数${g.me.bat.h}安打${g.me.bat.hr?` ${g.me.bat.hr}本`:''}${g.me.bat.rbi?` ${g.me.bat.rbi}打点`:''}${g.me.bat.sb?` ${g.me.bat.sb}盗塁`:''}${g.me.bat.bb?` ${g.me.bat.bb}四死球`:''}`:'打席なし'}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`
+    const me=g.me&&g.me.note&&(!g.me.bat||g.me.kind==='defsub'||g.me.kind==='runner')?`<span class="me">${g.me.note}</span>` : g.me&&g.me.bat?`<span class="me">${g.me.kind==='pinch'?'代打':g.me.kind==='defsub'?'守備固め':'スタメン'}${g.me.gp?' 🧤好プレー':''} ${g.me.bat.pa?`${g.me.bat.ab}打数${g.me.bat.h}安打${g.me.bat.hr?` ${g.me.bat.hr}本`:''}${g.me.bat.rbi?` ${g.me.bat.rbi}打点`:''}${g.me.bat.sb?` ${g.me.bat.sb}盗塁`:''}${g.me.bat.bb?` ${g.me.bat.bb}四死球`:''}`:'打席なし'}${g.me.note?`・${g.me.note}`:''}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`
       : g.me?`<span class="me">${{start:'先発',relief:'中継ぎ',closer:'抑え'}[g.me.kind]} ${fmtIP(g.me.outs)}回${g.me.runs}失点${g.me.dec!=='－'?' '+({勝:'勝',負:'負',S:'S',H:'H'}[g.me.dec]):''}${g.me.tb?`／${g.me.tb.ab}打数${g.me.tb.h}安打${g.me.tb.hr?` ${g.me.tb.hr}本`:''}${g.me.tb.rbi?` ${g.me.tb.rbi}打点`:''}`:''}${g.me.played?'':'（スキップ）'}${g.me.mission?`（ミッション${g.me.mission}）`:''}</span>`:'';
     return `<div class="dayr"><span class="rm ${g.res}">${m}</span> ${gameMD(g.d-1)} 第${g.d}試合 vs ${g.oid?tchip(g.oid):g.opp} ${g.score[1]}-${g.score[0]} ${me}</div>`}).join('')||'<div class="hint">まだ試合はありません</div>';
   const rk=rankOf(P.team), st=standings(T.lg), gb=rk>1?((st[0].w-st[0].l)-(rec.w-rec.l))/2:0;
@@ -4136,7 +4140,7 @@ function myAbilHTML(){
 function myStatsHTML(){
   const P=PEN, f2=(n,o)=>o?(n*27/o).toFixed(2):'-.--';
   const rowsP=s=>[['登板',s.g],['先発',s.gs],['勝利',s.w],['敗戦',s.l],['セーブ',s.sv],['ホールド',s.hld||0],['投球回',fmtIP(s.outs)],['奪三振',s.k],['四球',s.bb],['防御率',f2(s.runs,s.outs)],['WHIP',s.outs?((s.hits+s.bb)*3/s.outs).toFixed(2):'-.--']];
-  const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-']];
+  const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-'],['失策',s.fg||s.ds?(s.err||0):'-'],['UZR',fmtUZR(s)]];
   const tbl=(title,a,b)=>`<table class="stt sctbl"><thead><tr><th>${title}</th><th>今季</th><th>通算</th></tr></thead><tbody>${a.map((r,i)=>`<tr><th>${r[0]}</th><td>${r[1]}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
   if(isBat()) return tbl('打撃',rowsB(P.ss),rowsB(P.career));
   let h=tbl('投手',rowsP(P.ss),rowsP(P.career));
@@ -4425,7 +4429,7 @@ let ME_PF_ADD=0;
 const myPositions=()=>PEN.favMod&&PEN.favMod.pos?[PEN.favMod.pos]:PEN.bAssign&&PEN.bAssign.pos&&isBat()?[PEN.bAssign.pos]:(PEN.bposs&&PEN.bposs.length?PEN.bposs:[PEN.bpos||'OF']);   // 打診で決まった守備位置があればそこだけ
 function myFielder(pos){
   const a=perfB(PEN.babil);   // 内部値でCPUと比べる
-  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6)+ME_PF_ADD,num:B_NUM,isMe:true};
+  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6)+ME_PF_ADD-((pos||myPositions()[0])!=='DH'?Math.round(defBad()*6):0),num:B_NUM,isMe:true};   // 失策が多い・UZRが低いと、DH以外ではスタメンに選ばれにくい
 }
 
 /* ---- 年をまたぐとき：成長・衰え・引退、ドラフト ---- */
@@ -4881,8 +4885,28 @@ function myFldP(){ const d=abPerf((PEN.babil&&PEN.babil.def)??70), t=myBtype(); 
 const B_ROLE_NAME={'スタメン':'スタメン','代打':'控え（代打）'};
 const isBat=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.pos==='B');
 const roleName=r=>B_ROLE_NAME[r]||(typeof PEN!=='undefined'&&PEN&&r===PEN.role&&!isBat()&&typeof pitRoleLabel==='function'?pitRoleLabel():ROLE_NAME[r])||r;   // 投手の今の役割は「先発◯番手」など
-const batStat=()=>({g:0,gs:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,run:0,bb:0,hbp:0,k:0,sb:0,cs:0,tl:0,php:0,pha:0,phh:0,ds:0,gp:0,pr:0,err:0,fg:0,mBonus:0,mOK:0,mNG:0});   // tl＝タイムリー（打点のついた安打）、php/pha/phh＝代打の打席・打数・安打、ds＝守備固め出場、gp＝守備の好プレー
-const B_KEYS=['pa','ab','h','d2','d3','hr','rbi','run','bb','hbp','k','sb','cs','tl','php','pha','phh','ds','gp','pr','err','fg'];
+const batStat=()=>({g:0,gs:0,pa:0,ab:0,h:0,d2:0,d3:0,hr:0,rbi:0,run:0,bb:0,hbp:0,k:0,sb:0,cs:0,tl:0,php:0,pha:0,phh:0,ds:0,gp:0,pr:0,err:0,fg:0,uzr:0,mBonus:0,mOK:0,mNG:0});   // tl＝タイムリー（打点のついた安打）、php/pha/phh＝代打の打席・打数・安打、ds＝守備固め出場、gp＝守備の好プレー
+const B_KEYS=['pa','ab','h','d2','d3','hr','rbi','run','bb','hbp','k','sb','cs','tl','php','pha','phh','ds','gp','pr','err','fg','uzr'];
+/* ---- 守備の成績：失策（守備×0.65＋選球眼・技術×0.35 が高いほど少ない）とUZR（守備×0.6＋走力×0.4 が高いほど高い。失策の多さも入る） ----
+   守備力60の選手が1年（143試合）守ったときの失策のおおよそ：捕手6・一塁6・二塁8・遊撃12・三塁12・外野3〜4。UZRは守備範囲の得点（±0が平均） */
+const ERR_E={C:6,'1B':6,'2B':8,SS:12,'3B':12,LF:3,CF:3,RF:4,OF:3.5}, UZR_K={C:0.3,'1B':0.4,'2B':0.9,SS:1,'3B':0.7,LF:0.7,CF:1,RF:0.7,OF:0.8};
+const fmtUZR=s=>(s&&((s.fg||0)+(s.ds||0))>0)?((s.uzr||0)>=0?'+':'')+(s.uzr||0).toFixed(1):'-';
+function fieldGame(st,pos,part){
+  if(!pos||pos==='DH'||!ERR_E[pos]||!PEN||!PEN.babil) return 0;
+  const a=(typeof cbBab==='function'?cbBab(PEN.babil):PEN.babil), d=a.def??50, e=a.eye??50, s=a.speed??50, t=myBtype(), w=part||1;
+  const e0=ERR_E[pos]/SEASON_GAMES*w, em=e0*Math.exp(-((d*0.65+e*0.35)-60)*0.028)*(t==='守備職人'?0.75:1)*(typeof cbOn==='function'&&cbOn('tokushu')?0.5:1);   // 特守：エラー半分
+  const er=poisson(em), K=UZR_K[pos];
+  st.err=(st.err||0)+er;
+  st.uzr=(st.uzr||0)+((d*0.6+s*0.4)-60)*0.5*K/SEASON_GAMES*w+(rnd()-0.5)*0.5*K*w-(er-e0)*0.6;
+  return er;
+}
+// 守備の不安（失策が多すぎる・UZRが低すぎる）：0〜1.5。守った試合が少ないうちは割り引く
+function defBad(){
+  if(!PEN||!isBat()) return 0; const s=PEN.ss||{}, g=(s.fg||0)+(s.ds||0)*0.3; if(g<5) return 0;
+  const pos=PEN.slot&&PEN.slot!=='DH'?PEN.slot:((PEN.bposs||[])[0]||'OF'), E=ERR_E[pos]||8, w=g/(g+20);
+  const uz=(s.uzr||0)*SEASON_GAMES/g*w, ep=(s.err||0)*SEASON_GAMES/g*w+E*(1-w);
+  return clamp(Math.max(-uz/10,(ep-E*1.4)/E),0,1.5);
+}
 const bAvg=s=>s.ab?s.h/s.ab:0, bObp=s=>s.pa?(s.h+s.bb+s.hbp)/s.pa:0, bSlg=s=>s.ab?(s.h+s.d2+2*s.d3+3*s.hr)/s.ab:0;
 const f3=v=>v.toFixed(3).replace(/^0/,'');
 // 能力 → 打撃の数字
@@ -4924,7 +4948,9 @@ const HR_ME_K=0.9;   // 自分の本塁打率（パワー依存）：打球に�
 const HR_TOP=(p,k)=>p>50?1+k*Math.pow((p-50)/50,2):1;
 const cpuHrRate=p=>myHrRate(p)*HR_TOP(p,0.25);   // CPUの打者と、自分のおまかせ打席（リーグの試合と同じ計算）
 const myHrRate=p=>clamp(0.006+Math.pow(clamp(p,0,100)/100,2)*HR_MAX*HR_ME_K,HR_MIN*0.5,HR_MAX*2);
-const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0),toThird?0.08:0.25,0.95);   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
+const stealProb=(spd,toThird)=>clamp(0.42+spd*0.005-(toThird?0.25:0)+(typeof myBtype==='function'?btFx(myBtype(),'steal'):0)+(typeof cbOn==='function'&&cbOn('run')?0.10:0),toThird?0.08:0.25,0.95);   // 走塁・盗塁講習：+10%
+// おまかせで盗塁を試みるか（走塁・盗塁講習：走力が少し低くても走り、回数1.5倍）
+const stealTry=spd=>{ const r=typeof cbOn==='function'&&cbOn('run'), th=r?45:55; return spd>=th&&rnd()<(0.1+(spd-th)*0.006)*(r?1.5:1); };   // 三盗は失敗しやすい（成功率−25%）   // タイプ（スピードスター・アスリート）で成功率が上がる
 const B_NUM=7;   // 野手の背番号
 
 /* ---- 相手投手 ---- */
@@ -5058,7 +5084,7 @@ function batResolve(p){
   const eye=A.eye/100, meet=A.meet/100, two=ab.strikes===2;
   // 球の質：変化球はLv（Lv.2が普通、Lv.7でいちばん打ちにくい）、ストレートは球速
   const lvP = p.pt==='ストレート' ? clamp((pitLv(pit,'ストレート')-3)*0.5,-1,2) : clamp((pitLv(pit,p.pt)-2)*0.45,-0.5,2.2), pfT=curPitF(), pq=pit.q*(1+pfT*0.12)*(inPinch(G.bases)?1+PINCH.q*2:1);   // ストレートもLv（3が標準）。疲れた投手は球威が落ちる
-  const platoon=(G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L');   // 左打ちは右投手、右打ちは左投手に少し三振しづらい
+  const platoon=(G.bhand==='L'&&pit.hand==='R')||(G.bhand==='R'&&pit.hand==='L')||!!(typeof cbG==='function'&&cbG('platoon'));   // 左右苦手克服：同じ利き腕の投手にも   // 左打ちは右投手、右打ちは左投手に少し三振しづらい
   const fx=pitchFx({pt:p.pt,r:p.r,c:p.c,sr:p.sr0??p.sr,sc:p.sc0??p.sc,hand:G.bhand,phand:pit.hand,mainT:main,mainSpd:T.spd,stSpd:pitSpeed(pit,'ストレート')});   // 球種の特徴（ストライク→ボール・本命とのずれ など）
   let mode;
   if(inT&&tq>0) mode='hit';
@@ -5193,7 +5219,8 @@ function bottomRun(Q){
   if(G.walk) return 'end';
   while(G.outs<3){
     if(canSteal()&&G.stealAsk!==stealKey()&&!G.autoMe) return 'steal';
-    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=0.75) Q.push(doSteal()); if(G.outs>=3) break; }
+    if(canSteal()&&G.autoMe&&G.stealAsk!==stealKey()){ G.stealAsk=stealKey(); if(stealExpect(G.babil.speed,meOnBase()===1)>=(typeof cbG==='function'&&cbG('run')?0.65:0.75)) Q.push(doSteal()); if(G.outs>=3) break; }
+    if(G.subIn&&!G.subbed&&G.meActive&&!G.pinch&&G.inning>=G.subIn){ G.meActive=false; G.subbed=true; addLog(`<div class="ab" style="color:var(--mute)">◆ ${G.subIn}回から守備固めの選手と交代（ここからはベンチで見守る）</div>`); }   // 守備に不安があると終盤に交代
     const nx=(T.order+1)%9, pinchNow=G.pinch&&!G.pinch.done&&G.inning===G.pinch.inning&&G.halfPA>=G.pinch.after;
     if((T.lineup[nx].isMe&&G.meActive)||pinchNow){
       if(pinchNow){ G.pinch.done=true; G.me.order=nx+1; }
@@ -5679,7 +5706,7 @@ function bindSpeedBar(){
 }
 function batRows(s){
   return [['打席',s.pa],['打数',s.ab],['安打',s.h],['二塁打',s.d2],['三塁打',s.d3],['本塁打',s.hr,1],['打点',s.rbi],['得点',s.run],['四死球',s.bb+s.hbp],['三振',s.k],['盗塁',s.sb],['盗塁死',s.cs],
-    ['打率','<b>'+(s.ab?f3(bAvg(s)):'-')+'</b>',1],['出塁率',s.pa?f3(bObp(s)):'-'],['長打率',s.ab?f3(bSlg(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-',1],['代打',`${s.php||0}打席${s.pha?`・打率${f3((s.phh||0)/s.pha)}`:''}`],['代走',s.pr||0],['守備固め',s.ds||0],['守備の好プレー',s.gp||0],['失策',s.err||0]];
+    ['打率','<b>'+(s.ab?f3(bAvg(s)):'-')+'</b>',1],['出塁率',s.pa?f3(bObp(s)):'-'],['長打率',s.ab?f3(bSlg(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-',1],['代打',`${s.php||0}打席${s.pha?`・打率${f3((s.phh||0)/s.pha)}`:''}`],['代走',s.pr||0],['守備固め',s.ds||0],['守備の好プレー',s.gp||0],['失策',s.err||0],['UZR',fmtUZR(s)]];
 }
 function renderStatsBat(){
   const g=batRows(G.st), y=batRows(isTW()?(PEN.bss||batStat()):isBat()?PEN.ss:batStat()), c=batRows(isTW()?(PEN.bcareer||batStat()):isBat()?PEN.career:batStat());
@@ -5710,7 +5737,7 @@ function renderScoutBat(){
 function abilityRB(){ const a=perfB(PEN.babil); return clamp(18+a.meet*0.25+a.power*0.2+a.speed*0.08+a.eye*0.12+(a.def??50)*0.04,25,85); }
 // 成績の評価（OPS中心。打席が少ないうちは能力の見込みに寄せる）
 function ratingB(s){ return mgrRatingB(myMgr(),s); }   // 監督の志向で評価の重みが変わる（manager.js）
-const pinchProb=()=>clamp(0.25+(evalOld()-40)/40*0.25,0.15,0.5);
+const pinchProb=()=>clamp(0.25+(evalOld()-40)/40*0.25+defBad()*0.08,0.15,0.5);   // 守備に不安がある打者は代打での出番が増える
 const orderFor=r=>r==='代打'?0:(PEN.order||9);   // 打順はスタメン争い（penCompete）で決まる
 // スタメン争い：守備位置ごとに能力＋監督の評価で決める（シーズン開始時と10試合ごと）
 function penCompete(quiet){
@@ -5733,6 +5760,7 @@ function penCompete(quiet){
 }
 function makePendingB(kind,oppId){
   const d=PEN.day, p={day:d,opp:oppId||oppOf(d),kind,order:PEN.order,slot:PEN.slot};
+  if(kind==='start'&&!isTW()&&PEN.slot&&PEN.slot!=='DH'){ const bd=defBad(); if(bd>0&&rnd()<clamp(0.05+bd*0.25,0,0.45)) p.subIn=ri(7,8); }   // 守備に不安があると終盤に守備固めと交代
   if(kind==='pinch') p.pinchInning=(typeof mySubMgr==='function'&&mySubMgr())?ri(4,7):ri(6,8);   // 代打多用型の監督は早い回から
   return p;
 }
@@ -5753,6 +5781,7 @@ function penPlayB(p){
     pname:PEN.pname, bhand:PEN.bhand||'R', babil:p.oddBabil||PEN.babil, kind:p.kind, order:myIdx>=0?myIdx+1:9, pinchInning:p.pinchInning, slot:isTW()?'DH':p.slot, ofSide:PEN.ofSide||(PEN.ofSide=pick(['左','中','右'])),
     pen:{day:p.day,year:PEN.year,kind:p.kind,role:PEN.role,team:PEN.team,opp:p.opp,odd:p.odd||null,...(p.ps?{ps:true,psName:p.psName,gameNo:p.gameNo}:{})},
     mission: p.odd?null:(rnd()<(p.ps?EV_MP:0.35) ? genMissionB(p.kind) : null)});   // ポストシーズンは出やすい
+  G.subIn=p.subIn||0;
   const Q=batProceed();
   // 代打はその回の少し前から見せる（それより前の回はまとめて済ませる）
   const show = p.kind==='pinch' ? Q.filter(e=>e.inning>=G.pinch.inning) : Q;
@@ -5764,24 +5793,25 @@ function penPlayB(p){
 // 試合が終わったとき（野手）
 function penGameDoneB(p){
   const st=G.st, res=G.result.res;
+  if(G.subbed) st.subIn=G.subIn;
   addBatLine(st,p.kind!=='pinch');
   if(G.mission) checkMissionB();
   afterAppearanceB();
-  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
+  recordMyGame(res,[oppTot(),myTot()],{kind:p.kind,note:[G.subbed&&`${G.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:true,mission:G.mission?(G.mission.ok?'達成':'失敗'):null});
   PEN.pending=null; tradeCheck();
 }
 function addBatLine(st,start){
   if(isTW()){ addTwBat(st); return; }   // 二刀流の指名打者の日は打撃成績へ
   if(!start&&!st.ds){ st.php=st.pa; st.pha=st.ab; st.phh=st.h; }   // 代打の成績
-  if(start&&PEN.slot&&PEN.slot!=='DH') st.fg=1;   // 守備についた試合（ゴールデン・グラブ賞用）
-  for(const T of [PEN.ss,PEN.career]){ for(const k of B_KEYS) T[k]+=st[k]||0; T.g++; if(start) T.gs++; }
+  if(start&&PEN.slot&&PEN.slot!=='DH'){ st.fg=1; fieldGame(st,PEN.slot,st.subIn?0.75:1); }   // 守備についた試合（ゴールデン・グラブ賞用）・失策とUZR
+  for(const T of [PEN.ss,PEN.career]){ for(const k of B_KEYS) T[k]=(T[k]||0)+(st[k]||0); T.g++; if(start) T.gs++; }
   awakeCheck();
   PEN.roleApps++;
 }
 // スキップ（野手）：能力から打席の結果をおまかせで決める
 function penSkipB(){
   const p=PEN.pending, A=effBabil(PEN.babil,p.kind), A2=myT(), B=PEN.teams[p.opp]||A2;
-  const npa = p.kind==='pinch' ? 1 : Math.max(2,Math.round((p.order<=2?4.6:p.order<=5?4.3:3.9)+(rnd()-.5)*1.6));
+  const npa = p.kind==='pinch' ? 1 : Math.max(2,Math.round((p.order<=2?4.6:p.order<=5?4.3:3.9)+(rnd()-.5)*1.6))-(p.subIn?1:0);   // 守備固めと交代したら1打席少ない
   const st=batStat(); let bases=[0,0,0];
   for(let i=0;i<npa;i++){
     const on=rnd()<0.42?ri(1,2):0, k=autoKind(A,null,on&&rnd()<0.6); st.pa++;
@@ -5791,15 +5821,16 @@ function penSkipB(){
     // 打点・得点・盗塁のおおよそ
     if(k==='HR'){ st.rbi+=1+Math.min(on,poisson(0.6)); st.run++; st.tl=(st.tl||0)+1; }
     else if(['1B','IFH','2B','3B'].includes(k)){ if(on&&rnd()<(k==='1B'||k==='IFH'?0.45:0.7)){ st.rbi+=1; st.tl=(st.tl||0)+1; } if(rnd()<0.35+A.speed*0.002) st.run++;
-      if((k==='1B'||k==='IFH')&&A.speed>=55&&rnd()<0.1+(A.speed-55)*0.006){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
-    else if(k==='BB'||k==='HBP'){ if(rnd()<0.3) st.run++; if(A.speed>=55&&rnd()<0.1+(A.speed-55)*0.006){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
+      if((k==='1B'||k==='IFH')&&stealTry(A.speed)){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
+    else if(k==='BB'||k==='HBP'){ if(rnd()<0.3) st.run++; if(stealTry(A.speed)){ if(rnd()<stealProb(A.speed,false)) st.sb++; else st.cs++; } }
     else if((k==='FO'||k==='GO')&&on&&rnd()<0.12) st.rbi++;
   }
   let o=poisson(Math.max(1.6,3.85+B.off-A2.def)), m=Math.max(st.rbi,poisson(Math.max(1.6,3.85+A2.off-B.def))+Math.round(st.rbi*0.4));
   const res=teamResult(o,m); if(res==='W'&&m<=o) m=o+1; if(res==='L'&&o<=m) o=m+1;
+  if(p.subIn) st.subIn=p.subIn;
   addBatLine(st,p.kind!=='pinch');
   afterAppearanceB();
-  recordMyGame(res,[o,m],{kind:p.kind,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
+  recordMyGame(res,[o,m],{kind:p.kind,note:[p.subIn&&`${p.subIn}回から守備固めと交代`,st.err&&`失策${st.err}`].filter(Boolean).join('・')||undefined,bat:{d2:st.d2,d3:st.d3,k:st.k,pa:st.pa,ab:st.ab,h:st.h,hr:st.hr,rbi:st.rbi,sb:st.sb,bb:st.bb+st.hbp},played:false});
   PEN.pending=null; tradeCheck();
 }
 // 打順・出番の入れ替え
@@ -7553,6 +7584,64 @@ const COACH_LOOK={
     {lab:'金時計の大物代理人',skin:2,outfit:'suit',top:'#2f2f3a',shirt:'#ffffff',tie:'#7a1f2b',hair:'bald',hc:'#555',face:'smile',acc:['mustache','pinstripe','watch','calc']},
     {lab:'若手のインテリ代理人',skin:1,outfit:'suit',top:'#2c3e50',shirt:'#dfe8f2',tie:'#2a7ab8',hair:'mash',hc:'#2b1d14',face:'calm',acc:['glass','tablet']},
   ],
+  // ---- 怪しい医者（最後の輝きを目指して）
+  doctor:[
+    {lab:'額帯鏡（がくたいきょう）の闇医者',skin:1,outfit:'labcoat',top:'#e9e6df',shirt:'#3a3a3a',tie:'#6b1e2e',hair:'messy',hc:'#6b6b6b',face:'smirk',acc:['headmirror','stetho']},
+    {lab:'フラスコのマッドドクター',skin:0,outfit:'labcoat',top:'#f2f2f2',shirt:'#7fd36b',tie:null,hair:'messy',hc:'#f0f0f0',face:'grin',acc:['roundglass','flask']},
+    {lab:'黒コートの闇医者',skin:2,outfit:'suit',top:'#141418',shirt:'#5a1222',tie:null,hair:'slick',hc:'#111',face:'smirk',acc:['sunglass','stetho','syringe']},
+    {lab:'マスクの謎の医師',skin:1,outfit:'scrubs',top:'#2f6f5a',hair:'none',hc:'#222',face:'calm',acc:['scrubcap','mask','stetho']},
+    {lab:'片眼鏡の老医師',skin:0,outfit:'labcoat',top:'#efefe8',shirt:'#c9b48a',tie:'#3a2a1a',hair:'bald',hc:'#dcdcdc',face:'calm',acc:['monocle','beard','pill']},
+    // 案6〜10：案2（フラスコのマッドドクター）と案5（片眼鏡の老医師）をもとに
+    {lab:'片眼鏡のマッドドクター',skin:0,outfit:'labcoat',top:'#f2f2f2',shirt:'#7fd36b',tie:null,hair:'messy',hc:'#f0f0f0',face:'grin',acc:['monocle','flask','wrinkle']},
+    {lab:'丸メガネの狂気の老博士',skin:0,outfit:'labcoat',top:'#efefe8',shirt:'#c9b48a',tie:'#3a2a1a',hair:'bald',hc:'#e6e6e6',face:'grin',acc:['roundglass','beard','flask','wrinkle']},
+    {lab:'白ひげの薬売り博士',skin:1,outfit:'labcoat',top:'#f2f2f2',shirt:'#7a5aa0',tie:null,hair:'messy',hc:'#ececec',face:'smirk',acc:['roundglass','beard','pill','wrinkle']},
+    {lab:'口ひげの錬金術師',skin:0,outfit:'labcoat',top:'#e9e6df',shirt:'#3a3a3a',tie:'#6b1e2e',hair:'bald',hc:'#d0d0d0',face:'calm',acc:['monocle','mustache','flask','browbig','wrinkle']},
+    {lab:'ボサボサ白髪の老医師',skin:0,outfit:'labcoat',top:'#f2f2f2',shirt:'#c9b48a',tie:'#3a2a1a',hair:'messy',hc:'#f4f4f4',face:'smirk',acc:['monocle','beard','pill','browbig','wrinkle']},
+    // 案11（決定）：案10に、案6の緑のフラスコとシャツ
+    {lab:'緑のフラスコの老医師',skin:0,outfit:'labcoat',top:'#f2f2f2',shirt:'#7fd36b',tie:null,hair:'messy',hc:'#f4f4f4',face:'smirk',acc:['monocle','beard','flask','browbig','wrinkle']},
+  ],
+  // ---- 球団コーチ（走塁・盗塁講習／特守／左右苦手克服）：服は所属球団のユニフォーム。顔・髪・小物で描き分け
+  club:[
+    {lab:'ノックバットの守備コーチ',skin:2,outfit:'uniform',hc:'#1a1a1a',face:'grin',acc:['fungo']},
+    {lab:'ストップウォッチの走塁コーチ',skin:1,outfit:'uniform',hc:'#2b1d14',face:'smile',acc:['stopwatch']},
+    {lab:'メガネのバッテリーコーチ',skin:0,outfit:'uniform',hc:'#555',face:'calm',acc:['glass','mitt']},
+    {lab:'ひげの打撃コーチ',skin:3,outfit:'uniform',hc:'#2a2a2a',face:'smirk',acc:['mustache','bat']},
+    {lab:'笛の熱血コーチ',skin:1,outfit:'uniform',hc:'#9a9a9a',face:'shout',acc:['whistle','towel']},
+    // 案6〜10：案1（ノックバット）と案4（ひげの打撃コーチ）をもとに、年を取らせて
+    {lab:'白髪まじりのノック職人',skin:2,outfit:'uniform',hc:'#9a9a9a',face:'grin',acc:['fungo','wrinkle']},
+    {lab:'白ひげの打撃コーチ',skin:3,outfit:'uniform',hc:'#d6d6d6',face:'smirk',acc:['mustache','bat','wrinkle']},
+    {lab:'口ひげの老守備コーチ',skin:2,outfit:'uniform',hc:'#bdbdbd',face:'smile',acc:['mustache','fungo','browbig','wrinkle']},
+    {lab:'あごひげの名打撃コーチ',skin:3,outfit:'uniform',hc:'#e4e4e4',face:'calm',acc:['beard','bat','browbig','wrinkle']},
+    {lab:'メガネのベテランノッカー',skin:2,outfit:'uniform',hc:'#aaaaaa',face:'grin',acc:['glass','fungo','wrinkle']},
+  ],
+  // ---- 伝説の野球選手（覚醒合宿）
+  legend:[
+    {lab:'永久欠番の大打者',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#e6e6e6',face:'smile',acc:['bat']},
+    {lab:'着物の剣豪スラッガー',skin:2,outfit:'kimono',top:'#2b2f3a',shirt:'#d9d2bf',hair:'bald',hc:'#ececec',face:'closed',acc:['beard','bat']},
+    {lab:'金ブレザーの殿堂入り投手',skin:0,outfit:'suit',top:'#b88a2a',shirt:'#ffffff',tie:'#1f3c7a',hair:'slick',hc:'#bdbdbd',face:'smile',acc:['ball']},
+    {lab:'トロフィーを抱えた鉄人',skin:3,outfit:'track',top:'#8e1b1b',stripe:'#f5c542',hair:'buzz',hc:'#cfcfcf',face:'grin',acc:['trophy']},
+    {lab:'サングラスの元メジャーリーガー',skin:1,outfit:'polo',top:'#13294b',collar:'#c8102e',hair:'capback',cap:'#c8102e',hc:'#8a8a8a',face:'smirk',acc:['sunglass','bat']},
+    // 案6〜8：案1（永久欠番の大打者）をもとに、若いころ・年を取ったころ
+    {lab:'若き日の大打者',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#1a1a1a',face:'grin',acc:['bat','brow']},
+    {lab:'晩年の大打者（白髪まじり）',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#8c8c8c',face:'smile',acc:['bat','brow','wrinkle']},
+    {lab:'老いた大打者（白髪・太い眉）',skin:1,outfit:'oldjersey',top:'#f3ecd8',stripe:'#1f3c7a',num:'1',hair:'short',hc:'#f2f2f2',face:'calm',acc:['bat','browbig','wrinkle']},
+  ],
+  // ---- リハビリトレーナー（ヨガ教室・アンチエイジング・コンディショニング）
+  rehab:[
+    {lab:'白ポロのリハビリ担当',skin:1,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'smile',acc:['clipboard']},
+    {lab:'スクラブの女性トレーナー',skin:0,outfit:'scrubs',top:'#5aa9d6',hair:'pony',hc:'#3a2418',face:'smile',acc:['band']},
+    {lab:'テーピングの達人',skin:2,outfit:'track',top:'#22344f',stripe:'#ffffff',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['tape']},
+    {lab:'白衣の理学療法士',skin:0,outfit:'labcoat',top:'#f6f6f6',shirt:'#b9d8c2',tie:null,hair:'side',hc:'#2b1d14',face:'calm',acc:['glass','tablet']},
+    {lab:'バランスボールのトレーナー',skin:1,outfit:'polo',top:'#2aa198',collar:'#ffffff',hair:'bob',hc:'#1a1a1a',face:'grin',acc:['bigball']},
+    // 案6〜10：案1（白ポロのリハビリ担当）をもとに、一緒に体を動かしてくれそうな男性
+    {lab:'タオルを首にかけた爽やかトレーナー',skin:1,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'grin',acc:['short','towel','bottle']},
+    {lab:'ヘッドバンドの熱血トレーナー',skin:2,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'short',hc:'#1a1a1a',face:'grin',acc:['short','muscle','sweatband','dumbbell']},
+    {lab:'メディシンボールの兄貴',skin:3,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'buzz',hc:'#1a1a1a',face:'grin',acc:['short','muscle','medball']},
+    {lab:'笛と水筒の伴走トレーナー',skin:1,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'side',hc:'#2b1d14',face:'smile',acc:['short','whistle','bottle']},
+    {lab:'ゴムバンドで一緒にストレッチ',skin:2,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'mash',hc:'#1a1a1a',face:'grin',acc:['short','band','sweat']},
+    // 案11（決定）：案9の水筒をカルテボード（片手）に
+    {lab:'カルテボードの伴走トレーナー',skin:1,outfit:'polo',top:'#f4f4f4',collar:'#1f3c7a',hair:'side',hc:'#2b1d14',face:'smile',acc:['short','whistle','chart']},
+  ],
   realtor:[
     {lab:'鍵を持った笑顔の営業',skin:1,outfit:'suit',top:'#b49a6c',shirt:'#ffffff',tie:'#2a7ab8',hair:'side',hc:'#1a1a1a',face:'smile',acc:['nametag','key']},
     {lab:'間取り図の女性スタッフ',skin:0,outfit:'suit',top:'#22325a',shirt:'#ffffff',tie:null,hair:'bun',hc:'#2a1a12',face:'smile',acc:['nametag','file']},
@@ -7561,14 +7650,15 @@ const COACH_LOOK={
     {lab:'青スーツの新人営業',skin:0,outfit:'suit',top:'#1f6fd6',shirt:'#ffffff',tie:'#f5c542',hair:'short',hc:'#2b1d14',face:'grin',acc:['nametag','house']},
   ],
 };
-const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋'};
+const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋',doctor:'怪しい医者',club:'球団コーチ',legend:'伝説の野球選手',rehab:'リハビリトレーナー'};
 let CSVG_N=0;
 function svgCoach(kind,i){
   const L=(COACH_LOOK[kind]||COACH_LOOK.mental)[i||0]||COACH_LOOK.mental[0];
   const sk=CSK[L.skin||0], has=a=>(L.acc||[]).includes(a), dark=c=>c;
   const top=L.top, hc=L.hc;
-  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('stopwatch')&&false;
-  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab');
+  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('flask')||has('syringe')||has('pill')||has('ball')||has('tape')||has('bottle')||has('chart')||has('stopwatch')&&false;
+  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab')||has('trophy')||has('band')||has('bigball')||has('medball');
+  const U=L.outfit==='uniform'?(typeof curUni==='function'?curUni():{jk:'#1f3c7a',jt:'#ffffff',cap:'#1f3c7a',cl:'#ffffff',s:'C'}):null;   // 球団コーチは所属球団のユニフォーム
   let back='', body='', arms='', hands='', head='', hair='', face='', front='', held='';
   // ---- 後ろ髪（頭より先に描く）
   if(L.hair==='long') back+=`<path d="M29 54 Q27 80 34 88 L66 88 Q73 80 71 54 Z" fill="${hc}"/>`;
@@ -7577,7 +7667,15 @@ function svgCoach(kind,i){
   if(L.outfit==='hoodie') back+=`<path d="M28 84 Q30 66 50 66 Q70 66 72 84 Z" fill="${top}"/>`;
   // ---- 胴
   const torso=`M24 128 L26 92 Q50 82 74 92 L76 128 Z`;
-  if(L.outfit==='tank'){
+  if(L.outfit==='uniform'){
+    body+=`<path d="M22 128 L25 90 Q50 80 75 90 L78 128 Z" fill="${U.jk}"/><path d="M50 84 L50 128" stroke="${U.jt}" stroke-width="2.5"/><path d="M42 84 L50 94 L58 84" fill="none" stroke="${U.jt}" stroke-width="2.5"/>`;
+  }else if(L.outfit==='oldjersey'){
+    body+=`<path d="${'M24 128 L26 92 Q50 82 74 92 L76 128 Z'}" fill="${top}"/>${[32,40,60,68].map(x=>`<path d="M${x} 90 L${x} 128" stroke="${L.stripe}" stroke-width=".8" opacity=".55"/>`).join('')}<path d="M42 84 L50 96 L58 84" fill="none" stroke="${L.stripe}" stroke-width="2"/><text x="50" y="118" font-size="16" font-weight="900" text-anchor="middle" fill="${L.stripe}" font-family="serif">${L.num||'1'}</text>`;
+  }else if(L.outfit==='kimono'){
+    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M40 84 L56 118 M60 84 L46 106" stroke="${L.shirt||'#ddd'}" stroke-width="3"/><path d="M24 110 L76 110 L76 116 L24 116 Z" fill="#6b4f2a"/>`;
+  }else if(L.outfit==='scrubs'){
+    body+=`<path d="M24 128 L26 92 Q50 82 74 92 L76 128 Z" fill="${top}"/><path d="M42 84 L50 98 L58 84" fill="none" stroke="#0003" stroke-width="2"/><rect x="56" y="104" width="10" height="8" rx="1" fill="#0002"/>`;
+  }else if(L.outfit==='tank'){
     body+=`<path d="M30 128 L31 90 Q50 84 69 90 L70 128 Z" fill="${top}"/><path d="M40 86 Q50 96 60 86" fill="${sk}"/>`;
   }else if(L.outfit==='happi'){
     body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M38 86 L50 128 M62 86 L50 128" stroke="#1a1a1a" stroke-width="5"/>
@@ -7607,10 +7705,12 @@ function svgCoach(kind,i){
   if(L.outfit==='samue') body+=`<path d="M40 84 L58 112 M60 84 L46 104" stroke="#e8e0cc" stroke-width="2.4"/><path d="M26 112 L74 112" stroke="#1a2238" stroke-width="3"/>`;
   if(L.outfit==='hoodie') body+=`<path d="M44 86 L45 100 M56 86 L55 100" stroke="#ddd" stroke-width="1.2"/><path d="M36 112 L64 112 L62 124 L38 124 Z" fill="#0003"/>`;
   // ---- 腕（右手に物を持つと腕を上げる）
-  const armC=L.outfit==='tank'?sk:L.outfit==='vest'?(L.shirt||'#fff'):top, aw=L.outfit==='tank'?(has('muscle')?13:10):10;
+  const armC=L.outfit==='tank'||has('short')?sk:L.outfit==='vest'?(L.shirt||'#fff'):L.outfit==='uniform'?U.jk:top, aw=L.outfit==='tank'||has('short')?(has('muscle')?13:10):10;
   const lArm=both?`M26 94 Q18 104 34 110`:`M26 94 Q14 104 17 119`, rArm=(raise||both)?`M74 94 Q86 102 ${both?'66 110':'82 106'}`:`M74 94 Q86 104 83 119`;
   arms+=`<path d="${lArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/><path d="${rArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/>`;
   if(L.outfit==='track') arms+=`<path d="${lArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(-3 0)"/><path d="${rArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(3 0)"/>`;
+  if(has('short')) arms+=`<ellipse cx="25" cy="96" rx="8" ry="7" fill="${top}"/><ellipse cx="75" cy="96" rx="8" ry="7" fill="${top}"/>`;   // 半袖
+  if(L.outfit==='uniform') arms+=`<path d="${lArm}" fill="none" stroke="${U.jt}" stroke-width="2" transform="translate(-4 0)"/><path d="${rArm}" fill="none" stroke="${U.jt}" stroke-width="2" transform="translate(4 0)"/>`;
   if(L.outfit==='happi') arms+=`<path d="M24 92 L10 112 L22 116 L30 100 Z" fill="${top}"/><path d="M76 92 L90 112 L78 116 L70 100 Z" fill="${top}"/>`;
   const lh=both?[34,110]:[17,120], rh=both?[66,110]:raise?[82,106]:[83,120];
   if(has('muscle')) arms+=`<path d="M18 102 Q22 98 26 102" fill="none" stroke="#0003" stroke-width="1.5"/><path d="M82 102 Q78 98 74 102" fill="none" stroke="#0003" stroke-width="1.5"/>`;
@@ -7634,7 +7734,13 @@ function svgCoach(kind,i){
     messy:`<path d="M30 54 L28 44 L34 46 L33 36 L40 40 L42 31 L48 37 L52 29 L56 37 L62 31 L63 40 L70 37 L67 46 L72 45 L70 54 Q60 44 50 44 Q40 44 30 54 Z" fill="${hc}"/>`,
     capback:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 50 Q22 50 18 46 L20 42 Q26 46 31 45 Z" fill="${L.cap||'#1f3c7a'}"/><path d="M30 52 L70 52" stroke="#0004" stroke-width="1.5"/>`,
   };
-  hair+=H[L.hair]||'';
+  if(L.outfit==='uniform'){   // 球団の帽子（横の髪だけ見える）
+    hair+=`<path d="M30 56 Q30 50 33 48 L33 58 Z" fill="${hc}"/><path d="M70 56 Q70 50 67 48 L67 58 Z" fill="${hc}"/><path d="M29 52 Q30 32 50 31 Q70 32 71 52 Z" fill="${U.cap}"/><path d="M40 50 Q24 49 18 54 L40 54 Z" fill="${U.brim||U.cap}"/>
+      <text x="50" y="48" font-size="${(U.capf||U.chf)==='script'?12:U.capf==='serif'?11:10}" fill="${U.cl||'#fff'}" ${U.cls?`stroke="${U.cls}" stroke-width="0.8" paint-order="stroke"`:''} text-anchor="middle" ${typeof capFont==='function'?capFont(U):'font-family="sans-serif" font-weight="900"'}>${U.ch||''}</text>`;
+  }else hair+=H[L.hair]||'';
+  if(has('sweatband')) hair+=`<path d="M29.5 47 Q50 40 70.5 47 L70.5 53 Q50 46 29.5 53 Z" fill="#ffffff"/><path d="M30 50 Q50 43.5 70 50" stroke="#e74c3c" stroke-width="1.6" fill="none"/>`;
+  if(has('scrubcap')) hair+=`<path d="M29 52 Q29 31 50 31 Q71 31 71 52 Q60 46 50 46 Q40 46 29 52 Z" fill="${L.top||'#2f6f5a'}"/><path d="M30 50 Q50 44 70 50" stroke="#0003" stroke-width="1.2" fill="none"/>`;
+  if(has('headmirror')) hair+=`<path d="M30 47 Q50 38 70 47" fill="none" stroke="#333" stroke-width="2.2"/><circle cx="50" cy="40" r="6.5" fill="#dfe6ee" stroke="#777" stroke-width="1.4"/><circle cx="50" cy="40" r="2" fill="#333"/>`;
   if(has('hairband')) hair+=`<path d="M30 49 Q50 36 70 49" fill="none" stroke="#f5c542" stroke-width="3"/>`;
   if(has('hachimaki')) hair+=`<path d="M29 48 Q50 42 71 48 L71 52 Q50 46 29 52 Z" fill="#ffffff"/><path d="M70 49 L78 44 M70 50 L79 52" stroke="#fff" stroke-width="2"/>`;
   if(has('headset')) hair+=`<path d="M29 56 Q29 30 50 30 Q71 30 71 56" fill="none" stroke="#222" stroke-width="2.4"/><rect x="26" y="53" width="6" height="10" rx="2" fill="#222"/><path d="M29 62 Q32 70 42 69" fill="none" stroke="#222" stroke-width="1.6"/><circle cx="43" cy="69" r="1.8" fill="#222"/>`;
@@ -7657,12 +7763,18 @@ function svgCoach(kind,i){
   if(has('roundglass')) face+=`<circle cx="43" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><circle cx="57" cy="59" r="5.2" fill="#ffffff22" stroke="#7a5a2a" stroke-width="1.5"/><path d="M48 58 L52 58" stroke="#7a5a2a" stroke-width="1.3"/>`;
   if(has('sunglass')) face+=`<rect x="35" y="54" width="13" height="8" rx="3" fill="#111"/><rect x="52" y="54" width="13" height="8" rx="3" fill="#111"/><path d="M48 57 L52 57" stroke="#111" stroke-width="2"/>`;
   if(has('mustache')) face+=`<path d="M42 65 Q46 62 50 64 Q54 62 58 65 Q54 66 50 65 Q46 66 42 65 Z" fill="${L.hair==='bald'?'#666':hc}"/>`;
+  if((has('brow')||has('browbig'))&&L.face!=='smirk'&&L.face!=='shout'){ const bw=has('browbig')?2.8:1.6, bc=L.bc||hc; face+=`<path d="M38 53.5 Q43 51 48 53" stroke="${bc}" stroke-width="${bw}" fill="none" stroke-linecap="round"/><path d="M52 53 Q57 51 62 53.5" stroke="${bc}" stroke-width="${bw}" fill="none" stroke-linecap="round"/>`; }
+  if(has('wrinkle')) face+=`<path d="M34.5 58 L32 56.5 M34.5 60 L32 60 M65.5 58 L68 56.5 M65.5 60 L68 60" stroke="#0004" stroke-width=".9"/><path d="M42 64 Q40 67 42 70 M58 64 Q60 67 58 70" stroke="#0003" stroke-width="1" fill="none"/>${L.hair==='bald'||L.hair==='short'||L.hair==='messy'?'<path d="M41 47 Q50 45 59 47 M43 49.5 Q50 48 57 49.5" stroke="#0003" stroke-width=".9" fill="none"/>':''}`;
+  if(has('sweat')) face+=`<path d="M68 46 Q70 50 68 52 Q66 50 68 46 Z" fill="#9fd3ff"/><path d="M32 50 Q33.5 53 32 55 Q30.5 53 32 50 Z" fill="#9fd3ff"/>`;
+  if(has('monocle')) face+=`<circle cx="57" cy="59" r="5.4" fill="#ffffff33" stroke="#d4a52a" stroke-width="1.6"/><path d="M62 61 Q66 70 62 78" fill="none" stroke="#d4a52a" stroke-width=".8"/>`;
+  if(has('mask')) face+=`<path d="M36 62 Q50 60 64 62 L62 72 Q50 77 38 72 Z" fill="#e8f3f0" stroke="#9fb9b2" stroke-width="1"/><path d="M38 65 L62 65 M39 68 L61 68" stroke="#c9dcd7" stroke-width=".8"/><path d="M36 63 L31 58 M64 63 L69 58" stroke="#e8f3f0" stroke-width="1.2"/>`;
   if(has('beard')) face+=`<path d="M34 62 Q36 80 50 82 Q64 80 66 62 Q62 72 50 73 Q38 72 34 62 Z" fill="${hc}"/><path d="M44 66 Q50 69 56 66" stroke="#7a3b22" stroke-width="1.6" fill="none"/>`;
   // ---- 首まわり・胸の小物
   if(has('whistle')) front+=`<path d="M44 84 L50 100 L56 84" fill="none" stroke="#e74c3c" stroke-width="1.2"/><rect x="47" y="99" width="7" height="4" rx="2" fill="#bdc3c7"/>`;
   if(has('stopwatch')) front+=`<path d="M44 84 L48 100 M56 84 L52 100" stroke="#333" stroke-width="1"/><circle cx="50" cy="104" r="5" fill="#eee" stroke="#333" stroke-width="1.4"/><path d="M50 104 L50 101" stroke="#c0392b" stroke-width="1.2"/>`;
-  if(has('towel')) front+=`<path d="M40 82 Q50 90 60 82 L62 86 L58 104 L54 104 L56 88 Q50 92 44 88 L46 104 L42 104 L38 86 Z" fill="#f4f4f4"/>`;
+  if(has('towel')) front+=`<path d="M40 82 Q50 90 60 82 L62 86 L58 104 L54 104 L56 88 Q50 92 44 88 L46 104 L42 104 L38 86 Z" fill="${L.towel||(/^#f/i.test(top||'')?'#5b9bd5':'#f4f4f4')}"/>`;   // 白い服のときは青いタオル
   if(has('beads')) front+=`${Array.from({length:9},(_,k)=>{ const a=Math.PI*(0.1+k*0.1); return `<circle cx="${(50-14*Math.cos(a)).toFixed(1)}" cy="${(86+12*Math.sin(a)).toFixed(1)}" r="1.8" fill="#6b3a1e"/>`; }).join('')}`;
+  if(has('stetho')) front+=`<path d="M42 84 Q38 100 46 106 Q50 108 54 106 Q62 100 58 84" fill="none" stroke="#2b2b2b" stroke-width="1.6"/><circle cx="50" cy="108" r="3.2" fill="#c0c6cc" stroke="#555"/>`;
   if(has('nametag')) front+=`<rect x="56" y="96" width="12" height="6" rx="1" fill="#fff" stroke="#0003"/><path d="M58 99 L66 99" stroke="#2a7ab8" stroke-width="1.2"/>`;
   if(has('clip')) front+=`<rect x="57" y="96" width="9" height="6" rx="1" fill="#eaeaea"/>`;
   // ---- 手に持つ物
@@ -7677,6 +7789,20 @@ function svgCoach(kind,i){
   if(has('papers')) held+=`<rect x="${hx-10}" y="${hy-14}" width="13" height="16" fill="#fff" stroke="#bbb" transform="rotate(-8 ${hx} ${hy})"/><path d="M${hx-8} ${hy-6} L${hx-5} ${hy-9} L${hx-2} ${hy-7} L${hx+1} ${hy-11}" stroke="#2a7ab8" stroke-width="1" fill="none"/>`;
   if(has('calc')) held+=`<rect x="${hx-8}" y="${hy-14}" width="11" height="15" rx="1.5" fill="#333"/><rect x="${hx-6.5}" y="${hy-12.5}" width="8" height="3.5" fill="#bfe6a8"/>${[0,1,2].map(r=>[0,1,2].map(c=>`<rect x="${hx-6.5+c*2.8}" y="${hy-7.5+r*2.6}" width="2" height="1.8" fill="#aaa"/>`).join('')).join('')}`;
   if(has('plan')||has('file')) held+=`<rect x="${hx-11}" y="${hy-15}" width="15" height="17" fill="${has('file')?'#2a7ab8':'#fff'}" stroke="#999"/>${has('plan')?`<path d="M${hx-9} ${hy-13} L${hx+2} ${hy-13} L${hx+2} ${hy} L${hx-9} ${hy} Z M${hx-9} ${hy-7} L${hx-3} ${hy-7} L${hx-3} ${hy}" fill="none" stroke="#2a7ab8" stroke-width=".9"/>`:`<rect x="${hx-9}" y="${hy-12}" width="11" height="3" fill="#fff"/>`}`;
+  if(has('flask')) held+=`<path d="M${hx-3} ${hy-18} L${hx+1} ${hy-18} L${hx+1} ${hy-12} L${hx+7} ${hy+1} Q${hx+8} ${hy+4} ${hx+4} ${hy+4} L${hx-6} ${hy+4} Q${hx-10} ${hy+4} ${hx-9} ${hy+1} L${hx-3} ${hy-12} Z" fill="#7fd36b" stroke="#3d6b33" stroke-width="1"/><circle cx="${hx-2}" cy="${hy-1}" r="1.4" fill="#d9ffcc"/><circle cx="${hx+2}" cy="${hy-5}" r="1" fill="#d9ffcc"/>`;
+  if(has('syringe')) held+=`<g transform="rotate(-35 ${hx} ${hy})"><rect x="${hx-2.5}" y="${hy-20}" width="5" height="16" rx="1" fill="#e9f4ff" stroke="#7a8a99"/><rect x="${hx-2}" y="${hy-12}" width="4" height="7" fill="#c0392b" opacity=".7"/><path d="M${hx} ${hy-4} L${hx} ${hy+3}" stroke="#999" stroke-width="1"/><path d="M${hx-4} ${hy-20} L${hx+4} ${hy-20} M${hx} ${hy-20} L${hx} ${hy-24}" stroke="#7a8a99" stroke-width="1.6"/></g>`;
+  if(has('pill')) held+=`<rect x="${hx-5}" y="${hy-15}" width="10" height="14" rx="2" fill="#d98c2b" opacity=".9"/><rect x="${hx-6}" y="${hy-18}" width="12" height="4" rx="1" fill="#f4f4f4"/><rect x="${hx-4}" y="${hy-10}" width="8" height="4" fill="#fff"/>`;
+  if(has('ball')) held+=`<circle cx="${hx}" cy="${hy-8}" r="5.5" fill="#fafafa" stroke="#aaa"/><path d="M${hx-3} ${hy-12} Q${hx-1} ${hy-8} ${hx-3} ${hy-4} M${hx+3} ${hy-12} Q${hx+1} ${hy-8} ${hx+3} ${hy-4}" stroke="#d33" stroke-width=".9" fill="none"/>`;
+  if(has('tape')) held+=`<circle cx="${hx}" cy="${hy-8}" r="6" fill="#f2efe6" stroke="#b9b29c" stroke-width="1.2"/><circle cx="${hx}" cy="${hy-8}" r="2.6" fill="${top}"/><path d="M${hx+5} ${hy-6} L${hx+10} ${hy+4}" stroke="#f2efe6" stroke-width="3"/>`;
+  if(has('bat')) held+=`<path d="M${rh[0]-2} ${rh[1]+2} L${rh[0]+8} ${rh[1]-44}" stroke="#b07a3c" stroke-width="5" stroke-linecap="round"/><path d="M${rh[0]+5} ${rh[1]-30} L${rh[0]+8} ${rh[1]-44}" stroke="#c48d4b" stroke-width="7" stroke-linecap="round"/>`;
+  if(has('fungo')) held+=`<path d="M${rh[0]-2} ${rh[1]+2} L${rh[0]+10} ${rh[1]-48}" stroke="#2b2b2b" stroke-width="3.6" stroke-linecap="round"/><path d="M${rh[0]+7} ${rh[1]-34} L${rh[0]+10} ${rh[1]-48}" stroke="#3a3a3a" stroke-width="5" stroke-linecap="round"/><circle cx="${rh[0]+16}" cy="${rh[1]-52}" r="3.4" fill="#fafafa" stroke="#aaa"/>`;
+  if(has('mitt')) held+=`<ellipse cx="${lh[0]}" cy="${lh[1]-3}" rx="9" ry="8" fill="#8a4b1f" stroke="#5a2f12" stroke-width="1.2"/><path d="M${lh[0]-5} ${lh[1]-5} Q${lh[0]} ${lh[1]-9} ${lh[0]+5} ${lh[1]-5}" stroke="#c98a4b" stroke-width="1" fill="none"/>`;
+  if(has('chart')) held+=`<g transform="rotate(-8 ${hx} ${hy})"><rect x="${hx-11}" y="${hy-20}" width="16" height="21" rx="1.5" fill="#8a5a2b"/><rect x="${hx-9}" y="${hy-17}" width="12" height="16" fill="#fff"/><rect x="${hx-6}" y="${hy-22}" width="6" height="3.5" rx="1" fill="#bbb"/><path d="M${hx-7} ${hy-13} L${hx+1} ${hy-13} M${hx-7} ${hy-10} L${hx+1} ${hy-10} M${hx-7} ${hy-7} L${hx-1} ${hy-7}" stroke="#9aa" stroke-width="1"/><path d="M${hx-7} ${hy-4} L${hx-5} ${hy-2} L${hx-1} ${hy-6}" stroke="#2a7ab8" stroke-width="1.2" fill="none"/></g>`;   // カルテボード（片手）
+  if(has('bottle')) held+=`<rect x="${hx-4}" y="${hy-17}" width="8" height="17" rx="2.5" fill="#2a7ab8"/><rect x="${hx-3}" y="${hy-21}" width="6" height="4" rx="1" fill="#e8e8e8"/><rect x="${hx-4}" y="${hy-11}" width="8" height="3" fill="#ffffff88"/>`;
+  if(has('medball')) held=`<circle cx="50" cy="108" r="11" fill="#3b3b3b"/><path d="M39 108 L61 108 M50 97 Q56 108 50 119 M50 97 Q44 108 50 119" stroke="#e2b33a" stroke-width="1.2" fill="none"/>`+held;
+  if(has('trophy')) held+=`<path d="M40 100 L60 100 L58 112 Q50 118 42 112 Z" fill="#e2b33a" stroke="#9a7a1a"/><path d="M40 102 Q33 102 35 108 Q37 112 42 111 M60 102 Q67 102 65 108 Q63 112 58 111" fill="none" stroke="#e2b33a" stroke-width="2"/><rect x="47" y="116" width="6" height="5" fill="#9a7a1a"/><rect x="42" y="121" width="16" height="4" rx="1" fill="#6b4f2a"/>`;
+  if(has('band')) held+=`<path d="M34 110 Q50 100 66 110" fill="none" stroke="#e74c3c" stroke-width="3"/><path d="M34 112 Q50 104 66 112" fill="none" stroke="#c0392b" stroke-width="1"/>`;
+  if(has('bigball')) held=`<circle cx="50" cy="114" r="15" fill="#e67e22"/><path d="M37 107 Q50 112 63 107" stroke="#f5b041" stroke-width="2" fill="none"/>`+held;
   if(has('briefcase')) held+=`<rect x="76" y="114" width="20" height="14" rx="2" fill="#3b2412"/><path d="M82 114 L82 111 L90 111 L90 114" fill="none" stroke="#3b2412" stroke-width="1.8"/><path d="M76 120 L96 120" stroke="#e2b33a" stroke-width="1"/>`;
   if(has('dumbbell')) held+=`<path d="M${hx-9} ${hy} L${hx+9} ${hy}" stroke="#555" stroke-width="2.4"/><rect x="${hx-12}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/><rect x="${hx+8}" y="${hy-5}" width="4" height="10" rx="1" fill="#333"/>`;
   if(has('yogamat')) held=`<rect x="6" y="96" width="9" height="30" rx="4.5" fill="#9b59b6"/><ellipse cx="10.5" cy="96" rx="4.5" ry="2" fill="#b07cc6"/>`+held;
@@ -7701,7 +7827,7 @@ const SAL_CAPS=[[26,1500000000],[21,1000000000],[15,700000000],[10,500000000],[6
 const salCap=p=>{ for(const [t,c] of SAL_CAPS) if(p>=t) return c; return 50000000; };
 const salMaxUp=s=>s<30000000?1.5:s<100000000?1.0:0.6;   // 1年で上がる幅の最大：3,000万未満+150%・1億未満+100%・1億以上+60%
 const streakBonus=n=>n>=2?Math.min(2,0.5*(n-1)):0;      // 連続タイトル：2年+0.5・3年+1・4年+1.5・5年以上+2
-const COACH_V={mental:3,analyst:4,trainer:0,agent:0,realtor:2};   // キャラクター：メンタリスト案4・アナリスト案5（大きいタブレット）・トレーナー案1（ボード）・代理人案1・不動産屋案3
+const COACH_V={mental:3,analyst:4,trainer:0,agent:0,realtor:2,doctor:10,club:9,legend:7,rehab:10};   // 怪しい医者 案11（案10＋案6の緑のフラスコとシャツ）・球団コーチ 案10・伝説の野球選手 案8・リハビリトレーナー 案11（案9＋カルテボード）   // キャラクター：メンタリスト案4・アナリスト案5（大きいタブレット）・トレーナー案1（ボード）・代理人案1・不動産屋案3
 // 規定到達（野手：規定打席、投手：規定投球回か50登板、二刀流：どちらか）
 function isRegular(ss,bss){
   const bq=s=>!!(s&&s.pa!=null&&s.pa>=QUAL_PA), pq=s=>!!(s&&s.pa==null&&((s.outs||0)>=SEASON_GAMES*3||(s.g||0)>=50));
@@ -7758,21 +7884,24 @@ const pinchMe=bs=>inPinch(bs)&&!cbG('yosho');   // 要所の戦い方：得点�
 function cbStaMul(){ let m=1; if(cbG('nebari')) m*=0.8; if(cbG('stamina')) m*=0.65; return m; }   // 疲れの影響（粘り勝つ −20%・体力トレーニング −35%）
 // 打撃の能力（シーズン後半+5・研究した球団との試合+5）
 function cbBab(a){
-  const o=cbAct(); if(!o||!a) return a; let add=0;
+  const o=cbAct(); if(!o||!a) return a; let add=0; const dAdd=o.tokushu?5:0;   // 特守：守備+5
   if(o.stamina&&PEN.day>=71) add+=5;
   if(o.scout&&PEN.pending&&PEN.pending.opp===o.scout.team) add+=5;
-  if(!add) return a; const r={...a}; for(const k of ['meet','power','speed','eye','def']) r[k]=Math.min(100,(a[k]??(k==='def'?70:50))+add); return r;
+  if(!add&&!dAdd) return a; const r={...a}; for(const k of ['meet','power','speed','eye','def']) r[k]=Math.min(100,(a[k]??(k==='def'?70:50))+add+(k==='def'?dAdd:0)); return r;
 }
 // 投手の能力（研究した球団との試合：球速+2・コントロール+5・スタミナ+5）
 function cbAbil(a){
-  const s=cbOn('scout'); if(!s||!a||!PEN.pending||PEN.pending.opp!==s.team) return a;
-  return {...a,velo:Math.min(VELO_MAX,a.velo+2),control:Math.min(100,a.control+5),stamina:Math.min(100,a.stamina+5)};
+  if(!a) return a; const s=cbOn('scout'); let r=a;
+  if(s&&PEN.pending&&PEN.pending.opp===s.team) r={...r,velo:Math.min(VELO_MAX,r.velo+2),control:Math.min(100,r.control+5),stamina:Math.min(100,r.stamina+5)};
+  if(cbOn('tokushu')) r={...r,control:Math.min(100,r.control+5)};   // 特守：コントロール+5
+  return r;
 }
 // スキップしたときの防御率（コーチの効果ぶん少し良くなる）
 function cbEraAdj(opp){
   const o=cbAct(); if(!o) return 0; let d=0;
   if(o.nebari) d+=0.12; if(o.yosho) d+=0.12; if(o.stamina) d+=0.1; if(o.motion&&o.motion.pitch) d+=0.15;
   if(o.scout&&opp&&opp===o.scout.team) d+=0.25;
+  if(o.tokushu) d+=0.06; if(o.platoon) d+=0.08; if(o.run) d+=0.03;
   return d;
 }
 // シーズンが終わったら元に戻す（ヨガで戻した能力・モーショントラッキングのタイプ）
@@ -7780,29 +7909,100 @@ function cbSeasonEnd(){
   const C=PEN&&PEN.cb; if(!C||C.y!==PEN.year||C.ended) return; C.ended=true;
   const y=C.on.yoga; if(y&&y.d){ for(const k in y.d.abil||{}) PEN.abil[k]=r1(Math.max(k==='velo'?110:0,PEN.abil[k]-y.d.abil[k])); for(const k in y.d.babil||{}) PEN.babil[k]=r1(Math.max(0,(PEN.babil[k]??50)-y.d.babil[k])); }
   const m=C.on.motion; if(m&&m.type&&m.was!=null&&PEN.btype===m.type) PEN.btype=m.was;
+  const L=C.on.last; if(L&&L.ok){ L.fr=L.fr||0; lastApply(L,0); }   // 最後の輝き：元の能力に戻る
+}
+/* ---- 最後の輝きを目指して（怪しい医者・35歳以上・全財産） ----
+   25%：前半戦（71試合目まで）は、いちばん成績が良かった年の能力に戻る（その年より今が高い能力はそのまま）。後半戦は少しずつ下がり、レギュラーシーズン終了で元に戻る
+   75%：全能力−15（球速は−15km/h）・変化球のLvが合計3下がる（Lv0になった球種は投げられなくなる）。ずっと残る */
+function bestSeason(){
+  const S=(PEN.seasons||[]).filter(s=>s&&(s.abil||s.babil)); if(!S.length) return null;
+  const scB=s=>s&&s.pa>=150?normScore(achB(bAvg(s),bObp(s)+bSlg(s),s.hr/s.pa*600,(s.sb||0)/s.pa*600,(s.k||0)/s.pa),NORM_W_B.std):null;
+  const scP=s=>s&&s.outs>=120&&s.pa==null?normScore(achP(s.runs*27/s.outs,((s.hits||0)+(s.bb||0))*3/s.outs,(s.k||0)*27/s.outs),NORM_W_P.std):null;
+  let best=null, bv=-1e9;
+  for(const s of S){ const v=s.pos==='B'?scB(s.ss):s.pos==='W'?[scP(s.ss),scB(s.bss)].filter(x=>x!=null).reduce((t,x,i,a)=>t+x/a.length,0)||null:scP(s.ss); if(v!=null&&v>bv){ bv=v; best=s; } }
+  if(!best){ const tot=s=>Object.values(s.babil||{}).reduce((t,x)=>t+(+x||0),0)+((s.abil&&s.abil.control)||0)+((s.abil&&s.abil.stamina)||0); best=S.slice().sort((a,b)=>tot(b)-tot(a))[0]; }
+  return best;
+}
+const LAST_KB=['meet','power','speed','eye','def'], LAST_KP=['velo','control','stamina'];
+function lastApply(L,fr){   // 上乗せ（L.d）のうち fr の割合だけ乗った状態にする
+  const df=fr-(L.fr||0); if(Math.abs(df)<1e-9) return;
+  for(const k in L.d.babil||{}) if(PEN.babil) PEN.babil[k]=r1(Math.max(0,Math.min(100,(PEN.babil[k]??50)+L.d.babil[k]*df)));
+  for(const k in L.d.abil||{}) if(PEN.abil) PEN.abil[k]=r1(Math.max(k==='velo'?110:0,Math.min(k==='velo'?VELO_MAX:100,PEN.abil[k]+L.d.abil[k]*df)));
+  L.fr=fr;
+}
+function lastDo(){
+  const k=posKind(), B=k!=='P', P=k!=='B';
+  if(rnd()<0.25){ const s=bestSeason(), d={abil:{},babil:{}}, T=[];
+    if(s&&B&&s.babil&&PEN.babil) for(const kk of LAST_KB){ const v=r1((s.babil[kk]??0)-(PEN.babil[kk]??0)); if(v>0){ d.babil[kk]=v; T.push(`${B_ABK[kk]||kk}+${v}`); } }
+    if(s&&P&&s.abil&&PEN.abil) for(const kk of LAST_KP){ const v=r1((s.abil[kk]??0)-(PEN.abil[kk]??0)); if(v>0){ d.abil[kk]=v; T.push(`${kk==='velo'?'球速':kk==='control'?'コントロール':'スタミナ'}+${v}${kk==='velo'?'km/h':''}`); } }
+    const L={ok:true,d,fr:0,year:s?s.year:null,age:s?s.age:null,txt:T.length?T.join('・'):'今のほうが高いので変わらず'}; lastApply(L,1); return L; }
+  const T=[];
+  if(B&&PEN.babil){ for(const kk of LAST_KB) PEN.babil[kk]=r1(Math.max(0,(PEN.babil[kk]??50)-15)); T.push(`${k==='W'?'打撃の':''}全能力−15`); }
+  if(P&&PEN.abil){ PEN.abil.velo=r1(Math.max(110,PEN.abil.velo-15)); PEN.abil.control=r1(Math.max(0,PEN.abil.control-15)); PEN.abil.stamina=r1(Math.max(0,PEN.abil.stamina-15)); T.push('球速−15km/h・コントロール−15・スタミナ−15');
+    const lost=[]; for(let n=0;n<3;n++){ const L=(PEN.rep||[]).filter(t=>t!=='ストレート'&&(PEN.plev[t]||0)>0); if(!L.length) break; const t=pick(L); PEN.plev[t]=(PEN.plev[t]||1)-1; if(PEN.plev[t]<=0){ PEN.rep=PEN.rep.filter(x=>x!==t); delete PEN.plev[t]; lost.push(t); } }
+    T.push(`変化球のLv 合計−3${lost.length?`（${lost.join('・')}は投げられなくなった）`:''}`); }
+  return {ok:false,txt:T.join('・')};
+}
+// 毎日：最後の輝きの上乗せ（前半戦はそのまま、後半戦は少しずつ下がり、レギュラーシーズン終了で0）
+function cbDaily(){
+  const L=cbOn('last'); if(!L||!L.ok) return;
+  const half=Math.ceil(SEASON_GAMES/2), d=PEN.day, fr=d<half?1:Math.max(0,(SEASON_GAMES-d)/(SEASON_GAMES-half));
+  lastApply(L,fr);
+}
+/* ---- 覚醒合宿（伝説の野球選手・29歳までの毎年5%・生涯1回）：すり抜けた覚醒（条件を満たしたのに覚醒しなかったもの）からランダムに3つ ---- */
+const AWK_SEASON={avg300:['安打製造機の覚醒',10,'ミート+5'],hr10:['長距離砲の覚醒',10,'パワー+5'],era300:['エースピッチャーへの兆し',20,''],kaido:['怪童への道',0,'']};
+function legendPool(){
+  const A=PEN.awake||{done:{},log:[]}, got=new Set((A.log||[]).map(l=>l.name)), out=[];
+  for(const [id,pts,pr,name] of AWAKE) if(A.done&&A.done[id]&&!got.has(name)) out.push({id,name,pts});   // 条件を満たしたのに覚醒しなかった
+  for(const id in (A.miss||{})) if(A.miss[id]&&!(A.done&&A.done[id])&&AWK_SEASON[id]) out.push({id,name:AWK_SEASON[id][0],pts:AWK_SEASON[id][1],season:true});
+  return out;
+}
+function legendDo(){
+  const A=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); A.legendDone=true;
+  const R=shuffle(legendPool()).slice(0,3), out=[];
+  for(const e of R){
+    if(!e.season){ A.bank=r1((A.bank||0)+e.pts); A.log.push({y:PEN.year,name:e.name,pts:e.pts,legend:true}); out.push({name:e.name,pts:e.pts}); continue; }
+    A.done[e.id]=true; if(A.miss) delete A.miss[e.id];
+    if(e.id==='avg300'&&PEN.babil){ PEN.babil.meet=r1(Math.min(100,PEN.babil.meet+5)); }
+    if(e.id==='hr10'&&PEN.babil){ PEN.babil.power=r1(Math.min(100,PEN.babil.power+5)); }
+    if(e.id==='kaido'&&PEN.abil){ const lv=lvOf('ストレート'), dv=ri(2,5); PEN.abil.velo=r1(Math.min(VELO_MAX,PEN.abil.velo+dv)); let ex=`球速+${dv}km/h`, pts=0;
+      if(lv<LV_MAX){ PEN.plev['ストレート']=lv+1; ex=`ストレートLv.${lv+1}・`+ex; } else pts=5;
+      if(pts) A.bank=r1((A.bank||0)+pts); A.log.push({y:PEN.year,name:e.name,pts,legend:true}); out.push({name:e.name,pts,ex}); continue; }
+    A.bank=r1((A.bank||0)+e.pts); A.log.push({y:PEN.year,name:e.name,pts:e.pts,legend:true}); out.push({name:e.name,pts:e.pts,ex:AWK_SEASON[e.id][2]});
+  }
+  return out;
 }
 
 /* ---- コーチの一覧 ---- */
 const CB_ITEMS=[
   {id:'scout', tier:'お手頃',  coach:'analyst',name:'相手球団の研究',price:6000000},
-  {id:'yoga',  tier:'お手頃',  coach:'trainer',name:'ヨガ教室',price:7000000},
+  {id:'yoga',  tier:'お手頃',  coach:'rehab',  name:'ヨガ教室',price:7000000},
   {id:'yosho', tier:'お手頃',  coach:'mental', name:'メンタリズム講座〜要所の戦い方編〜',price:8000000},
   {id:'antei', tier:'お手頃',  coach:'mental', name:'メンタリズム講座〜安定した戦い方編〜',price:9000000},
+  {id:'run',   tier:'お手頃',  coach:'club',   name:'走塁・盗塁講習',price:15000000},
   {id:'nebari',tier:'標準',    coach:'mental', name:'メンタリズム教室〜粘り勝つメンタル編〜',price:20000000},
+  {id:'tokushu',tier:'標準',   coach:'club',   name:'特守',price:20000000},
   {id:'stamina',tier:'標準',   coach:'trainer',name:'体力トレーニング',price:30000000},
-  {id:'data',  tier:'標準',    coach:'analyst',name:'データ解析',price:40000000},
+  {id:'platoon',tier:'標準',   coach:'club',   name:'左右苦手克服',price:40000000},
+  {id:'legend',tier:'標準',    coach:'legend', name:'覚醒合宿',price:50000000},
   {id:'joint', tier:'標準',    coach:'player', name:'他選手との合同自主トレーニング',price:60000000},
-  {id:'anti',  tier:'高級',    coach:'trainer',name:'アンチエイジング',price:300000000},
-  {id:'motion',tier:'最高級',  coach:'analyst',name:'モーショントラッキング',price:1000000000},
+  {id:'motion',tier:'高級',    coach:'analyst',name:'モーショントラッキング',price:200000000},
+  {id:'cond',  tier:'高級',    coach:'rehab',  name:'コンディショニング',price:200000000},
+  {id:'anti',  tier:'高級',    coach:'rehab',  name:'アンチエイジング',price:300000000},
+  {id:'data',  tier:'最高級',  coach:'analyst',name:'データ解析',price:500000000},
+  {id:'last',  tier:'特別',    coach:'doctor', name:'最後の輝きを目指して',price:0},
   {id:'money', tier:'特別',    coach:'agent',  name:'マネーマネジメント',price:0},
   {id:'house', tier:'特別',    coach:'realtor',name:'家を買う',price:100000000},
 ];
 const cbItem=id=>CB_ITEMS.find(x=>x.id===id);
-const cbPrice=id=>id==='money'?Math.max(9000000,Math.round((PEN.salary||0)*0.08/100000)*100000):cbItem(id).price;
+const cbPrice=id=>id==='money'?Math.max(9000000,Math.round((PEN.salary||0)*0.08/100000)*100000):id==='last'?Math.max(0,PEN.money||0):cbItem(id).price;   // 最後の輝き：全財産
+// 一覧に出ないもの：最後の輝き（35歳から）・覚醒合宿（29歳までの毎年5%で現れる・生涯1回）
+const cbHidden=id=>id==='last'?(PEN.age||0)<35:id==='legend'?!(PEN.off&&PEN.off.legend):false;
 const jointYear=y=>typeof wbcYear==='function'&&wbcYear(y-1);   // WBCのあった年のオフ（＝次の年のキャンプ前）
 function cbLock(id){
   if(id==='joint'&&!jointYear(PEN.year)){ let y=PEN.year+1; while(!jointYear(y)&&y<PEN.year+8) y++; return `🔒 WBCのあった年のオフだけ（次は${y}年目のキャンプ前）`; }
   if(id==='house'&&PEN.house) return '購入済み（持ち家）';
+  if(id==='last'&&!(PEN.money>0)) return '所持金がないと受けられない';
   return null;
 }
 const posKind=()=>isBat()?'B':isTW()?'W':'P';
@@ -7820,6 +8020,12 @@ function cbDesc(id){
     case 'joint': L.push('チームメイト（その年のオールスター・WBCの仲間も）から3人呼んで自主トレ。3人の平均で一番高い能力が、自分も相手も+2.5〜5（球速は+1〜2km/h。成績が良い選手ほど伸びる）。上がった能力はずっと残る'); break;
     case 'anti': L.push('33歳を超えてからの大きな衰え（マイナスの倍率）が半分'); if(P) L.push('変化球が年齢の衰えで下がらない'); if((PEN.age||22)<=33) L.push(`<small>（今${PEN.age}歳。衰えの倍率がかかるのは34歳から）</small>`); break;
     case 'motion': if(B) L.push(`${k==='W'?'打撃':'野手'}：打者タイプを好きなものに変えられる（今季だけ）`); if(P) L.push(`${k==='W'?'投球':'投手'}：変化球を1つ選ぶと名前の前に✨がつき、打たれにくくなる`); break;
+    case 'run': if(B) L.push(`${k==='W'?'打撃':'野手'}：盗塁の成功率+10%・おまかせでも走る回数が増える（足が少し遅くても走る）`); if(P) L.push(`${k==='W'?'投球':'投手'}：クイック・牽制が上手くなり、走られにくい（盗塁を試みられるのが半分・成功率−15%）`); break;
+    case 'tokushu': if(B) L.push(`${k==='W'?'打撃':'野手'}：守備+5・エラー半分`); if(P) L.push(`${k==='W'?'投球':'投手'}：コントロール+5・ピッチャーゴロ／ピッチャーライナーが少しだけ増える（ヒット性の当たりの一部がアウトに）`); break;
+    case 'platoon': if(B) L.push(`${k==='W'?'打撃':'野手'}：今は「左打ちは右投手、右打ちは左投手に三振しにくい（空振り−12%）」。今季は同じ利き腕の投手にもこの有利がつく（どの投手にも両打ちのように打てる）`); if(P) L.push(`${k==='W'?'投球':'投手'}：今は「同じ利き腕の打者に有利」。今季は反対の打席の打者にも同じ有利がつく`); break;
+    case 'legend': { const n=legendPool().length; L.push('これまでの覚醒イベントで、条件を満たしたのに覚醒しなかったもの（すり抜けた覚醒）から、ランダムに3つを発動'); L.push('もらった持ち点は、このあとの春季キャンプですぐ振り分けられる'); L.push(`<small>すり抜けた覚醒：今 ${n}個${n<3?'（3つ未満のときは、あるぶんだけ）':''}／29歳までの毎年5%で現れる・生涯1回だけ</small>`); break; }
+    case 'cond': L.push('衰えの始まりを2年遅らせる（33歳50%・34歳75%・35歳100% → 35歳・36歳・37歳）'); L.push('36歳以上のシーズン後半のスランプの起きやすさを、ふつうの確率に戻す'); if(PEN.declAge) L.push(`<small>（もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない）</small>`); break;
+    case 'last': { const bs=bestSeason(); L.push(`<b>25%</b>：今シーズンの前半戦は、いちばん成績が良かった年${bs?`（${bs.year}年目・${bs.age}歳）`:''}の能力に戻る。後半戦は少しずつ下がり、レギュラーシーズン終了とともに元に戻る`); L.push(`<b>75%</b>：全能力−15${P?'（球速は−15km/h）':''}${P?'・変化球のLvが合計で3下がる（投げられなくなる球種もある）':''}。ずっと残る`); L.push('<small>35歳以上だけ・値段は全財産</small>'); break; }
     case 'money': L.push('次の年俸査定が+5〜10%（15億まで）'); L.push('FAになったら提示額+10%・契約年数が伸びやすい'); L.push(`<small>値段は今の年俸の8%（最低900万）</small>`); break;
     case 'house': L.push('買い切り・効果はずっと'); L.push('次の査定から寮費が引かれず、年俸をそのまま受け取れる'); break;
   }
@@ -7828,7 +8034,9 @@ function cbDesc(id){
 /* ---- オフシーズン（キャンプ前）の画面 ---- */
 let OFF_OPEN=null, OFF_ARM=false, OFF_JT=null;
 const needOff=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.off&&PEN.off.y===PEN.year&&!PEN.off.done&&!PEN.released&&PEN.campY!==PEN.year&&PEN.day===0&&!PEN.pending&&!PEN.review);
-function offInit(){ if(PEN.year>=2&&!PEN.retired){ PEN.off={y:PEN.year,stage:'pick',sel:[]}; if(typeof window!=='undefined'&&window.scrollTo) window.scrollTo(0,0); } }
+function offInit(){ if(PEN.year>=2&&!PEN.retired){
+  const lg=(PEN.age||99)<=29&&!(PEN.awake&&PEN.awake.legendDone)&&legendPool().length>0&&rnd()<(+((typeof process!=='undefined'&&process.env&&process.env.LEGP)||0.05));   // 覚醒合宿が現れる（29歳まで・毎年5%・生涯1回）
+  PEN.off={y:PEN.year,stage:'pick',sel:[],legend:lg}; if(lg) penNotice('✨ オフに「伝説の野球選手」が来てくれるらしい（覚醒合宿）'); if(typeof window!=='undefined'&&window.scrollTo) window.scrollTo(0,0); } }
 const meSay=t=>`<div class="msay me"><div class="mimg">${svgPlayer(TEAM[PEN.team])}<div class="mlab">${PEN.pname}</div></div><div class="bub r">${t}</div></div>`;
 const coachSay=(kind,name,t)=>`<div class="msay"><div class="mimg">${svgCoach(kind,COACH_V[kind]||0)}<div class="mlab">${COACH_KIND_JP[kind]}<br>${name}</div></div><div class="bub l">${t}</div></div>`;
 const mateSay=(m,t)=>`<div class="msay"><div class="mimg">${svgPlayer(TEAM[m.team],{num:m.num,bat:m.kind==='F'})}<div class="mlab">${m.name}<br>${TEAM[m.team].short}</div></div><div class="bub l">${t}</div></div>`;
@@ -7840,14 +8048,14 @@ function renderOff(el){
     return `<div class="cbrow ${on?'on':''} ${lock?'lock':!can?'dis':''}">
       <button class="cbchk" data-cbs="${id}" ${(!can&&!on)?'disabled':''} aria-label="選ぶ">${on?'✔':lock?'🔒':''}</button>
       <button class="cbt" data-cbt="${id}">${it.name}<small>${COACH_KIND_JP[it.coach]||'他選手'}　ⓘ</small></button>
-      <span class="cbp ${!lock&&!on&&pr>left?'ng':''}">${yen(pr)}</span></div>
+      <span class="cbp ${!lock&&!on&&pr>left?'ng':''}">${id==='last'?`全財産<br><small>${yen(pr)}</small>`:yen(pr)}</span></div>
       ${OFF_OPEN===id?`<div class="cbd">${cbDesc(id)}${lock?`<br><b style="color:#f0a0a0">${lock}</b>`:!on&&pr>left?`<br><b style="color:#f0a0a0">所持金が足りません（あと${yen(pr-left)}）</b>`:''}</div>`:''}`; };
   const lines=['オフの間に専門家を呼んで、トレーニングやマネジメントをしてみようかな。','せっかくのオフだ。お金を使って、専門家に見てもらおうかな。','今年のオフは誰を呼ぼう？ 専門家の力を借りてみようかな。'];
-  el.innerHTML=`<div class="pen"><h2>🏝 オフシーズン <small>（${PEN.year}年目のキャンプ前）</small></h2>
+  el.innerHTML=`<div class="pen"><h2>🏝 オフシーズン <small>（${PEN.year}年目のキャンプ前・${PEN.age}歳）</small></h2>
     ${meSay(lines[PEN.year%lines.length])}
     <div class="pcardx offm">💰 所持金 <b>${yen(money)}</b>　<small>${PEN.house?'🏠 持ち家（年俸は満額）':'🏢 寮生活（年俸の半分が寮費）'}</small>
       <div class="hint" style="margin:4px 0 0">□をタップで選択、名前をタップで説明。選べるのは<b>3つまで</b>（家も含む）。効果は今シーズンの終わりまで（家と合同自主トレの能力アップはずっと）</div></div>
-    <div class="cbl">${tiers.map(t=>{ const L=CB_ITEMS.filter(x=>x.tier===t); return L.length?`<div class="cbtier">${t}</div>${L.map(row).join('')}`:''; }).join('')}</div>
+    <div class="cbl">${tiers.map(t=>{ const L=CB_ITEMS.filter(x=>x.tier===t&&!cbHidden(x.id)); return L.length?`<div class="cbtier">${t}</div>${L.map(row).join('')}`:''; }).join('')}</div>
     <div class="pcardx" style="margin-top:8px">選択中 <b>${sel.length}</b>／3　合計 <b>${yen(sum)}</b>　→ 残り <b>${yen(left)}</b>${sel.length?`<div class="hint" style="margin:2px 0 0">${sel.map(id=>cbItem(id).name).join('・')}</div>`:''}</div>
     <button class="btn main" id="offGo" style="width:100%">${OFF_ARM?'もう一度押すと決定（お金を払います）':sel.length?`${sel.length}人呼ぶ（${yen(sum)}）→ オフ3日間へ`:'今年は誰も呼ばない → オフ3日間へ'}</button>
     <div class="hint">決定すると、オフの日にちが3日進み、1日ずつコーチが来ます（来ない日もあります）。</div></div>`;
@@ -7856,7 +8064,7 @@ function renderOff(el){
   $('offGo').onclick=()=>{ if(!OFF_ARM){ OFF_ARM=true; renderOff(el); return; } OFF_ARM=false; offDecide(); renderPennant(); save(); window.scrollTo(0,0); };
 }
 function offDecide(){
-  const O=PEN.off, sel=O.sel.filter(id=>cbItem(id)&&!cbLock(id)).slice(0,3); let sum=0; const paid={};
+  const O=PEN.off, sel=O.sel.filter(id=>cbItem(id)&&!cbLock(id)&&!cbHidden(id)).slice(0,3); let sum=0; const paid={};
   sel.forEach(id=>{ paid[id]=cbPrice(id); sum+=paid[id]; });
   if(sum>(PEN.money||0)) return;
   PEN.money=(PEN.money||0)-sum;
@@ -7877,7 +8085,7 @@ function renderOffDay(el){
     if(!st.done&&!cbNeedsChoice(D.id)) cbDo(D,st,null);
     body=cbTalk(D,st);
   }
-  el.innerHTML=`<div class="pen"><h2>🏝 オフ ${d+1}日目 <small>／3日</small></h2>
+  el.innerHTML=`<div class="pen"><h2>🏝 オフ ${d+1}日目 <small>／3日・${PEN.age}歳</small></h2>
     <div class="offdays">${[0,1,2].map(i=>`<span class="${i===d?'on':i<d?'done':''}">${i+1}日目${O.days[i]?`<br><small>${cbItem(O.days[i].id).name.replace(/〜.*〜/,'')}</small>`:'<br><small>－</small>'}</span>`).join('')}</div>
     ${body}
     ${(!D||st.done)?`<button class="btn main" id="offNext" style="width:100%">${last?'オフ終了 → 春季キャンプへ ▶':'次の日へ ▶'}</button>`:''}</div>`;
@@ -7897,14 +8105,14 @@ function cbTalk(D,st){
       if(!st.done){ const L=NPB.filter(t=>t.id!==PEN.team); h+=`<div class="cbch">${['セ','パ'].map(lg=>`<div class="hint" style="margin:4px 0 2px">${LG_NAME[lg]}</div>${L.filter(t=>t.lg===lg).map(t=>`<button class="btn sm" data-cbteam="${t.id}">${tchip(t.id)}</button>`).join('')}`).join('')}</div>`; break; }
       const T=TEAM[st.team].short;
       h+=M(`${T}でお願いします。`)+C(B?`${T}の投手陣は、カウントごとの球種にはっきり偏りがあります。全部まとめておきましたよ。`:P?`${T}の打線は、打者ごとに弱いコースがはっきりしています。全部まとめておきましたよ。`:`${T}の投手の配球も、打者の弱点も、全部まとめておきましたよ。`)+M(`これで${T}戦は一歩先を読めそうだ。`); break; }
-    case 'yoga': h+=C(`パーソナルトレーナーの${nm}です。今日はヨガでじっくり体をほぐしていきましょう。`)+M(st.loss?'昔のケガ、まだ少し体に残っている気がするんです。':'ケガだけはしたくないんです。')+C('呼吸に合わせて、ゆっくり伸ばして……そう。体の奥が目を覚ましてきましたね。'); break;
+    case 'yoga': h+=C(`リハビリトレーナーの${nm}です。今日はヨガでじっくり体をほぐしていきましょう。`)+M(st.loss?'昔のケガ、まだ少し体に残っている気がするんです。':'ケガだけはしたくないんです。')+C('呼吸に合わせて、ゆっくり伸ばして……そう。体の奥が目を覚ましてきましたね。'); break;
     case 'yosho': h+=C(`メンタリストの${nm}です。ランナーが二塁にいる場面、あなたは何を考えていますか？`)+M(B?'「打たなきゃ」って、力が入ってしまいます。':'「打たれたらどうしよう」って、腕が縮こまってしまいます。')+C('その気持ちを消そうとしなくていい。ひと呼吸おいて、いつも通りの1球を。ピンチもチャンスも、同じ1球です。'); break;
     case 'antei': h+=C(`メンタリストの${nm}です。好不調の波、気になっていませんか？`)+M('1度崩れると、なかなか戻らなくて……。')+C('崩れたときに戻る「型」を作りましょう。毎朝同じ順番で、同じことを。心の振れ幅が小さくなりますよ。'); break;
     case 'nebari': h+=C(`メンタリストの${nm}です。今日は「粘り」の話をしましょう。`)+M(B?'追い込まれると、つい焦ってしまって。':P?'疲れてくると、気持ちまで切れてしまうんです。':'追い込まれたときも、疲れてきたときも、つい焦ってしまって。')+C(B?'2ストライクからが本当の勝負です。当てにいくのではなく、仕留めるまで粘る。':'勝ちが見えた5回から、もう一段ギアを上げる。体が重いときほど、腕は振れます。'); break;
     case 'stamina': h+=C(`パーソナルトレーナーの${nm}です！ 今日は体力づくり。走って、跳んで、また走りますよ！`)+M('き、きつい……！')+C(B?'夏場に落ちない体が、シーズン後半のあなたを救います！':'スタミナが切れてからの一踏ん張りが変わりますよ！'); break;
     case 'data': { const kv=Math.max(isBat()?0:keikai(false),hasBat()?keikai(true):0);
       h+=C(`スポーツアナリストの${nm}です。去年のあなたのデータ、相手からはこう見えています。`)+M(kv>=0.05?'ここまで丸裸にされているのか……。':'思ったより、クセが出ているんだな……。')+C('だからこそ、傾向を少しずつずらしていきましょう。今季は読まれにくくなりますよ。'); break; }
-    case 'anti': h+=C(`パーソナルトレーナーの${nm}です。アンチエイジングのプログラムを組みました。食事・睡眠・リカバリー、全部見直しますよ。`)+M(age>33?`${age}歳、まだまだやれるところを見せたいんです。`:'まだ若いけど、今から備えておきたいんです。')+C(age>33?'年齢は数字にすぎません。体の時計を、ゆっくり進めていきましょう。':'いい心がけです。若いうちからの積み重ねが、10年後のあなたを支えますよ。'); break;
+    case 'anti': h+=C(`リハビリトレーナーの${nm}です。アンチエイジングのプログラムを組みました。食事・睡眠・リカバリー、全部見直しますよ。`)+M(age>33?`${age}歳、まだまだやれるところを見せたいんです。`:'まだ若いけど、今から備えておきたいんです。')+C(age>33?'年齢は数字にすぎません。体の時計を、ゆっくり進めていきましょう。':'いい心がけです。若いうちからの積み重ねが、10年後のあなたを支えますよ。'); break;
     case 'motion':{
       h+=C(`スポーツアナリストの${nm}です。モーショントラッキングで、あなたの動きを全身から解析します。`)+M('よろしくお願いします。');
       if(!st.done){
@@ -7915,10 +8123,19 @@ function cbTalk(D,st){
         h+=`<button class="btn main" data-cbgo="1" style="width:100%" ${ok?'':'disabled'}>これでお願いします</button>`; break; }
       h+=M(`${[st.type&&`「${st.type}」`,st.pitch].filter(Boolean).join('と、')}でお願いします。`)+C(`……解析完了。${st.type?`今季は「${st.type}」として打席に立ちましょう。`:''}${st.pitch?`${st.pitch}の名前の前に✨が付きます。打たれにくい特別な1球になりましたよ。`:''}`); break; }
     case 'joint': return cbJointTalk(D,st);
+    case 'run': h+=C(`${TEAM[PEN.team].short}の走塁コーチ、${nm}だ。`)+(B?C('盗塁の半分は、スタートの一歩目で決まる。投手のクセの盗み方から叩き込むぞ。'):'')+(P?C(`${B?'投げるほうも見るぞ。':''}クイックと牽制を鍛える。走者に好き勝手はさせるな。`):'')+M('よろしくお願いします！'); break;
+    case 'tokushu': h+=C(`${TEAM[PEN.team].short}の守備コーチ、${nm}だ。今日は特守。泥だらけになってもらうぞ！`)+M('は、はい……！')+C(B?'グラブさばきは嘘をつかない。今季のエラーは半分になるはずだ。':'投手も9人目の野手だ。フィールディングと、狙ったところに投げきる制球を徹底的に鍛える。'); break;
+    case 'platoon': h+=C(`${TEAM[PEN.team].short}の打撃コーチ、${nm}だ。左右の苦手を消しに来た。`)+M(B?'同じ利き腕のピッチャー、どうも球の出どころが見づらくて……。':'反対の打席の打者が、どうも怖くて……。')+C(B?'目が慣れるまで打ち込むぞ。今季はどの投手にも、両打ちのつもりで立てばいい。':'内角の使い方を変えれば、反対の打席の打者も怖くない。'); break;
+    case 'legend':{ h+=C(`……伝説の野球選手、${nm}だ。噂を聞いて来てみたが、いい目をしているな。`)+M('ほ、本物だ……！');
+      const R=st.res||[]; h+=C(R.length?'お前がこれまで取りこぼしてきた覚醒を、わしが引き出してやろう。……フンッ！':'……ふむ。お前には、取りこぼした覚醒が見当たらんな。');
+      if(R.length) h+=`<div class="pcardx">${R.map(r=>`✨ ${r.name}${r.ex?`（${r.ex}）`:''}${r.pts?` 持ち点+${r.pts}`:''}`).join('<br>')}</div>`+C('持ち点は、このあとのキャンプで振り分けるといい。若いの、期待しているぞ。'); break; }
+    case 'cond': h+=C(`リハビリトレーナーの${nm}です。体の“衰え”は、手入れしだいで先送りできますよ。`)+M(age>=33?`${age}歳。まだまだ衰えたくないんです。`:'今のうちから準備しておきたいんです。')+C('関節の動きと、疲れの抜き方を作り直しましょう。それに、後半戦に崩れない体の使い方もね。'); break;
+    case 'last':{ h+=C(`……ふふ、来たか。わしは${nm}。表の世界じゃ名乗れん医者だよ。`)+M('本当に、昔の体に戻れるんですか……？')+C('保証はせん。うまくいけば、全盛期の体がひと夏だけ戻る。しくじれば……まあ、覚悟はしておけ。');
+      if(st.done) h+=st.ok?C(`……成功だ。${st.yr?`${st.yr}年目（${st.ag}歳）の`:''}全盛期の体だよ。夏が過ぎれば少しずつ元に戻るがな。`)+M('体が、軽い……！'):C('……ふむ。しくじったな。')+M('体が、重い……。')+C('だから言ったろう。全財産、確かに受け取ったよ。'); break; }
     case 'money': h+=C(`代理人の${nm}です。あなたの価値を、数字できちんと示しましょう。`)+M('お金の話は、どうも苦手で……。')+C(`だから私がいるんです。今の年俸は${yen(PEN.salary)}。次の契約更改、楽しみにしていてください。`); break;
     case 'house': h+=C(`不動産屋の${nm}です！ ご希望の条件で、いい物件が見つかりましたよ。`)+M('ついに寮を出るときが来たか……。')+C('こちらが鍵です。おめでとうございます！ 今日からここがあなたの城ですよ。'); break;
   }
-  if(st.done&&st.eff) h+=cbTag(st.eff);
+  if(st.done&&st.eff) h+=id==='last'&&st.ok===false?`<div class="pcardx bad cbeff">💀 ${st.eff}</div>`:cbTag(st.eff);
   return h;
 }
 function cbBind(el,D,st){
@@ -7959,6 +8176,13 @@ function cbDo(D,st,arg){
       st.type=m.type; st.pitch=m.pitch; on.motion=m;
       eff=[m.type&&`打者タイプ「${m.type}」（${BTYPE_INFO[m.type].me}）`,m.pitch&&`✨${m.pitch}：打たれにくい（空振り+5%・打球の質−0.06）`].filter(Boolean).join('／')+'（今シーズン）'; break; }
     case 'joint': eff=cbJointApply(st,arg.pick); if(!eff) return; break;
+    case 'run': on.run={}; eff=[B&&`${k==='W'?'打撃：':''}盗塁の成功率+10%・おまかせでも走る回数が増える`,P&&`${k==='W'?'投球：':''}盗塁を試みられるのが半分・成功率−15%`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'tokushu': on.tokushu={}; eff=[B&&`${k==='W'?'打撃：':''}守備+5・エラー半分`,P&&`${k==='W'?'投球：':''}コントロール+5・ピッチャーゴロ／ライナーが少し増える`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'platoon': on.platoon={}; eff=[B&&`${k==='W'?'打撃：':''}同じ利き腕の投手にも左右の有利（空振り−12%）`,P&&`${k==='W'?'投球：':''}反対の打席の打者にも左右の有利`].filter(Boolean).join('／')+'（今シーズン）'; break;
+    case 'legend':{ const R=legendDo(); st.res=R; const pts=R.reduce((t,r)=>t+(r.pts||0),0); eff=R.length?`すり抜けた覚醒を発動：${R.map(r=>r.name).join('・')}${pts?`（キャンプの持ち点 +${pts}）`:''}`:'すり抜けた覚醒がなかった'; break; }
+    case 'cond': on.cond={}; eff=`衰えの始まりを2年遅らせる（35歳・36歳・37歳）・36歳以上の後半戦のスランプがふつうの確率に（今シーズン）${PEN.declAge?`<br><small>もう${PEN.declAge}歳で衰えが始まっているので、衰えの始まりには効かない</small>`:''}`; break;
+    case 'last':{ const r=lastDo(); on.last=r; st.ok=r.ok; st.yr=r.year; st.ag=r.age;
+      eff=r.ok?`成功：前半戦は${r.year?`${r.year}年目（${r.age}歳）`:'全盛期'}の能力（${r.txt}）。後半戦は少しずつ下がり、レギュラーシーズン終了で元に戻る`:`失敗：${r.txt}（ずっと残る）`; break; }
     case 'money':{ const mm=Math.round((0.05+rnd()*0.05)*100)/100; on.money={mm}; eff=`次の年俸査定 +${Math.round(mm*100)}%（15億まで）・FAなら提示額+10%・契約年数が伸びやすい（今シーズン終わりの査定）`; break; }
     case 'house': PEN.house={y:PEN.year}; on.house={}; eff='持ち家：次の査定から寮費が引かれず、年俸を満額受け取れる（ずっと）'; break;
   }
