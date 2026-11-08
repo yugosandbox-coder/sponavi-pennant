@@ -18,7 +18,7 @@
   - `hall.js` 歴代選手
   - `allstar.js` オールスター
   - `postseason.js` クライマックスシリーズ・日本シリーズ
-  - `injury.js` 怪我
+  - `injury.js` 怪我・疲労・回復力
   - `odd.js` 野手登板・代打投手
   - `wbc.js` WBC
   - `coachsvg.js` コーチのキャラクター
