@@ -735,10 +735,11 @@ function showDraft(){
   const o=$('title'); o.classList.remove('hide'); o.style.display=''; o.scrollTop=0;
   clearTimeout(titleTimer);
 }
+let titleHideT=null;
 function hideTitle(){
   const t=$('title'); if(t.style.display==='none')return;
   clearTimeout(titleTimer); t.classList.add('hide');
-  setTimeout(()=>{t.style.display='none';t.classList.remove('hide')},450);
+  clearTimeout(titleHideT); titleHideT=setTimeout(()=>{t.style.display='none';t.classList.remove('hide')},450);
 }
 
 /* ---- 持ち球選択画面（普通のページとして表示。ゲーム画面は隠す） ---- */
@@ -785,7 +786,7 @@ function showProfile(o){
   if(o.isMe&&typeof isBat==='function'&&isBat()){
     const a=PEN.babil;
     h=`<h2>${PEN.pname}</h2><div class="prow"><span class="hb ${PEN.bhand}">${bhandJP(PEN.bhand)}</span><span class="rbadge">${roleName(PEN.role)}${PEN.order?`・${PEN.order}番`:''}</span>${btypeBadge(PEN.btype)}${tchip(PEN.team)}<span class="hint">${PEN.age}歳・${POS_JP[PEN.bpos]}${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span></div>
-      <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(abPerf(a.meet))}マス・球速 −${meetTol(abPerf(a.meet))}〜+${meetUp(abPerf(a.meet))}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>速度</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
+      <table><tr><th>ミート</th><td>${bar10(a.meet)}<br><small>狙えるコース${meetCells(abPerf(a.meet))}マス・球速 −${meetTol(abPerf(a.meet))}〜+${meetUp(abPerf(a.meet))}km/h</small></td></tr><tr><th>パワー</th><td>${bar10(a.power)}</td></tr><tr><th>走力</th><td>${bar10(a.speed)}</td></tr><tr><th>選球眼・技術</th><td>${bar10(a.eye)}</td></tr><tr><th>守備</th><td>${bar10(a.def??50)}</td></tr>
       <tr><th>今年</th><td style="font-size:13px">${batLine(PEN.ss)}</td></tr><tr><th>通算</th><td style="font-size:13px">${batLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr><tr><th>所持金</th><td>${yen(PEN.money||0)}${PEN.house?'　🏠':''}</td></tr>${typeof cbList==='function'&&cbList().length?`<tr><th>コーチ</th><td style="font-size:12px">${cbList().map(x=>`<b>${x.name}</b><br>${x.t}`).join('<br>')}</td></tr>`:''}
       ${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}</table>`;
   }else if(o.isMe){
@@ -793,7 +794,7 @@ function showProfile(o){
     h=`<h2>${pen?PEN.pname:(G&&G.pname||'あなた')}</h2><div class="prow"><span class="hb ${PHAND}">${PHAND==='L'?'左投':'右投'}</span>${pen?`<span class="rbadge">${roleName(PEN.role)}</span>${PEN.team?tchip(PEN.team):''}<span class="hint">${PEN.age}歳${PEN.draft?`・ドラフト${PEN.draft.pick}位`:''}</span>`:''}</div>
       <table>${pen&&PEN.abil?`<tr><th>球速</th><td>${PEN.abil.velo}km/h</td></tr><tr><th>コントロール</th><td>${bar10(PEN.abil.control)}</td></tr><tr><th>スタミナ</th><td>${bar10(PEN.abil.stamina)}</td></tr>`:`<tr><th>ストレート平均</th><td>${PVELO}km/h</td></tr>`}
       <tr><th>持ち球</th><td>${(pen&&PEN.rep?PEN.rep:REP).map((t,i)=>{ if(pen&&PEN.plev) return `${ptn(t)}　Lv.${lvOf(t)}`; const L=lev(t); return `${ptn(t)}${L==='決'?'（決め球）':L==='少'?'（少し）':''}`}).join('<br>')}</td></tr>
-      ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr><tr><th>所持金</th><td>${yen(PEN.money||0)}${PEN.house?'　🏠':''}</td></tr>${typeof cbList==='function'&&cbList().length?`<tr><th>コーチ</th><td style="font-size:12px">${cbList().map(x=>`<b>${x.name}</b><br>${x.t}`).join('<br>')}</td></tr>`:''}${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・速度${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
+      ${pen?`<tr><th>今年</th><td style="font-size:13px">${statLine(PEN.ss)}</td></tr><tr><th>通算（ペナント）</th><td style="font-size:13px">${statLine(PEN.career)}</td></tr><tr><th>年俸</th><td>${yen(PEN.salary)}</td></tr><tr><th>所持金</th><td>${yen(PEN.money||0)}${PEN.house?'　🏠':''}</td></tr>${typeof cbList==='function'&&cbList().length?`<tr><th>コーチ</th><td style="font-size:12px">${cbList().map(x=>`<b>${x.name}</b><br>${x.t}`).join('<br>')}</td></tr>`:''}${isTW()?`<tr><th>打撃（二刀流）</th><td style="font-size:13px">${bhandJP(PEN.bhand)}・ミート${PEN.babil.meet}・パワー${PEN.babil.power}・走力${PEN.babil.speed}・選球眼${PEN.babil.eye}<br>今年：${batLine(PEN.bss||batStat())}</td></tr>`:''}${PEN.titles&&PEN.titles.length?`<tr><th>タイトル</th><td style="font-size:13px">${titleList()}</td></tr>`:''}${PEN.trades&&PEN.trades.length?`<tr><th>移籍</th><td style="font-size:13px">${PEN.trades.map(t=>`${t.y}年目 ${TEAM[t.from].short}→${TEAM[t.to].short}`).join('<br>')}</td></tr>`:''}`
         :`<tr><th>通算</th><td>防御率 ${fmtRate(C.runs,C.outs)}・${C.w}勝${C.l}敗・奪三振${C.k}</td></tr>`}</table>`;
   }else if(o.isP){
     h=`<h2>${o.name}</h2><div class="prow"><span class="hb ${o.hand}">${o.hand==='L'?'左投':'右投'}</span><span class="hint">背番号 ${o.num}</span></div>
@@ -832,7 +833,7 @@ function renderSetup(){
     [...$('bhcards').children].forEach(el=>el.onclick=()=>{ const old={meet:bBase('meet'),speed:bBase('speed'),power:bBase('power')}; dBhand=el.dataset.bh;
       for(const k of ['meet','speed','power']) BAB[k]=r1(clamp(BAB[k]-old[k]+bBase(k),bBase(k),100));   // 下限の差ぶんだけ動かす
       renderSetup(); });
-    $('bhandNote').textContent=dBhand==='L'?'左打ち：速度の下限が+10（無料）。右ピッチャーに少し三振しづらい':dBhand==='R'?'右打ち：パワーの下限が+10（無料）。左ピッチャーに少し三振しづらい':'両打ち：打席ごとに左右を選べる（相手投手と逆の打席に自動で入り、変えることもできる）。ミートとパワーの下限が-5';
+    $('bhandNote').textContent=dBhand==='L'?'左打ち：右ピッチャーに少し三振しづらい':dBhand==='R'?'右打ち：左ピッチャーに少し三振しづらい':'両打ち：打席ごとに左右を選べる（相手投手と逆の打席に自動で入り、変えることもできる）';
     $('bposcards').innerHTML=POSS.map(k=>`<button class="btn ${dBpos===k?'on':''}" data-bp="${k}">${POS_JP[k]}</button>`).join('');
     [...$('bposcards').children].forEach(el=>el.onclick=()=>{dBpos=el.dataset.bp;renderSetup()});
     ['セ','パ'].forEach(lg=>{ const box=$(lg==='セ'?'tcardsC':'tcardsP');
@@ -866,16 +867,18 @@ function renderSetup(){
 }
 /* ---- ペナント：持ち点（100〜200）で能力を決める ---- */
 const BRK_TYPES=LEARN_TYPES;   // 最初はスイーパー以外の全部の変化球から選べる（スイーパーはスライダーからの進化のみ）
-const LV_COST={'少':1,'普':2,'決':5}, SLV_COST={1:0,2:2,3:5};   // ストレートのLv（最初は1〜3。Lv.3が今までの性能）
-let AB={budget:60,velo:130,control:20,stamina:20,brk:{},slv:3};
+// 入団時の球種のLv（ストレートの伸びも同じ）：1段ごとに1・2・3・4・5点（Lv.1＝1点・Lv.2＝3点・Lv.3＝6点・Lv.4＝10点・Lv.5＝15点）。入団時はLv.5まで
+const LV0_MAX=5, lvCost0=l=>{ l=+l||0; return l*(l+1)/2; };
+let AB={budget:85,velo:130,control:20,stamina:20,brk:{},slv:3};
 const V0=130, VCOST=5;   // 球速は130km/hが基礎。1km/hで5pt（0.1km/hで0.5pt）
-const STA_COST=0.5;   // スタミナは1上げるのに0.5pt（ほかの能力の半分）
-function abCost(a){ return r1((a.velo-V0)*VCOST+a.control+a.stamina*STA_COST+SLV_COST[a.slv||3]+Object.values(a.brk).reduce((t,l)=>t+LV_COST[l],0)); }
-// 二刀流は持ち点の1.9倍を投打で分け合う
-const W_MUL=1.9, isW=()=>MODE==='pennant'&&dPos==='W';
+const STA_COST=1;   // スタミナも1上げるのに1pt
+const P_MAX0=50;   // 入団時のコントロール・スタミナの上限（球速は160km/hまで）
+function abCost(a){ return r1((a.velo-V0)*VCOST+a.control+a.stamina*STA_COST+lvCost0(a.slv||3)+Object.values(a.brk).reduce((t,l)=>t+lvCost0(l),0)); }
+// 二刀流は投手と野手の持ち点を足して0.75倍した点数を投打で分け合う
+const W_MUL=1, isW=()=>MODE==='pennant'&&dPos==='W';
 const wTotal=()=>r1(AB.budget*W_MUL);
-// 打撃能力の下限：左打ちは速度+10、右打ちはパワー+10（無料で上がる）
-const bBase=k=>20+(k==='speed'&&dBhand==='L'?10:0)+(k==='power'&&dBhand==='R'?10:0)-((k==='meet'||k==='power')&&dBhand==='S'?5:0);   // 両打ちはミート・パワーの下限が-5
+// 打撃能力の下限：どれも0から
+const bBase=k=>0;
 const bat4Cost=b=>r1(['meet','power','speed','eye'].reduce((t,k)=>t+b[k]-bBase(k),0));
 const pBudget=()=>r1(isW()?wTotal()-bat4Cost(BAB):AB.budget);   // 投手の能力に使えるポイント
 const bBudget=()=>r1(isW()?wTotal()-abCost(AB):AB.budget);     // 打撃の能力に使えるポイント
@@ -892,23 +895,26 @@ function wAuto(random){   // 二刀流：投手6割・打撃4割で振り分け
 }
 function abAuto(random){
   const B0=isW()?Math.min(AB.budget,pBudget()):AB.budget; AB.brk={}; if(!AB.slv) AB.slv=3;
-  if(random) AB.slv=wpick([[1,2],[2,3],[3,5]]);
-  const B=B0-SLV_COST[AB.slv];
+  if(random) AB.slv=wpick([[1,2],[2,3],[3,4],[4,2],[5,1]]);
+  let left=B0-lvCost0(AB.slv);
   if(random){
     // ランダムに変化球を0〜2つ、残りを球速・コントロール・スタミナへ
-    const n=ri(0,2), types=shuffle(BRK_TYPES).slice(0,n); let left=B;
-    types.forEach(t=>{ const l=wpick([['少',3],['普',5],['決',2]]); if(LV_COST[l]<=left-10){ AB.brk[t]=l; left-=LV_COST[l]; } });
+    const n=ri(0,2), types=shuffle(BRK_TYPES).slice(0,n);
+    types.forEach(t=>{ const l=wpick([[1,3],[2,4],[3,3],[4,1],[5,1]]); if(lvCost0(l)<=left-10){ AB.brk[t]=l; left-=lvCost0(l); } });
     const wv=rnd(), wc=rnd(), ws=rnd(), sum=wv+wc+ws;
     AB.velo=Math.min(160,V0+Math.floor(left*wv/sum/VCOST)); left-=(AB.velo-V0)*VCOST;
-    AB.control=Math.min(100,Math.floor(left*wc/(wc+ws))); left-=AB.control;
-    AB.stamina=r1(Math.min(100,left/STA_COST));
+    AB.control=Math.min(P_MAX0,Math.floor(left*wc/(wc+ws))); left-=AB.control;
   }else{
-    AB.velo=Math.min(160,V0+Math.floor(B*0.4/VCOST)); AB.control=Math.min(100,Math.floor(B*0.3)); AB.stamina=r1(Math.min(100,(B-(AB.velo-V0)*VCOST-AB.control)/STA_COST));
+    AB.velo=Math.min(160,V0+Math.floor(left*0.4/VCOST)); left-=(AB.velo-V0)*VCOST;
+    AB.control=Math.min(P_MAX0,Math.floor(left*0.5)); left-=AB.control;
   }
+  AB.stamina=r1(Math.min(P_MAX0,left/STA_COST)); left=r1(left-AB.stamina*STA_COST);
+  if(left>0){ const c=Math.min(P_MAX0-AB.control,left); AB.control=r1(AB.control+c); left=r1(left-c); }   // 上限で余ったぶん
+  if(left>0) AB.velo=r1(Math.min(160,AB.velo+Math.floor(left/VCOST*10)/10));
 }
 function renderAbil(){
   const left=r1(pBudget()-abCost(AB));
-  $('abBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(isW()?`${wTotal()}ポイント（二刀流：持ち点${AB.budget}の1.9倍を投打で分け合う）`:AB.budget+'ポイント');
+  $('abBudget').innerHTML=(dGenius?'<span class="genius">✨ 天才</span> ':'')+(isW()?`${wTotal()}ポイント（二刀流：投手と打撃で分け合う）`:AB.budget+'ポイント');
   $('abReroll').innerHTML=rerollHTML(); $('bReroll').innerHTML=''; rerollBind(); $('abRange').textContent=rangeTxt();   // 振り直しのボタン（二刀流は投手の欄だけに出す）
   $('abLeft').textContent=`残り ${left.toFixed(1)} ポイント`+(left<-1e-6?'（使いすぎ）':'');
   $('abLeft').classList.toggle('over',left<-1e-6);
@@ -916,14 +922,15 @@ function renderAbil(){
   $('abCtl').value=AB.control; $('abCtlV').textContent=AB.control.toFixed(1);
   $('abSta').value=AB.stamina; $('abStaV').textContent=AB.stamina.toFixed(1);
   const nB=Object.keys(AB.brk).length;
-  const stRow=`<div class="abbr"><span>${ptn('ストレート')}<small>伸び</small></span>${[1,2,3].map(l=>`<button class="lvb ${(AB.slv||3)===l?'on':''}" data-slv="${l}">Lv.${l}<small>${SLV_COST[l]}pt</small></button>`).join('')}</div>`;
-  $('abBreak').innerHTML=stRow+BRK_TYPES.map(t=>{const cur=AB.brk[t]||'';
-    return `<div class="abbr"><span>${ptn(t)}</span>${[['','なし'],['少','少し<small>Lv.1・1pt</small>'],['普','普通<small>Lv.2・2pt</small>'],['決','決め球<small>Lv.3・5pt</small>']].map(([l,n])=>{
+  const LVS=[1,2,3,4,5].slice(0,LV0_MAX);
+  const stRow=`<div class="abbr"><span>${ptn('ストレート')}<small>伸び</small></span>${LVS.map(l=>`<button class="lvb ${(AB.slv||3)===l?'on':''}" data-slv="${l}">Lv.${l}<small>${lvCost0(l)}pt</small></button>`).join('')}</div>`;
+  $('abBreak').innerHTML=stRow+BRK_TYPES.map(t=>{const cur=+AB.brk[t]||0;
+    return `<div class="abbr"><span>${ptn(t)}</span>${[0,...LVS].map(l=>{
       const dis = l && !cur && nB>=2;   // 2つまで
-      return `<button class="lvb ${cur===l?'on':''} ${dis?'dis':''}" data-t="${t}" data-l="${l}">${n}</button>`}).join('')}</div>`}).join('');
+      return `<button class="lvb ${cur===l?'on':''} ${dis?'dis':''}" data-t="${t}" data-l="${l}">${l?`Lv.${l}<small>${lvCost0(l)}pt</small>`:'なし'}</button>`}).join('')}</div>`}).join('');
   $('abBreak').querySelectorAll('[data-slv]').forEach(el=>el.onclick=()=>{ const l=+el.dataset.slv; if(abCost({...AB,slv:l})>pBudget()+1e-6){ $('abLeft').textContent='ポイントが足りません'; $('abLeft').classList.add('over'); return; } AB.slv=l; renderAbil(); });
   $('abBreak').querySelectorAll('.lvb[data-t]').forEach(el=>el.onclick=()=>{
-    const t=el.dataset.t, l=el.dataset.l, nb={...AB.brk};
+    const t=el.dataset.t, l=+el.dataset.l, nb={...AB.brk};
     if(!l) delete nb[t]; else { if(!nb[t]&&Object.keys(nb).length>=2) return; nb[t]=l; }
     if(abCost({...AB,brk:nb})>pBudget()+1e-6){ $('abLeft').textContent='ポイントが足りません'; $('abLeft').classList.add('over'); return; }
     AB.brk=nb; renderAbil();
@@ -937,26 +944,26 @@ function renderAbil(){
   $(id).oninput=()=>{
     let v=+$(id).value; const other={...AB,[k]:k==='velo'?V0:0};
     const room=r1(pBudget()-abCost(other)), max=k==='velo'?r1(V0+Math.floor(room/VCOST*10)/10):k==='stamina'?r1(room/STA_COST):room;   // 球速は0.1km/hで0.5pt・スタミナは0.1で0.05pt
-    AB[k]=r1(clamp(v,k==='velo'?V0:0,Math.min(k==='velo'?160:100,max))); renderAbil();
+    AB[k]=r1(clamp(v,k==='velo'?V0:0,Math.min(k==='velo'?160:P_MAX0,max))); renderAbil();
   };
 });
 $('abAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { abAuto(true); renderAbil(); } };
 let dRole='start', dTeam='', dPos='P', dBpos='SS', dBhand='L', dGenius=false;
-// 最初の持ち点：60〜100の中でランダム（1%で天才の120）に、投手は+10・野手は+20・二刀流は+15（投手70〜110・野手80〜120・二刀流75〜115、天才は130・140・135）
-const BUDGET_ADD={P:10,B:20,W:15}; let dRoll=60;
-const budgetAdd=()=>BUDGET_ADD[dPos]||10;
-const setBudget=()=>{ AB.budget=dRoll+budgetAdd(); };
-const rangeTxt=()=>{ const a=budgetAdd(); return `（${60+a}〜${100+a}の中でランダム。1%で「天才」の${120+a}）`; };
+// 最初の持ち点：野手100〜150・投手85〜135の中でランダム（1%で天才：野手200・投手150）。二刀流は投手と野手の持ち点をそれぞれ出して足し、0.75倍（天才は350）
+let dU=0.5, dU2=0.5;
+const budgetOf=pos=>{ pos=pos||dPos; if(dGenius) return pos==='B'?200:pos==='W'?350:150; const b=100+Math.round(dU*50), p=85+Math.round(dU2*50); return pos==='B'?b:pos==='W'?Math.round((b+p)*0.75):p; };
+const setBudget=()=>{ AB.budget=budgetOf(); };
+const rangeTxt=()=>dPos==='B'?'（100〜150の中でランダム。1%で「天才」の200）':dPos==='W'?'（投手85〜135と野手100〜150をそれぞれランダムに出して足し、0.75倍。1%で「天才」の350）':'（85〜135の中でランダム。1%で「天才」の150）';
 // 持ち点の振り直し：ペナントの準備のときに3回まで（同じ決め方）。振り直すと能力の割り振りはおまかせに戻る
 const ROLL_MAX=3; let ROLL_LEFT=ROLL_MAX;
-function rollBudget(){ dGenius=rnd()<0.01; dRoll=dGenius?120:ri(60,100); setBudget(); }
+function rollBudget(){ dGenius=rnd()<0.01; dU=rnd(); dU2=rnd(); setBudget(); }
 function rerollHTML(){ return MODE!=='pennant'?'':`<div class="reroll"><button class="btn" id="rerollBtn" ${ROLL_LEFT>0?'':'disabled'}>🎲 持ち点を振り直す（あと${ROLL_LEFT}回）</button><small>${ROLL_LEFT>0?'振り直すと、能力の割り振りはおまかせに戻ります':'振り直しは3回までです'}</small></div>`; }
 function rerollBind(){ const b=document.getElementById('rerollBtn'); if(b) b.onclick=()=>{ if(ROLL_LEFT<=0) return; ROLL_LEFT--; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); renderSetup(); }; }
-/* ---- 野手の能力（どれも20から。1上げるごとに1ポイント） ---- */
+/* ---- 野手の能力（どれも0から。1上げるごとに1ポイント） ---- */
 let BAB={meet:40,power:40,speed:40,eye:40,def:40};
 const BAB_K=['meet','power','speed','eye','def'], BAB_ID={meet:'bMeet',power:'bPow',speed:'bSpd',eye:'bEye',def:'bDef'};
 const babCost=b=>r1(BAB_K.reduce((t,k)=>t+b[k]-bBase(k),0));
-const BAB_MAX=()=>MODE==='pennant'?60:100;   // ペナントの入団時は各能力60まで（プロのスタメンは平均70前後）
+const BAB_MAX=()=>MODE==='pennant'?50:100;   // ペナントの入団時は各能力50まで（プロのスタメンは平均60前後）
 function babAuto(random,budget,keys){
   keys=keys||BAB_K; const B=budget??AB.budget; let left=B; keys.forEach(k=>BAB[k]=bBase(k));
   const w=keys.map(()=>random?0.4+rnd():1), sw=w.reduce((a,b)=>a+b,0);
@@ -990,7 +997,7 @@ BAB_K.forEach(k=>{ $(BAB_ID[k]).oninput=()=>{
 $('bAuto').onclick=()=>{ if(isW()){ wAuto(true); renderSetup(); } else { babAuto(true); renderBAbil(); } };
 function openSetup(mode){MODE=mode||'free';
   draft=new Set(REP); dHand=PHAND; dLev={...PLEV};
-  if(MODE==='pennant'){ ROLL_LEFT=ROLL_MAX; AB={budget:60,velo:130,control:0,stamina:0,brk:{}}; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は60〜100の中で一様にランダム＋投手10・野手20・二刀流15。1%で「天才」（持ち点120）
+  if(MODE==='pennant'){ ROLL_LEFT=ROLL_MAX; AB={budget:85,velo:130,control:0,stamina:0,brk:{}}; rollBudget(); abAuto(false); babAuto(false); if(dPos==='W') wAuto(false); dTeam=''; }   // 持ち点は野手100〜150・投手85〜135・二刀流は（投手＋野手）×0.75。1%で「天才」
   $('posSec').style.display=MODE==='pennant'?'':'none';
   $('roleSec').style.display=MODE==='pennant'?'':'none';
   $('teamSec').style.display=MODE==='pennant'?'':'none';
@@ -1004,7 +1011,7 @@ $('startGame').onclick=()=>{
   if(MODE==='pennant'&&dPos==='W'){   // 二刀流：投手として先発、先発の日は打席にも
     if(abCost(AB)+bat4Cost(BAB)>wTotal()+1e-6||!dTeam) return;
     PHAND=dHand; PNAME_IN=($('pname').value||'').trim().slice(0,10); store.played=true;
-    const rep=['ストレート',...BRK_TYPES.filter(t=>AB.brk[t])], plev={'ストレート':AB.slv||3}; rep.forEach(t=>{ if(AB.brk[t]) plev[t]={'少':1,'普':2,'決':3}[AB.brk[t]]; });
+    const rep=['ストレート',...BRK_TYPES.filter(t=>AB.brk[t])], plev={'ストレート':AB.slv||3}; rep.forEach(t=>{ if(AB.brk[t]) plev[t]=+AB.brk[t]; });
     newPennant('start',{velo:AB.velo,control:AB.control,stamina:AB.stamina,budget:wTotal()},rep,plev,dTeam,'W',{...BAB,budget:wTotal()},dBhand);
     showScreen('pennant'); save(); showDraft(); return;
   }
@@ -1019,7 +1026,7 @@ $('startGame').onclick=()=>{
     PHAND=dHand;
     PNAME_IN=($('pname').value||'').trim().slice(0,10);
     store.played=true;
-    const rep=['ストレート',...BRK_TYPES.filter(t=>AB.brk[t])], plev={'ストレート':AB.slv||3}; rep.forEach(t=>{ if(AB.brk[t]) plev[t]={'少':1,'普':2,'決':3}[AB.brk[t]]; });   // プロ入り後は Lv.1〜7
+    const rep=['ストレート',...BRK_TYPES.filter(t=>AB.brk[t])], plev={'ストレート':AB.slv||3}; rep.forEach(t=>{ if(AB.brk[t]) plev[t]=+AB.brk[t]; });   // 入団時はLv.1〜5、プロ入り後は Lv.7まで
     newPennant(dRole,{velo:AB.velo,control:AB.control,stamina:AB.stamina,budget:AB.budget},rep,plev,dTeam,undefined,undefined,dBhand);
     showScreen('pennant'); save(); showDraft(); return;
   }

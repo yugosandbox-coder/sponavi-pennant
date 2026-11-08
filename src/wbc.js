@@ -87,7 +87,7 @@ function wbcInit(){
   PEN.wbc.role=J.me?{kind:'ev'}:null;   // 出番はその試合ごとに評価で決まる
   const rt=J.me?evRoleText(teams.JPN,'wbc'):'';
   penNotice(`🌏 WBC開幕！ 日本代表監督は${TEAM[champ].short}の${jmgr.sur}監督。${J.me?`あなたは${isBat()?'野手':isTW()?'二刀流（指名打者）':'投手'}として代表入り！ 代表チーム内の評価：${rt}（大会中の成績とミッションで変わる）`:'あなたは選外（2年目以降で通算・去年の評価が高いと選ばれます）'}`);
-  if(J.me){ PEN.talk={y:PEN.year,untilDay:0,text:`${PEN.pname}、日本代表から連絡があった。お前がWBCの代表に選ばれたぞ。代表監督は${TEAM[champ].short}の${jmgr.sur}監督だ。代表での起用は、前年と通算の成績から出した代表チームの中の評価順で決まる。今のところ「${rt}」だそうだ。結果と監督のミッションで評価は上がりも下がりもする。日の丸を背負って、思いきりやってこい。開幕はそのあとだ。`}; }
+  if(J.me){ mgrSay(`${PEN.pname}、日本代表から連絡があった。お前がWBCの代表に選ばれたぞ。代表監督は${TEAM[champ].short}の${jmgr.sur}監督だ。代表での起用は、前年と通算の成績から出した代表チームの中の評価順で決まる。今のところ「${rt}」だそうだ。結果と監督のミッションで評価は上がりも下がりもする。日の丸を背負って、思いきりやってこい。開幕はそのあとだ。`); }
 }
 const wbcSide=(id,g)=>{ const T=PEN.wbc.teams[id]; if(id==='JPN'&&T.F&&T.P) return wbcJSide(PEN.wbc,g||PEN.wbc.jpnGames||1); return {F:T.F,P:T.P,mgr:T.mgr}; };
 // 日本代表のその試合の並び：先発＝ローテーション（評価の上位3人）で中2試合以上空いた中の最上位。ブルペン＝ローテーション以外を評価順（1番手が抑え）。スタメン＝ポジション争い
@@ -226,10 +226,15 @@ function wbcFinish(){
   W.mvpB=bat?{name:bat.name,team:bat.team,me:bat.me,line:lineB(bat)}:null; W.mvpP=pit?{name:pit.name,team:pit.team,me:pit.me,line:lineP(pit)}:null;
   const give=name=>titleAward(name,3,1);   // WBCのMVP：持ち点+3（確定）
   if(bat&&bat.me) give('WBC野手MVP'); if(pit&&pit.me) give('WBC投手MVP');
+  // 敢闘賞：準優勝チームでいちばん活躍した選手（持ち点+0.5）
+  const ru=(W.final||[]).find(x=>x!==W.champ), fs=ru?all.filter(p=>p.team===ru&&(p.kind==='B'?p.st.pa>=5:p.st.outs>=9)).map(p=>({...p,score:mvpScore(p.st)})).sort((x,y)=>y.score-x.score)[0]:null;
+  W.fs=fs?{name:fs.name,team:fs.team,me:fs.me,line:fs.kind==='B'?lineB(fs):lineP(fs)}:null;
+  if(fs&&fs.me) titleAward('WBC敢闘賞',0.5,1);
+  if(bat&&!bat.me&&bat.team==='JPN') cpuAward(bat.name,null,'B',3); if(pit&&!pit.me&&pit.team==='JPN') cpuAward(pit.name,null,'P',3); if(fs&&!fs.me&&fs.team==='JPN') cpuAward(fs.name,null,fs.kind,0.5);   // 日本代表のCPUの選手にも持ち点
   if(W.sel){ const bank=PEN.awake||(PEN.awake={bank:0,done:{},log:[]}); bank.log.push({y:PEN.year,name:'WBC日本代表',pts:0,kind:'title'}); }
   if(W.champ==='JPN'){ PEN.titles=PEN.titles||[]; if(W.sel) PEN.titles.push({y:PEN.year,name:'WBC優勝'}); }
-  penNotice(`🌏 WBC閉幕：優勝は${TEAM[W.champ].name}${W.champ==='JPN'?'！ 日本が世界一！':''}。野手MVP ${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）`:'-'}／投手MVP ${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）`:'-'}`);
-  PEN.wbcHist=PEN.wbcHist||[]; PEN.wbcHist.push({y:W.y,champ:W.champ,sel:W.sel,mvpB:W.mvpB,mvpP:W.mvpP,my:W.myGames});
+  penNotice(`🌏 WBC閉幕：優勝は${TEAM[W.champ].name}${W.champ==='JPN'?'！ 日本が世界一！':''}。野手MVP ${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）`:'-'}／投手MVP ${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）`:'-'}${W.fs?`／敢闘賞 ${W.fs.name}（${TEAM[W.fs.team].short}）`:''}`);
+  PEN.wbcHist=PEN.wbcHist||[]; PEN.wbcHist.push({y:W.y,champ:W.champ,sel:W.sel,mvpB:W.mvpB,mvpP:W.mvpP,fs:W.fs,my:W.myGames});
   if(W.sel&&W.teams.JPN&&W.teams.JPN.F){ const ev=evEnsure(W.teams.JPN); W.myEv=evRoleText(W.teams.JPN,'wbc'); W.myMis=ev.mok+ev.mng?`${ev.mok}/${ev.mok+ev.mng}`:''; }   // 大会を終えたときの代表チーム内の評価
   // 各国の選手データはセーブに残さない（勝敗などの表示用だけ残す）
   { const J=W.teams.JPN; PEN.wbcMates=W.sel&&J&&J.F?{y:W.y,F:J.F.filter(x=>!x.me&&x.f).map(x=>({id:x.f.id,team:x.id})),P:J.P.filter(x=>!x.me&&x.p).map(x=>({id:x.p.pid,team:x.id}))}:null; }   // 合同自主トレで呼べる代表の仲間
@@ -250,7 +255,7 @@ function wbcHTML(){
   const stage={pool:`1次ラウンド 第${Math.min(3,W.round+1)}節`,semi:'準決勝',final:'決勝'}[W.stage];
   const J=W.teams.JPN, live=W.sel&&J&&J.F, rt=live?evRoleText(J,'wbc'):(W.myEv||'');
   const my=W.sel?`<div class="hint">あなた：${isBat()?'野手':isTW()?'二刀流':'投手'}で代表入り${rt?`（${rt}）`:''}${W.myMis?`　ミッション ${W.myMis} 達成`:''}${W.myGames.length?`　${W.myGames.map(g=>`vs${TEAM[g.opp].short} ${g.line}`).join('／')}`:''}</div>${live&&!W.done?evPanelHTML(J,'wbc'):''}`:'<div class="hint">あなたは選外</div>';
-  const mvp=W.done?`<div>🏆 優勝：<b>${TEAM[W.champ].name}</b>　野手MVP：${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）${W.mvpB.line}${W.mvpB.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}　投手MVP：${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）${W.mvpP.line}${W.mvpP.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}</div>`:'';
+  const mvp=W.done?`<div>🏆 優勝：<b>${TEAM[W.champ].name}</b>　野手MVP：${W.mvpB?`${W.mvpB.name}（${TEAM[W.mvpB.team].short}）${W.mvpB.line}${W.mvpB.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}　投手MVP：${W.mvpP?`${W.mvpP.name}（${TEAM[W.mvpP.team].short}）${W.mvpP.line}${W.mvpP.me?' <b style="color:var(--accent)">あなた</b>':''}`:'-'}${W.fs?`　🎖 敢闘賞：${W.fs.name}（${TEAM[W.fs.team].short}）${W.fs.line}${W.fs.me?' <b style="color:var(--accent)">あなた</b>':''}`:''}</div>`:'';
   return `<div class="sh2">🌏 WBC（${W.y}年目）${W.done?'　閉幕':`　${stage}`}</div><div class="pcardx" style="font-size:13px;line-height:1.6">
     <div class="hint">日本代表監督：${TEAM[W.mgrTeam].short}の${W.jmgr.sur}監督（前年日本一）　相手国の強さは日本の0.5〜1.5倍</div>
     ${poolHTML}${res}${my}${mvp}
@@ -266,6 +271,6 @@ function wbcBind(el){
 // セーブから開いたとき：国チームの色・名前をTEAMに戻す
 function wbcRestoreTeams(){
   if(!PEN) return; TEAM.JPN=TEAM.JPN||{...WBC_JPN};
-  const ids=new Set(); if(PEN.wbc) Object.keys(PEN.wbc.teams).forEach(id=>ids.add(id)); (PEN.wbcHist||[]).forEach(h=>{ ids.add(h.champ); if(h.mvpB) ids.add(h.mvpB.team); if(h.mvpP) ids.add(h.mvpP.team); });
+  const ids=new Set(); if(PEN.wbc) Object.keys(PEN.wbc.teams).forEach(id=>ids.add(id)); (PEN.wbcHist||[]).forEach(h=>{ ids.add(h.champ); if(h.mvpB) ids.add(h.mvpB.team); if(h.mvpP) ids.add(h.mvpP.team); if(h.fs) ids.add(h.fs.team); });
   ids.forEach(id=>{ if(!TEAM[id]){ const c=WBC_COUNTRIES.find(x=>x.id===id); if(c) TEAM[id]={...c,lg:''}; } });
 }

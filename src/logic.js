@@ -833,16 +833,17 @@ function resolveBIP(r,c,pt,q,b){
   BIPMETA={side,kind:'fly',q};   // グラウンド画面で打球を描くための情報
 
   // ホームラン
-  let hrP=b.hrRate*HR_K*Math.exp((b.sure!==undefined?1.7:2.3)*q);   // 自分の打席はパワー依存を強く（打球の質への依存は弱め）
-  if(!inZone) hrP*=0.3;
-  if(b.sureK) hrP*= b.sure ? 1+0.5*b.sure : 1-0.5*b.sureK;   // 自分の打席：ミートが高いほど本塁打も「本命が芯」に集中する
-  hrP*=1+PX.xbh;   // 長打になりやすい球種
+  const meB=b.sure!==undefined;   // 自分の打席：本塁打はヒットのうちパワーで決まる割合（下のヒットの判定のあと）
+  const hrRes=()=>{ BIPMETA.kind='fly'; const txt=pick([sideWord+'スタンドへ','バックスクリーンへ',sideWord+'ポール際へ']);
+    return {res:'HR',bases:4,cls:'hr',big:'ホームラン！',text:(side==='center'?'バックスクリーンへ':txt)+'飛び込むホームラン'}; };
   const BT=b.type;   // 打者タイプの効果（打席あたり±5%相当）
-  hrP+=btFx(BT,'hr')*0.6;
-  hrP=clamp(hrP,0,0.75);
-  if(rnd()<hrP){
-    const txt=pick([sideWord+'スタンドへ','バックスクリーンへ',sideWord+'ポール際へ']);
-    return {res:'HR',bases:4,cls:'hr',big:'ホームラン！',text:(side==='center'?'バックスクリーンへ':txt)+'飛び込むホームラン'};
+  if(!meB){
+    let hrP=b.hrRate*HR_K*Math.exp(2.3*q);
+    if(!inZone) hrP*=0.3;
+    hrP*=1+PX.xbh;   // 長打になりやすい球種
+    hrP+=btFx(BT,'hr')*0.6;
+    hrP=clamp(hrP,0,0.75);
+    if(rnd()<hrP) return hrRes();
   }
   // 打球の種類
   let gP=[0.25,0.36,0.48,0.62,0.72][r]-(b.power-50)/260;
@@ -861,11 +862,12 @@ function resolveBIP(r,c,pt,q,b){
   if(kind==='liner')hitP*=1.9;
   if(kind==='ground')hitP*=0.95+(b.speed-50)/400;
   hitP*=1.03;   // 少しヒットが出やすく
-  if(b.sureK) hitP*=1-0.95*Math.pow(b.sureK,1.5);   // 自分の打席：ミートが高いほど「本命が芯」以外の当たりは運任せになりにくい（◎の確実性に寄せる）
+  if(b.sureK) hitP*=1-(typeof EQ!=='undefined'&&EQ.conc!=null?EQ.conc:0.25)*Math.pow(b.sureK,1.5);   // 自分の打席：ミートが高いほど「本命が芯」以外の当たりは運任せになりにくい（◎の確実性に寄せる）
   hitP+=btFx(BT,'hit');
-  hitP=clamp(hitP,0.03,0.85);
+  hitP=clamp(hitP,b.sure!==undefined?0:0.03,0.85);   // 自分の打席は下限なし（ミートが低いほど打てない）
 
   if(rnd()<hitP||(b.sure&&rnd()<b.sure)){   // 自分の打席：本命が芯ならミートに応じて確実にヒット性
+    if(meB&&rnd()<clamp(hrShare(b.power)*(b.hrMul??1)*HR_ME.k*(1+btFx(BT,'hr')*4)*(1+PX.xbh),0,0.95)) return hrRes();   // 自分の打席：ヒットのうち本塁打になる割合はパワーで決まる
     if(kind==='ground'){
       const ifh=0.08+b.speed/100*0.28+btFx(BT,'ifh');
       if(rnd()<ifh){const f=wpick(IF); return {res:'IFH',bases:1,cls:'hit',big:'内野安打',fielder:f,text:FN[f]+'への当たりで俊足を飛ばして内野安打'}}
@@ -1145,14 +1147,23 @@ const myTot=()=>sumN(G.score.my), oppTot=()=>sumN(G.score.opp);
 const SIM_K={bb:1.15};   // CPUの打席の四球（ボール球の見極め）の多さ
 // ミートが低いと芯で捉えられず、パワーがあっても本塁打になりにくい（ミート50が基準、ミート20でほぼ出ない）
 const meetHrK=c=>c>=50?1:Math.max(0.15,Math.pow(Math.max(0,c-20)/30,1.5));
+// 打率の基準：ミート（表示値）に比例する（ほかの要素がなければ ミート1で.100・ミート100で.330）。走力が平均（50）より高いと少しだけ上がる
+const AVG_LIN={lo:0.100,hi:0.330};
+const avgLin=(c,s)=>{ const d=typeof abShow==='function'?abShow(c??50):(c??50); return AVG_LIN.lo+(AVG_LIN.hi-AVG_LIN.lo)*(d-1)/99+((s??50)-50)*0.00035; };
+// 本塁打になる割合（ヒットのうち）：パワー（表示値）に比例する。パワー0で0%・100で25%（70で17.5%）
+const HR_SHARE=Object.assign({max:0.25,e:1},(typeof process!=='undefined'&&process.env&&process.env.HRSH)?JSON.parse(process.env.HRSH):{});
+const HR_ME=Object.assign({k:1.0},(typeof process!=='undefined'&&process.env&&process.env.HRME)?JSON.parse(process.env.HRME):{});   // 自分の打席の本塁打の割合の調整（1＝CPU・スキップと同じ）
+const hrShare=p=>HR_SHARE.max*Math.pow(clamp((typeof abShow==='function'?abShow(p??50):(p??50))/100,0,1),HR_SHARE.e);
+const SIM_AVG=Object.assign({k:1.085},(typeof process!=='undefined'&&process.env&&process.env.SIMAVG)?JSON.parse(process.env.SIMAVG):{});   // 自動で進む打席（CPU同士・スキップ）の打率が avgLin になるようにする調整
 function simPA(b,q){
-  const mk=meetHrK(b.contact??50), BT=b.type, bb=clamp((0.04+b.eye*0.0007)*SIM_K.bb,0.04,0.15), hr=Math.max(0,b.hrRate*mk*q+btFx(BT,'hr')*0.4);
-  const hit=clamp((b.avg-b.hrRate*mk)*0.8*q+btFx(BT,'hit')*0.7,0.1,0.4), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);
+  const BT=b.type, bb=clamp((0.04+b.eye*0.0007)*SIM_K.bb,0.04,0.15);
+  const hit=clamp(avgLin(b.contact,b.speed)*SIM_AVG.k*0.8*q+btFx(BT,'hit')*0.7,0,0.5), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);   // ヒット（本塁打を含む）はミートで決まる
   const x=rnd();
   if(x<bb) return 'BB';
-  if(x<bb+hr) return 'HR';
-  if(x<bb+hr+hit){const y=rnd(),p3=b.speed/100*0.04,p2=Math.max(0,0.15+b.power/100*0.15+btFx(BT,'d2'));return y<p3?'3B':y<p3+p2?'2B':'1B'}
-  if(x<bb+hr+hit+k) return 'K';
+  if(x<bb+hit){   // ヒットの中身（本塁打・二塁打）はパワーで決まる（三塁打は足）
+    if(rnd()<clamp(hrShare(b.power)*(1+btFx(BT,'hr')*4),0,0.6)) return 'HR';
+    const y=rnd(),p3=b.speed/100*0.04,p2=Math.max(0,0.15+b.power/100*0.15+btFx(BT,'d2')); return y<p3?'3B':y<p3+p2?'2B':'1B'; }
+  if(x<bb+hit+k) return 'K';
   return rnd()<0.5?'GO':'FO';
 }
 // 半イニングを自動で進める。needToWin：その点数でサヨナラ（裏の攻撃用）

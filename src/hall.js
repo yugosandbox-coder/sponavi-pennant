@@ -81,7 +81,7 @@ function tryoutSkip(){
 function tryoutAdvance(){
   const t=PEN.tryout;
   if(tryoutNeedP()||tryoutNeedB()){ renderPennant(); save(); return; }
-  t.offer=tryoutOffer(t); t.stage='result';
+  t.offers=t.mode==='W'?tryoutOffersW(t):null; t.offer=t.offers?t.offers[0]||null:tryoutOffer(t); t.stage='result';
   t.hist.push({n:t.n,mode:t.mode,pitch:t.pitch,bat:t.bat,offer:t.offer?{team:t.offer.team,pos:t.offer.pos}:null});
   renderPennant(); save();
 }
@@ -98,7 +98,22 @@ function tryoutScores(t){
 // 球団ごとの「足りなさ」。投手：ローテーション6人目／野手：守れる位置のいちばん強い選手
 function teamNeedP(T){ const rot=staff(T).rot; return 60-Math.min(...rot.map(pitScore)); }
 function teamNeedB(T){ const ps=myPositions(); let best=0; ps.forEach(pos=>{ T.F.filter(f=>f.pos===pos).forEach(f=>{ best=Math.max(best,posValue(f,pos)); }); }); return 60-best; }
+// 二刀流：投打の両方を受け、獲得する球団がそれぞれ条件（投手専念／野手専念／二刀流起用）をつけて電話してくる（最大3球団）
+//   その球団の足りなさ＋チーム成績（下位ほど積極的）で、投打それぞれ欲しいかが決まり、両方欲しければ二刀流起用
+function tryoutOffersW(t){
+  const {sP,sB}=tryoutScores(t), TH=50, out=[], fin=PEN.relFin;
+  for(const tm of NPB){ const T=PEN.teams[tm.id];
+    const L=fin&&fin[tm.lg], rk=L?L.findIndex(x=>x.id===tm.id)+1:0, ra=rk?(rk-3.5)*1.5:0;
+    const vP=sP!=null?sP+teamNeedP(T)*0.6+ra:null, vB=sB!=null?sB+teamNeedB(T)*0.6+ra:null;
+    const okP=vP!=null&&vP>=TH, okB=vB!=null&&vB>=TH;
+    if(okP&&okB) out.push({team:tm.id,pos:'W',v:Math.max(vP,vB)+3,score:Math.max(sP,sB),rank:rk});
+    else if(okP) out.push({team:tm.id,pos:'P',v:vP,score:sP,rank:rk});
+    else if(okB) out.push({team:tm.id,pos:'B',v:vB,score:sB,rank:rk});
+  }
+  return out.sort((a,b)=>b.v-a.v).slice(0,3);
+}
 function tryoutOffer(t){
+  if(t.mode==='W') return tryoutOffersW(t)[0]||null;
   const {sP,sB}=tryoutScores(t), TH=50, cands=[];
   for(const tm of NPB){ const T=PEN.teams[tm.id];
     if(sP!=null){ const need=teamNeedP(T), v=sP+need*0.6; if(v>=TH) cands.push({team:tm.id,pos:'P',v,need,score:sP}); }
@@ -112,16 +127,16 @@ function tryoutOffer(t){
   return best;
 }
 /* ---- 復帰 ---- */
-function tryoutAccept(){
-  const t=PEN.tryout, o=t&&t.offer; if(!o) return;
+function tryoutAccept(i){
+  const t=PEN.tryout, o=t&&((t.offers&&t.offers[i||0])||t.offer); if(!o) return;
   const from=PEN.team, oldPos=PEN.pos;
-  PEN.team=o.team; PEN.released=false; PEN.retired=false; PEN.joinY=PEN.year+1;
+  PEN.team=o.team; PEN.released=false; PEN.retired=false; PEN.relWhy=null; PEN.joinY=PEN.year+1;
   const newPos = o.pos==='W' ? 'W' : (t.mode==='W' ? o.pos : PEN.pos);   // 片方に絞ったら、その方だけで登録
   if(newPos!==oldPos){
     PEN.pos=newPos;
-    if(newPos==='B'){ PEN.bposs=PEN.bposs&&PEN.bposs.length?PEN.bposs:['OF']; PEN.bpos=PEN.bposs[0]; if(!PEN.babil.def) PEN.babil.def=58;
-      PEN.ss=PEN.bss||batStat(); PEN.career=PEN.bcareer||batStat(); PEN.role='代打'; }
-    else if(newPos==='P'){ PEN.ss=penStat(); PEN.career=PEN.pcareer||PEN.career; PEN.role='中継ぎ'; }
+    if(newPos==='B'){ if(oldPos!=='B') PEN.pcareer=PEN.career; PEN.bposs=PEN.bposs&&PEN.bposs.length?PEN.bposs:['OF']; PEN.bpos=PEN.bposs[0]; if(!PEN.babil.def) PEN.babil.def=58;
+      PEN.ss=PEN.bss||batStat(); PEN.career=PEN.bcareer||batStat(); PEN.role='代打'; PEN.dh=false; PEN.dhLineup=null; }
+    else if(newPos==='P'){ PEN.ss=penStat(); PEN.career=PEN.pcareer||PEN.career; PEN.role='中継ぎ'; PEN.dh=false; PEN.dhLineup=null; }
   }
   if(PEN.pos==='B'){ PEN.role='代打'; } else { PEN.role=isStarter(PEN.role)?'裏ローテ':'中継ぎ'; PEN.pgrp=isStarter(PEN.role)?'start':'relief'; PEN.pcat=isStarter(PEN.role)?'out':'pen'; }
   PEN.salary=Math.max(10000000,Math.round(PEN.salary*0.6/1000000)*1000000);
@@ -134,7 +149,7 @@ function tryoutAccept(){
   PEN.notices.unshift({d:0,y:PEN.year,t:`トライアウトを経て${TEAM[o.team].name}に入団（${roleName(PEN.role)}・年俸${yen(PEN.salary)}）`});
   renderPennant(); save();
 }
-function tryoutDecline(){ const t=PEN.tryout; if(!t) return; t.offer=null; t.declined=true; renderPennant(); save(); }
+function tryoutDecline(){ const t=PEN.tryout; if(!t) return; t.offer=null; t.offers=null; t.declined=true; renderPennant(); save(); }
 // 1年たつ（戦力外のまま）：年齢と年数が進み、他球団の選手も入れ替わる
 function tryoutNextYear(){
   PEN.age=(PEN.age||22)+1; PEN.year++;
@@ -167,7 +182,7 @@ function hallRegister(yes){
   renderPennant(); save();
 }
 const hallSeasonLine=s=>{ const ss=s.ss||{}; return ss.pa!=null ? `${ss.g}試合 打率${ss.ab?f3(bAvg(ss)):'-'} ${ss.hr}本 ${ss.rbi}打点 ${ss.sb}盗塁 OPS${ss.pa?f3(bObp(ss)+bSlg(ss)):'-'}` : `${ss.g}登板 ${ss.w}勝${ss.l}敗${ss.sv}S${ss.hld}H 防${fmtRate(ss.runs,ss.outs)} ${fmtIP(ss.outs)}回 K${ss.k}`; };
-const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${ptn(t)}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・速度${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
+const hallAbilTxt=s=>{ const a=s.abil||{}, b=s.babil; const P=(s.pos==='P'||s.pos==='W')&&a.velo?`${a.velo}km/h・制球${a.control}・スタミナ${a.stamina}${s.rep&&s.rep.length>1?'・'+s.rep.slice(1).map(t=>`${ptn(t)}${s.plev&&s.plev[t]?'Lv'+s.plev[t]:''}`).join('/'):''}`:''; const B=(s.pos==='B'||s.pos==='W')&&b?`ミート${b.meet}・パワー${b.power}・走力${b.speed}・選球眼${b.eye}${s.pos==='B'?'・守備'+(b.def??50):''}`:''; return [P,B].filter(Boolean).join('<br>'); };
 /* ---- 戦力外のあとの画面 ---- */
 function renderReleased(el){
   const P=PEN, t=P.tryout, left=TRYOUT_MAX-(P.tryoutN||0), W=P.pos==='W', B=P.pos==='B';
@@ -196,7 +211,17 @@ function renderReleased(el){
     const o=t.offer, {sP,sB}=tryoutScores(t);
     const lines=`${t.pitch?`<div>投手：${tryoutPitchLine(t.pitch)}　<small>評価 ${sP}</small></div>`:''}${t.bat?`<div>野手：${tryoutBatLine(t.bat)}　<small>評価 ${sB}</small></div>`:''}`;
     body=`<h2>🧢 トライアウト結果（${t.n}回目）</h2><div class="pcardx">${lines}<div class="hint">評価＝トライアウトの成績55%＋通算成績45%（33歳を超えると下がる）。球団の足りない所と合わせて、欲しがるかどうかが決まります。</div></div>`;
-    if(o){ const m=mgrOf(o.team), tm=TEAM[o.team];
+    if(t.offers&&t.offers.length){
+      const sal=yen(Math.max(10000000,Math.round(P.salary*0.6/1000000)*1000000)), cond={W:'二刀流で起用',P:'投手に専念',B:'野手（外野手）に専念'};
+      body+=t.offers.map((o,i)=>{ const m=mgrOf(o.team), tm=TEAM[o.team];
+        const say=o.pos==='W'?`うちは投打とも足りなくてな。二刀流のまま、うちで${PEN.age>=33?'もうひと花咲かせて':'やり直して'}みないか。`
+          :o.pos==='P'?`投げるほうを見させてもらった。うちに来るなら、投手に専念してもらう。それが条件だ。`
+          :`打つほうを見させてもらった。うちに来るなら、野手に専念して外野を守ってもらう。それが条件だ。`;
+        return `<div class="pcardx hi trade"><div class="sh2" style="margin-top:0">📞 ${tm.name}の${mgrName(m)}から電話（条件：${cond[o.pos]}）</div>
+          <div class="msay"><div class="mimg">${svgManager(tm,m)}<div class="mlab">${mgrName(m)}<br>${mgrBadges(m)}</div></div><div class="bub r">${P.pname}か。${say}年俸は${sal}からだ。</div></div>
+          <button class="btn main" data-toacc="${i}" style="margin-top:8px;width:100%">${tm.short}に入団する（${cond[o.pos]}）</button></div>`; }).join('')
+        +`<button class="btn" id="toNo" style="width:100%;margin-top:8px">どこにも入団しない</button>`;
+    }else if(o){ const m=mgrOf(o.team), tm=TEAM[o.team];
       body+=`<div class="pcardx hi trade"><div class="sh2" style="margin-top:0">📞 ${tm.name}の${mgrName(m)}から電話</div>
         <div class="msay"><div class="mimg">${svgManager(tm,m)}<div class="mlab">${mgrName(m)}<br>${mgrBadges(m)}</div></div><div class="bub r">${P.pname}か。トライアウト、見させてもらった。うちは${o.pos==='P'?'投手':o.pos==='B'?'野手':'投打とも'}が足りなくてな。${o.pos==='W'?'二刀流のまま':o.pos==='P'?'投手として':'野手として'}、うちで${PEN.age>=33?'もうひと花咲かせて':'やり直して'}みないか。年俸は${yen(Math.max(10000000,Math.round(P.salary*0.6/1000000)*1000000))}からだ。</div></div>
         <div class="row" style="margin-top:8px"><button class="btn main" id="toYes" style="margin:0">入団する</button><button class="btn" id="toNo">断る</button></div></div>`;
@@ -207,13 +232,12 @@ function renderReleased(el){
     }
   }else{
     body=`<h2>戦力外通告</h2>
-      <div class="pcardx bad">${P.year}年目の成績と通算成績が評価されず、<b>戦力外（年俸0円）</b>となりました。</div>
+      <div class="pcardx bad">${P.relWhy==='tw'?'監督からの専念の打診を断り、二刀流にこだわった結果':`${P.year}年目の成績と通算成績が評価されず`}、<b>戦力外（年俸0円）</b>となりました。</div>
       <div class="pcardx" style="font-size:13px">${careerLine}</div>
       ${P.tryout&&P.tryout.hist&&P.tryout.hist.length?'':''}
       ${left>0?`<div class="sh2">12球団合同トライアウト（1年に1回・人生であと${left}回）</div>
-        ${W?`<button class="btn main" data-to="W">投打の両方で受ける（二刀流のまま）</button>
-             <button class="btn main" data-to="P" style="margin-top:8px">投手に絞って受ける（投手だけで登録）</button>
-             <button class="btn main" data-to="B" style="margin-top:8px">野手に絞って受ける（野手だけで登録）</button>`
+        ${W?`<button class="btn main" data-to="W">トライアウトを受ける（投手1イニング＋野手${TRYOUT_PA}打席）</button>
+             <div class="hint">二刀流は投打の両方を受けます。獲得する球団は、チームの事情に合わせて「投手に専念」「野手に専念」「二刀流で起用」のどれかを条件にしてきます</div>`
           :`<button class="btn main" data-to="${B?'B':'P'}">トライアウトを受ける（${B?TRYOUT_PA+'打席':'1イニング'}）</button>`}`
         :`<div class="hint">トライアウトはもう受けられません。</div>`}
       <button class="btn" id="toRetire" style="width:100%;margin-top:8px">引退する</button>
@@ -224,7 +248,7 @@ function renderReleased(el){
   const on=(id,f)=>{ const e=document.getElementById(id); if(e) e.onclick=f; };
   el.querySelectorAll('[data-to]').forEach(b=>b.onclick=()=>tryoutStart(b.dataset.to));
   on('toP',tryoutPlayP); on('toB',tryoutPlayB); on('toSkip',tryoutSkip); on('toCont',()=>showScreen('game'));
-  on('toYes',tryoutAccept); on('toNo',tryoutDecline); on('toAgain',()=>tryoutStart(PEN.tryout.mode)); on('toRetire',tryoutRetire);
+  on('toYes',()=>tryoutAccept(0)); el.querySelectorAll('[data-toacc]').forEach(b=>b.onclick=()=>tryoutAccept(+b.dataset.toacc)); on('toNo',tryoutDecline); on('toAgain',()=>tryoutStart(PEN.tryout.mode)); on('toRetire',tryoutRetire);
   on('hallYes',()=>hallRegister(true)); on('hallNo',()=>hallRegister(false));
   on('penNew',()=>{ PEN=null; openSetup('pennant'); }); on('penMode',()=>showScreen('mode'));
 }

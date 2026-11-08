@@ -134,25 +134,29 @@ function pitAI(pit){
 function meObj(){
   const a=G.babil;
   return {name:G.pname,hand:G.bhand,power:a.power,contact:a.meet,speed:a.speed,eye:a.eye,
-    avg:clamp(0.205+a.meet*0.0005+a.speed*0.0002,.2,.33),hrRate:cpuHrRate(a.power)*meetHrK(a.meet)*meetHrF(a.meet)*HR_TOP(a.power,EQ.hp),order:G.me.order,type:myBtype()};
+    avg:avgLin(a.meet,a.speed)*meetAvgK(abShow(a.meet))*BAT_ADJ.avg-0.03,hrRate:cpuHrRate(a.power)*meetHrK(a.meet)*meetHrF(a.meet)*HR_TOP(a.power,EQ.hp),order:G.me.order,type:myBtype()};
 }
-const BAT_ADJ={wh:-0.05,q:0,ch:-0.03,sure:0.9};
-const EQ=Object.assign({q:0.009,qm:0.004,qh:0.003,qp:0.35,qe:3,qx:0.14,sp:0.2,qcap:0.16,wh:0.005,hb:0.76,hlo:0.02,hhi:-0.0064,hp:0.81},(typeof process!=='undefined'&&process.env.EQ)?JSON.parse(process.env.EQ):{});
+const BAT_ADJ={wh:-0.05,q:-0.10,ch:-0.03,sure:0.25,avg:1.0};
+// 自分の打席の打率の基準の倍率（ミートの表示値ごと）。狙えるマス・球速の幅・確実にヒット性などを通した結果の打率が、
+// CPU・スキップと同じようにミートに比例する（ほかの要素がなければミート1で.010・100で.330）ようにする
+const MEET_AVG_K=[[1,1.68],[10,1.67],[20,1.57],[30,1.39],[50,1.37],[60,1.35],[70,1.24],[80,1.165],[84,1.11],[85,1.04],[90,1.03],[100,1.0]];
+if(typeof process!=='undefined'&&process.env&&process.env.MAK) MEET_AVG_K.splice(0,MEET_AVG_K.length,...JSON.parse(process.env.MAK));
+const meetAvgK=d=>{ const T=MEET_AVG_K; if(d<=T[0][0]) return T[0][1]; for(let i=1;i<T.length;i++) if(d<=T[i][0]){ const [a,x]=T[i-1],[b,y]=T[i]; return x+(y-x)*(d-a)/(b-a); } return T[T.length-1][1]; };   // q：打球の質の全体の調整（ミート100・通常の打ち方で平均.310前後）／sure：本命が芯・コース的中のときに確実にヒット性になる割合（ミート100で25%）
+const EQ=Object.assign({conc:0.25,q:0.009,qm:0.004,qh:0.003,qp:0.35,qe:3,qx:0.14,sp:0.2,qcap:0.16,wh:0.005,hb:0.76,hlo:0.02,hhi:-0.0064,hp:0.81},(typeof process!=='undefined'&&process.env.EQ)?JSON.parse(process.env.EQ):{});
 // 自分の打席の本塁打：CPUと同じ本塁打率（cpuHrRate）に、ミートによる補正（ミートが高いほど打球が良くなって本塁打が増えすぎるのをならす）
-const eqQMeet=m=>m<=60?Math.min(EQ.qcap,(60-m)*EQ.q)-Math.max(0,35-m)*0.012 : m<=75?-(m-60)*EQ.qm : -15*EQ.qm-(m-75)*EQ.qh;   // 打球の質の補正（ミート）
 const meetHrF=m=>m<=50?EQ.hb+Math.min(50-m,4)*EQ.hlo : m<=75?EQ.hb : Math.max(0.3,EQ.hb-(m-75)*EQ.hhi);
 // 自分の打ち方（打席の最初に選ぶ）：通常／四球狙い／単打狙い／フルスイング。同じ打ち方（通常以外）を続けると読まれて打ち取られやすくなる（試合ごとにリセット）
 const BSTY=['n','bb','s1','fs'];
 const BSTY_JP={n:'通常',bb:'四球狙い',s1:'単打狙い',fs:'フルスイング'};
 const BSTY_TXT={n:'今までどおりの打ち方',bb:'ボール球を見極め、ファウルで粘る（ヒットはほぼ出ない）',s1:'長打を捨ててシングルヒット狙い（空振りが減る）',fs:'狙ったコースだけを強振。ヒットは長打になる'};
 //  bb：chase/fooled＝ボール球・逃げる変化に手を出す確率の倍率、wh＝空振りの倍率、fo＝狙ったコースのファウル率、cut＝カット成功＋、cutSw＝追い込まれてからカットしにいく確率＋、q＝打球の質、keep＝ヒット性が残る割合、late＝この球数を超えると崩れ始める（1球ごとに空振り＋lwh・カット−lcut）
-//  s1：wh＝空振りの倍率、q＝打球の質＋、cut＝カット成功＋、hr1＝本塁打性がシングルヒットになる割合（残りは外野フライ）
+//  s1：wh＝空振りの倍率、q＝打球の質＋、cut＝カット成功＋、hr1＝本塁打性がシングルヒットになる割合（残りは外野フライ。本塁打が多くなったので全部シングルヒット）
 //  fs：fwh＝狙っていないコースを振ったときの空振り率（残りはフライ）、sw2＝追い込まれてから狙っていないストライクを振る確率（＋選球眼×0.1）、fo/wh＝狙ったコースのファウル・空振り＋、q＋qp×(パワー−50)/50＝狙ったコースの打球の質＋、
 //      x2＋x2p×(パワー−50)/50＝シングル性の当たりが長打になる割合（残りは外野フライ）、hr＝本塁打率の倍率
 //  rep＝同じ打ち方の連続（2・3・4打席目〜）で打球の質−・空振り＋（四球狙いは振る回数が多いので空振り＋はrepBB倍）、zp＝四球狙いの連続で投手がストライクを増やす量
-const BSTY_K={bb:{chase:0.45,fooled:0.7,wh:0.5,fo:0.75,cut:0.15,cutSw:0.05,q:-0.25,keep:0.3,late:6,lwh:0.04,lwhMax:0.20,lcut:0.04,lcutMax:0.25},
-  s1:{wh:0.8,q:0.10,cut:0.05,hr1:0.5},
-  fs:{fwh:0.60,sw2:0.88,fo:0.05,wh:0.03,q:0.45,qp:0.2,x2:0.8,x2p:0.7,hr:1.2},
+const BSTY_K={bb:{chase:0.33,fooled:0.65,wh:0.4,fo:0.75,cut:0.25,cutSw:0.05,q:-0.25,keep:0.3,late:6,lwh:0.04,lwhMax:0.20,lcut:0.04,lcutMax:0.25},
+  s1:{wh:0.8,q:0.13,cut:0.05,hr1:1},
+  fs:{fwh:0.60,sw2:0.88,fo:0.05,wh:0.03,q:0.25,qp:0.05,x2:0.8,x2p:0.5,hr:1.6},
   rep:[0,0,0.03,0.06,0.09], repBB:0.5, zp:0.03};
 if(typeof process!=='undefined'&&process.env&&process.env.BSK){ const o=JSON.parse(process.env.BSK); for(const k in o) BSTY_K[k]=typeof o[k]==='object'&&!Array.isArray(o[k])?Object.assign(BSTY_K[k],o[k]):o[k]; }
 const bstyN=()=>{ const s=(G&&G.bsty)||'n'; return s==='n'?0:Math.min(4,G.bstyLast===s?(G.bstyN||1)+1:1); };   // 今の打ち方が何打席連続か（通常は0）
@@ -205,7 +209,7 @@ function batResolve(p){
   // 振ったときの結果：空振り・ファウル・前に飛ぶ（qが大きいほど良い当たり）
   let wh, fo, q, sure=0;
   if(mode==='hit'){
-    sure = isMain&&dv<=SWEET ? Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))*BAT_ADJ.sure*(1-EQ.sp*Math.max(0,(A.power-50)/50)) : 0;   // 本命が芯・コース的中：ミート100なら100%ヒット性（ミート80で約半分、50以下は0）
+    sure = isMain&&dv<=SWEET ? Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))*BAT_ADJ.sure*(1-EQ.sp*Math.max(0,(A.power-50)/50)) : 0;   // 本命が芯・コース的中：ミート100なら25%で確実にヒット性（ミート90で約13%、70以下は0）
     wh=clamp(0.10-meet*0.06+(1-tq)*0.25+lvP*0.04+(pq-1)*0.2+(1-eye)*0.05,0.02,0.35)*(1-sure);
     fo=clamp(0.25-meet*0.06+(1-tq)*0.28,0.07,0.45)*(1-sure);   // 幅の端ほどファウルが増える
     q=-0.02+tq*0.25+meet*0.08-lvP*0.05-(pq-1)*0.5-(1-eye)*0.12+noise(0.2)+sure*0.1;   // 選球眼・技術が低いと狙い球でも打ち損じる
@@ -218,7 +222,6 @@ function batResolve(p){
   }else if(mode==='chaseZ'){ wh=0.3; fo=0.35; q=-0.15+noise(0.18); }
   else { wh=clamp(0.45-meet*0.1,0.25,0.5); fo=0.30+(1-eye)*0.12; q=-0.5+noise(0.15); }   // ボール球に手を出す（選球眼が低いとカットしてしまう）
   wh=clamp(wh+fx.wh*(1-sure)+BAT_ADJ.wh,0,0.9); q+=fx.q+BAT_ADJ.q;   // 球種の特徴（＋全体のバランス調整）
-  { const m=A.meet, pw=A.power; q+=eqQMeet(m)-(pw>50?EQ.qp*Math.pow((pw-50)/50,EQ.qe)*meetHrK(m)+EQ.qx*Math.max(0,(m-75)/25)*(pw-50)/50:0); if(m<60) wh=clamp(wh-(60-m)*EQ.wh,0,0.9); }   // 同じ能力のCPUと成績が近くなるように（ミートが低いと打てなさすぎ・高いと打てすぎるのをならす）
   { const kb=gKeikB(); if(kb){ wh=clamp(wh+0.04*kb,0,0.9); q-=0.07*kb; } }   // 警戒：研究されていて打ちにくい
   if(typeof cbG==='function'){ if(two&&cbG('nebari')){ wh*=0.85; q+=0.04; } if(cbG('yosho')&&inPinch(G.bases)){ wh*=0.9; q+=0.05; } }   // コーチ：粘り勝つ（2ストライク後）・要所（得点圏）
   if(platoon) wh*=0.88;
@@ -236,7 +239,7 @@ function batResolve(p){
     return {...base,kind:'foul',text:'ファウル'};
   }
   BIPFX={gb:fx.gb,fb:fx.fb,xbh:fx.xbh};
-  const mo=meObj(); if(S==='fs') mo.hrRate*=SK.hr;   // フルスイング：本塁打が出やすい
+  const mo=meObj(); if(S==='fs') mo.hrMul=SK.hr;   // フルスイング：本塁打が出やすい
   let bip=Object.assign(resolveBIP(p.r,p.c,p.pt,q,{...mo,sure,sureK:Math.min(1,Math.pow(Math.max(0,(meet-0.5)/0.5),1.5))}),BIPMETA);
   if(S==='bb'&&!bip.out&&bip.res!=='IFH'){   // 四球狙い：当てただけの打球（たまにポテンヒット）
     bip = rnd()<SK.keep&&bip.res!=='HR' ? {...bip,res:'1B',bases:1,cls:'hit',big:'ヒット',text:'当てただけの打球がポテンヒットに'} : bipOut(bip,bip.res==='HR');
@@ -544,7 +547,7 @@ const batLineTxt=s=>`${s.ab}打数${s.h}安打${s.hr?` ${s.hr}本塁打`:''}${s.
 /* ================= 二刀流：先発の日は打席にも立つ（DHなし） ================= */
 const isTW=()=>!!(typeof PEN!=='undefined'&&PEN&&PEN.pos==='W');
 const hasBat=()=>!!(typeof PEN!=='undefined'&&PEN&&(PEN.pos==='B'||PEN.pos==='W'));
-function twBatEval(){ const r=ratingB(PEN.bss||batStat()); return r==null?abilityRB():r; }
+function twBatEval(){ const r=seasonRateB(myMgr(),PEN.bss||batStat()); return r==null?priorRB():r; }   // 二刀流の打撃の評価（ノルマ方式）
 // 試合を二刀流用にする（newGame のあと）
 function twSetup(lineup){
   const me=lineup.find(b=>b.isMe);
@@ -834,7 +837,7 @@ function renderScoutBat(){
 function abilityRB(){ const a=perfB(PEN.babil); return clamp(18+a.meet*0.25+a.power*0.2+a.speed*0.08+a.eye*0.12+(a.def??50)*0.04,25,85); }
 // 成績の評価（OPS中心。打席が少ないうちは能力の見込みに寄せる）
 function ratingB(s){ return mgrRatingB(myMgr(),s); }   // 監督の志向で評価の重みが変わる（manager.js）
-const pinchProb=()=>clamp(0.25+(evalR()-40)/40*0.25,0.15,0.5);
+const pinchProb=()=>clamp(0.25+(evalOld()-40)/40*0.25,0.15,0.5);
 const orderFor=r=>r==='代打'?0:(PEN.order||9);   // 打順はスタメン争い（penCompete）で決まる
 // スタメン争い：守備位置ごとに能力＋監督の評価で決める（シーズン開始時と10試合ごと）
 function penCompete(quiet){
@@ -945,7 +948,7 @@ function checkMissionB(){
   const ok={bh1:s.h>=1,bmh:s.h>=2,bxbh:s.d2+s.d3+s.hr>=1,brbi:s.rbi>=1,bob2:ob>=2,bob1:ob>=1,bnok:s.pa>=3&&s.k===0,bnok1:s.pa>=1&&s.k===0,bsb:s.sb>=1}[m.id];
   m.ok=!!ok;
   if(missionScore(m.ok)) return;   // 評価：シーズン／ポストシーズン（翌年へ）／大会の中だけ（pennant.js）
-  const a=PEN.babil, got=[], N={meet:'ミート',power:'パワー',speed:'速度',eye:'選球眼・技術',def:'守備'};
+  const a=PEN.babil, got=[], N={meet:'ミート',power:'パワー',speed:'走力',eye:'選球眼・技術',def:'守備'};
   for(const k in m.rw){ const v=r1(m.rw[k]*MIS_K); a[k]=r1(Math.min(100,a[k]+v)); got.push(`${N[k]}+${v}`); }   // ミッションの上がり幅は1/5
   m.got=got.join('・');
   penNotice(`ミッション達成！「${m.text}」 ${m.got}${missionWhere()}`);
@@ -976,16 +979,17 @@ function titleRaceB(s){
     return {id:t.id,name:t.name,note:t.note,won,shared,mine:r.mine==null?'-':f(r.mine)+r.unit,why:r.why||'',ai:`${r.ai.name}（${TEAM[r.ai.team].short}）${f(r.ai.v)}${r.unit}`};
   });
 }
-function salaryChgB(y){ const s=PEN.ss; return (y-52)/45+s.hr*0.004+s.rbi*0.001+s.sb*0.002+s.h*0.0005; }
+function salaryChgB(y,s){ s=s||PEN.ss; return (y-52)/45+s.hr*0.004+s.rbi*0.001+s.sb*0.002+s.h*0.0005; }   // 評価（52で±0）＋本塁打・打点・盗塁・安打
 /* ---- 年俸査定のあとの能力変化（野手） ---- */
 function abilityChangeB(s,minPA){
   s=s||PEN.ss; minPA=minPA||100;
-  const age=PEN.age, old=age>33, out={meet:0,power:0,speed:0,eye:0,def:0,why:{}};
+  const age=PEN.age, old=!!PEN.declAge, out={meet:0,power:0,speed:0,eye:0,def:0,why:{}};   // 衰えが始まっていたら（33〜35歳で始まる）
   const pa=s.pa;
   if(pa>=minPA){
     const avg=bAvg(s), iso=bSlg(s)-avg, bbp=(s.bb+s.hbp)/pa;
-    out.meet = avg>=.310?2: avg>=.275?1: avg>=.235?0:-1; out.why.meet=`打率 ${f3(avg)}`;
-    out.power= iso>=.220?2: iso>=.160?1: iso>=.090?0:-1; out.why.power=`長打力（長打率−打率）${f3(iso)}・本塁打${s.hr}`;
+    out.meet = avg>=.310?2: avg>=.275?1: avg>=.215?0:-1; out.why.meet=`打率 ${f3(avg)}`;
+    const xb=s.h?iso*s.ab/s.h:0;   // ヒット1本あたりの上乗せ塁打（長打の割合。パワーだけで決まる）
+    out.power= xb>=.92?2: xb>=.80?1: xb>=.63?0:-1; out.why.power=`長打の割合（ヒット1本あたりの上乗せ塁打）${xb.toFixed(2)}・本塁打${s.hr}`;
     out.eye  = bbp>=.12?2: bbp>=.085?1: bbp>=.05?0:-1; out.why.eye=`四死球率 ${Math.round(bbp*1000)/10}%・三振${s.k}`;
   }else{ out.why.meet=out.why.power=out.why.eye=`打席が少なく判断できず（${pa}打席）`; }
   out.speed = s.sb>=30?1: (s.sb+s.d3)>=3?0: pa>=minPA?-1:0; out.why.speed=`盗塁${s.sb}・三塁打${s.d3}`;
@@ -999,17 +1003,23 @@ function abilityChangeB(s,minPA){
   // 若手の成長：29歳までは、二軍でも一軍でも年齢に応じて毎年伸びる（±40%のばらつき）
   const yg=YOUTH_G(age);
   if(yg>0) for(const k of ['meet','power','speed','eye','def']){ if(k==='def'&&isTW()) continue;
-    const g=r1(yg*(0.6+rnd()*0.8)); out[k]=r1(out[k]+g); out.why[k]=(out.why[k]?out.why[k]+'・':'')+`若手の成長 +${g}`; }
+    const m=youthHiMul(PEN.babil[k]??50), g=r1(yg*(0.6+rnd()*0.8)*m); out[k]=r1(out[k]+g); out.why[k]=(out.why[k]?out.why[k]+'・':'')+`若手の成長 +${g}${m<1?`（能力が高いので×${m}）`:''}`; }
   return out;
 }
-const YOUTH_G=age=>age<=22?4.0:age<=25?3.5:age<=28?2.0:age<=29?1.0:0;   // 18〜22歳4.0／23〜25歳3.5／26〜28歳2.0／29歳1.0
+const YOUTH_GV=[4.0,3.5,2.0,1.0];   // 若手の成長（毎年・全能力）：18〜22歳／23〜25歳／26〜28歳／29歳
+if(typeof process!=='undefined'&&process.env&&process.env.YGV) YOUTH_GV.splice(0,4,...JSON.parse(process.env.YGV));
+// 若手の成長は、能力が高いほど小さくなる（[この値以上, 倍率]）
+const YOUTH_HI=[[85,0],[70,0.2]];
+if(typeof process!=='undefined'&&process.env&&process.env.YHI) YOUTH_HI.splice(0,YOUTH_HI.length,...JSON.parse(process.env.YHI));
+const youthHiMul=v=>{ for(const [t,m] of YOUTH_HI) if(v>=t) return m; return 1; };
+const YOUTH_G=age=>age<=22?YOUTH_GV[0]:age<=25?YOUTH_GV[1]:age<=28?YOUTH_GV[2]:age<=29?YOUTH_GV[3]:0;
 function applyAbilityChangeB(ch){ if(!ch) return; const a=PEN.babil; for(const k of ['meet','power','speed','eye','def']) a[k]=r1(clamp((a[k]??50)+(ch[k]||0),0,100)); }
 function abilChangeHTMLB(ch,tw){
   const a=PEN.babil, f=v=>v>0?`<span class="up">+${v}</span>`:v<0?`<span class="dn">${v}</span>`:'±0';
-  const rows=[['ミート','meet'],['パワー','power'],['速度','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${r1(clamp((a[k]??50)+(ch[k]||0),0,100))}</b>（${f(r1(ch[k]||0))}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
-  return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.age>33?'・33歳を超えたので衰えが大きい（マイナスは'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
+  const rows=[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${r1(clamp((a[k]??50)+(ch[k]||0),0,100))}</b>（${f(r1(ch[k]||0))}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
+  return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
 }
 function batLine(s){
   return `${s.g}試合（スタメン${s.gs}）　打率 <b>${s.ab?f3(bAvg(s)):'-'}</b>　${s.hr}本塁打 ${s.rbi}打点 ${s.sb}盗塁<br>${s.h}安打（二塁打${s.d2}・三塁打${s.d3}）　出塁率 ${s.pa?f3(bObp(s)):'-'}　OPS ${s.pa?f3(bObp(s)+bSlg(s)):'-'}`;
 }
-const babilTxt=a=>`ミート${a.meet}・パワー${a.power}・速度${a.speed}・選球眼${a.eye}・守備${a.def??50}`;
+const babilTxt=a=>`ミート${a.meet}・パワー${a.power}・走力${a.speed}・選球眼${a.eye}・守備${a.def??50}`;

@@ -126,17 +126,18 @@ const psTop=(s,team)=>Object.values(s.pstats||{}).filter(x=>x.team===team).sort(
 const psPack=p=>p?{name:p.name,team:p.team,me:p.me,line:psLine(p)}:null;
 function psAwards(S){
   const give=(name,pts)=>{ titleAward(name,pts,1); S.awards=S.awards||[]; S.awards.push(`${name}（持ち点+${pts}）`); };
+  const cpu=(p,pts)=>{ if(p&&!p.me) cpuAward(p.name,p.team,p.kind,pts); };   // CPUの選手にも持ち点
   for(const key of ['セF','パF']){ const s=S.series[key]; if(!s||s.awarded) continue; const w=psWinner(s); if(!w) continue;
-    s.awarded=true; const mvp=psTop(s,w); s.mvp=psPack(mvp); if(mvp&&mvp.me) give('クライマックスシリーズMVP',3); }
+    s.awarded=true; const mvp=psTop(s,w); s.mvp=psPack(mvp); if(mvp&&mvp.me) give('クライマックスシリーズMVP',3); cpu(mvp,3); }
   // CS敢闘賞：両リーグのファイナルが終わったら、負けた4チーム（1st敗者2＋ファイナル敗者2）の中から
   if(!S.csFsDone&&['セF','パF'].every(k=>S.series[k]&&psWinner(S.series[k]))){
     S.csFsDone=true; const cands=[];
     for(const k of ['セ1','パ1','セF','パF']){ const s=S.series[k]; const w=psWinner(s); const loser=w===s.a?s.b:s.a; const t=psTop(s,loser); if(t) cands.push(t); }
-    const fs=cands.sort((a,b)=>b.score-a.score)[0]; S.csFs=psPack(fs); if(fs&&fs.me) give('CSの敢闘賞',0.5);
+    const fs=cands.sort((a,b)=>b.score-a.score)[0]; S.csFs=psPack(fs); if(fs&&fs.me) give('CSの敢闘賞',0.5); cpu(fs,0.5);
   }
   const js=S.series.JS; if(js&&!js.awarded&&psWinner(js)){ js.awarded=true; const w=psWinner(js), l=w===js.a?js.b:js.a;
     const mvp=psTop(js,w), fs=psTop(js,l); js.mvp=psPack(mvp); js.fs=psPack(fs);
-    if(mvp&&mvp.me) give('日本シリーズMVP',3); if(fs&&fs.me) give('日本シリーズ敢闘賞',0.5); }
+    if(mvp&&mvp.me) give('日本シリーズMVP',3); if(fs&&fs.me) give('日本シリーズ敢闘賞',0.5); cpu(mvp,3); cpu(fs,0.5); }
 }
 const psMyTeamIn=S=>Object.values(S.series).some(psMine)||['セ','パ'].some(lg=>S.fin[lg].slice(0,3).some(x=>x.id===PEN.team));
 function psHTML(rv){
@@ -164,8 +165,8 @@ function psBind(el){
 
 /* ---- 33歳を超えてからの衰え：年々大きくなる（34歳で5倍、1歳ごとに+1倍、最大20倍。マイナスの変化だけ） ---- */
 function agingAmplify(ab){
-  if(!PEN||!ab) return ab; const age=PEN.age; if(age<=33) return ab;
-  const m=clamp(4+(age-33),5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
+  if(!PEN||!ab||!PEN.declAge) return ab; const y=PEN.age-PEN.declAge+1;   // 衰えが始まってからの年数
+  const m=clamp(4+y,5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
   const amp=o=>{ if(!o) return; for(const k of ['velo','control','stamina','meet','power','speed','eye','def']) if(typeof o[k]==='number'&&o[k]<0) o[k]=o[k]*m; o.agingMul=m; };
   amp(ab); if(ab.bat) amp(ab.bat);
   return ab;

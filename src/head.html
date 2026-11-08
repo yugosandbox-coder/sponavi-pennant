@@ -335,8 +335,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .abhint{font-size:11.5px;color:var(--mute);margin-top:2px}
 .ableft{position:sticky;top:0;z-index:2;background:#0f1f17;padding:8px 0;font-size:15px;font-weight:900;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ableft.over{color:#ff8a7a}
-.abbr{display:grid;grid-template-columns:94px repeat(4,1fr);gap:4px;align-items:center;margin-top:6px;font-size:12.5px}
-.abbr .lvb{padding:6px 1px;font-size:12px;line-height:1.25}
+.abbr{display:grid;grid-template-columns:78px repeat(6,1fr);gap:3px;align-items:center;margin-top:6px;font-size:12px}
+.abbr .lvb{padding:6px 0;font-size:11px;line-height:1.2;min-width:0}
+.abbr>span:first-child{grid-row:span 1}
+.abbr .lvb[data-slv='1']{grid-column:3}
 .abbr .lvb small{display:block;font-size:9.5px;font-weight:400;opacity:.8}
 .mbar{background:#2a2410;border:1px solid #6b5520;border-top:none;color:#f3dfa0;font-size:12.5px;padding:5px 8px}
 .mbar b{color:#ffd84a}
@@ -590,7 +592,7 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
   <div id="posSec" style="display:none">
     <div class="sh">ポジション</div>
     <div class="seg3" id="poscards"></div>
-    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は1.9倍で、投手と打撃の能力で分け合います。</div>
+    <div class="abhint" id="wNote" style="display:none">二刀流：投手（先発）として入団し、先発の日はDHなしで打席にも立ちます（打順は打撃の成績で監督が決めます）。持ち点は、投手（85〜135）と野手（100〜150）の持ち点を足して0.75倍した点数で、投手と打撃の能力に自由に分け合います。</div>
     <div id="bhandSec" style="display:none"><div class="sh">打席（打ち）</div><div class="seg3" id="bhcards"></div><div class="abhint" id="bhandNote"></div></div>
   </div>
   <div id="roleSec" style="display:none">
@@ -618,17 +620,17 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div class="abhint">同じ守備位置のチームの選手と、能力と監督の評価でスタメンを争います（指名打者の枠もあり）。守れる位置はキャンプで増やせます（数の上限なし。増えるほど覚えるコストが上がる）</div></div>
     <div class="sh">能力　持ち点 <span id="bBudget"></span><span id="bRange"></span></div><div id="bReroll"></div>
     <div class="ableft" id="bLeft"></div><div class="abhint">0.1刻みで振り分けられます（−ALL＝振る前に戻す・−／＋＝0.1ずつ・+.5＝能力が0.5上がる分）</div>
-    <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="15" max="100" step="0.1"><b id="bMeetV"></b></div>
+    <div class="abrow"><span class="abn">ミート</span><input type="range" id="bMeet" min="0" max="100" step="0.1"><b id="bMeetV"></b></div>
     <div class="abhint" id="bMeetH"></div>
-    <div class="abrow"><span class="abn">パワー</span><input type="range" id="bPow" min="15" max="100" step="0.1"><b id="bPowV"></b></div>
+    <div class="abrow"><span class="abn">パワー</span><input type="range" id="bPow" min="0" max="100" step="0.1"><b id="bPowV"></b></div>
     <div class="abhint">長打（二塁打・本塁打）になりやすくなる</div>
-    <div class="abrow"><span class="abn">速度</span><input type="range" id="bSpd" min="20" max="100" step="0.1"><b id="bSpdV"></b></div>
+    <div class="abrow"><span class="abn">走力</span><input type="range" id="bSpd" min="0" max="100" step="0.1"><b id="bSpdV"></b></div>
     <div class="abhint">三塁打・内野安打・盗塁が増える</div>
-    <div class="abrow"><span class="abn">選球眼・技術</span><input type="range" id="bEye" min="20" max="100" step="0.1"><b id="bEyeV"></b></div>
+    <div class="abrow"><span class="abn">選球眼・技術</span><input type="range" id="bEye" min="0" max="100" step="0.1"><b id="bEyeV"></b></div>
     <div class="abhint">ボール球を振らない・追い込まれてから狙っていない球をカットできる（低いとボール球に手を出し、狙い球でも打ち損じる）</div>
-    <div id="bDefRow"><div class="abrow"><span class="abn">守備</span><input type="range" id="bDef" min="20" max="100" step="0.1"><b id="bDefV"></b></div>
+    <div id="bDefRow"><div class="abrow"><span class="abn">守備</span><input type="range" id="bDef" min="0" max="100" step="0.1"><b id="bDefV"></b></div>
     <div class="abhint">スタメン争いで有利に（捕手・遊撃手ほど大事）。チームの失点も少し減る</div></div>
-    <div class="abhint">どの能力も20から（左打ちは速度、右打ちはパワーが30から。両打ちはミート・パワーが15から）。1上げるごとに1ポイント。ペナントの入団時は各能力60まで（プロのスタメンは平均70前後）</div>
+    <div class="abhint">どの能力も0から。1上げるごとに1ポイント（0.1で0.1ポイント）。ペナントの入団時は各能力50まで（プロのスタメンは平均60前後）</div>
     <button class="btn" id="bAuto" style="width:100%;margin-top:8px">おまかせで振り分ける</button>
   </div>
   <!-- ペナント：持ち点で能力を決める -->
@@ -636,13 +638,13 @@ small.up{color:#6fdc8c}small.dn{color:#ff8a7a}
     <div class="sh">能力　持ち点 <span id="abBudget"></span><span id="abRange"></span></div><div id="abReroll"></div>
     <div class="ableft" id="abLeft"></div><div class="abhint">0.1刻みで振り分けられます（球速は130km/hが基礎で、0.1km/hごとに0.5pt。スライダーの横の −／＋で0.1ずつ）</div>
     <div class="abrow"><span class="abn">球速 km/h</span><input type="range" id="abVelo" min="130" max="160" step="0.1"><b id="abVeloV"></b></div>
-    <div class="abhint">120〜160km/h。1km/hごとに2ポイント（速いほど空振りが取れ、遅いと対応される）</div>
-    <div class="abrow"><span class="abn">コントロール</span><input type="range" id="abCtl" min="0" max="100" step="0.1"><b id="abCtlV"></b></div>
-    <div class="abhint">0〜100。1ごとに1ポイント（低いと狙ったマスからずれやすい）</div>
-    <div class="abrow"><span class="abn">スタミナ</span><input type="range" id="abSta" min="0" max="100" step="0.1"><b id="abStaV"></b></div>
-    <div class="abhint">0〜100。1ごとに0.5ポイント（低いと早く疲れ、球数で交代される）</div>
+    <div class="abhint">130〜160km/h（入団時）。1km/hごとに5ポイント（速いほど空振りが取れ、遅いと対応される）</div>
+    <div class="abrow"><span class="abn">コントロール</span><input type="range" id="abCtl" min="0" max="50" step="0.1"><b id="abCtlV"></b></div>
+    <div class="abhint">0〜50（入団時）。1ごとに1ポイント（低いと狙ったマスからずれやすい）</div>
+    <div class="abrow"><span class="abn">スタミナ</span><input type="range" id="abSta" min="0" max="50" step="0.1"><b id="abStaV"></b></div>
+    <div class="abhint">0〜50（入団時）。1ごとに1ポイント（低いと早く疲れ、球数で交代される）</div>
     <div class="sh">変化球（ストレート以外に0〜2つ）</div>
-    <div class="abhint">少し曲がる（Lv.1）＝1ポイント／普通（Lv.2）＝2ポイント／決め球（Lv.3）＝5ポイント。プロ入り後はキャンプなどでLv.7まで上がります</div>
+    <div class="abhint">Lv.1＝1ポイント、そこから1段上げるごとに2・3・4・5ポイント（Lv.2＝3・Lv.3＝6・Lv.4＝10・Lv.5＝15ポイント）。ストレートの伸びも同じです。入団時はLv.5まで、プロ入り後はキャンプなどでLv.7まで上がります</div>
     <div id="abBreak"></div>
     <button class="btn" id="abAuto" style="width:100%;margin-top:8px">おまかせで振り分ける</button>
   </div>

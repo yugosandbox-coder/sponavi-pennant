@@ -69,18 +69,59 @@ function mgrRating(m,st){
 // 野手の評価（あなた）
 function mgrRatingB(m,s){
   if(!s||s.pa<10) return null;
-  const ops=bObp(s)+bSlg(s), kTerm=(s.k/s.pa-0.2)*20;
+  const ops=bObp(s)+bSlg(s), kTerm=(s.k/s.pa-0.2)*20, hrT=s.hr/s.pa*600-22;   // hrT：本塁打（600打席あたり22本＝リーグの平均的なレギュラーより多いぶん）
   let raw;
   switch(m&&m.b){
-    case 'k':   raw=50+(ops-0.700)*90+s.sb*0.15; break;
-    case 'avg': raw=50+(bAvg(s)-0.260)*400+(bObp(s)-0.330)*60-kTerm; break;
-    case 'slg': raw=50+(bSlg(s)-0.400)*180+s.hr*0.6-kTerm*0.5; break;
-    case 'spd': raw=50+(ops-0.700)*60+s.sb*0.8-s.cs*0.4+(abPerf(PEN.babil.speed)-50)*0.3-kTerm*0.5; break;
-    case 'def': raw=50+(ops-0.700)*60-kTerm*0.5+(abPerf(PEN.babil.def??70)-50)*0.6; break;
-    default:    raw=50+(ops-0.700)*90+s.sb*0.15-kTerm;
+    case 'k':   raw=50+(ops-0.775)*90+s.sb*0.15+hrT*0.9; break;   /* 基準はリーグの平均的なレギュラー（OPS.775前後・本塁打22本） */
+    case 'avg': raw=50+(bAvg(s)-0.265)*400+(bObp(s)-0.335)*60-kTerm+hrT*0.25; break;
+    case 'slg': raw=50+(bSlg(s)-0.445)*180+hrT*1.3-kTerm*0.5; break;
+    case 'spd': raw=50+(ops-0.775)*60+s.sb*0.8-s.cs*0.4+(abPerf(PEN.babil.speed)-50)*0.3-kTerm*0.5+hrT*0.4; break;
+    case 'def': raw=50+(ops-0.775)*60-kTerm*0.5+(abPerf(PEN.babil.def??70)-50)*0.6+hrT*0.4; break;
+    default:    raw=50+(ops-0.775)*90+s.sb*0.15-kTerm+hrT*0.7;   /* 本塁打の評価：バランス型0.7・三振は気にしない0.9・長打至上主義1.3・俊足/守備0.4・打率至上主義0.25（1本あたり） */
   }
   const prior=abilityRB();
   return prior+(raw-prior)*s.pa/(s.pa+60);
+}
+/* ---- シーズン後の評価（年俸・戦力外）：ノルマの達成度の合計 ----
+   野手：打率.270・本塁打20本・OPS.800・15盗塁・三振率18%（三振÷打席）／投手：防御率3.00・WHIP1.25・奪三振率6.0
+   達成度＝ノルマちょうどで1。0になるのは 打率.170・OPS.500・0本・0盗塁・三振率30%／防御率5.00・WHIP1.75・奪三振率0（本塁打・盗塁は600打席あたり）
+   評価点＝78×（監督の性格で重みをつけた達成度の平均）。ノルマの2/3で52点（年俸±0）
+   シーズン中の評価（evalR：スタメン争い・投手の配置の打診・画面の「評価」）も同じノルマ方式。投手陣の順位（総合評価）の成績の部分も、ノルマの達成度で見る（pPerfR） */
+const NORM_B={avg:0.270,hr:20,ops:0.800,sb:15,k:0.18}, NORM_P={era:3.00,whip:1.25,k9:6}, NORM_RATE=78;
+const NORM_W_B={std:{avg:1,hr:1,ops:1.5,sb:0.5,k:0.35},k:{avg:0.75,hr:1.5,ops:1.5,sb:0.5,k:0},avg:{avg:3,hr:0.5,ops:1,sb:0.5,k:0.75},slg:{avg:0.5,hr:2.5,ops:1.5,sb:0.25,k:0.1},spd:{avg:1,hr:0.5,ops:1,sb:2.5,k:0.35},def:{avg:1,hr:0.75,ops:1,sb:1,k:0.35}};   // 三振は気にしない監督は三振率を見ない
+const NORM_W_P={std:{era:1.5,whip:1,k9:1},bb:{era:1.5,whip:1,k9:1},k:{era:1,whip:0.75,k9:2},era:{era:3,whip:0.75,k9:0.25}};
+const achB=(avg,ops,hr6,sb6,kr)=>({avg:clamp(1+(avg-NORM_B.avg)/0.10,-0.5,2.5),ops:clamp(1+(ops-NORM_B.ops)/0.30,-0.5,2.5),hr:clamp(hr6/NORM_B.hr,0,2.5),sb:clamp(sb6/NORM_B.sb,0,2.5),k:clamp(1+(NORM_B.k-(kr??NORM_B.k))/0.12,-0.5,2.5)});
+const achP=(era,whip,k9)=>({era:clamp(1+(NORM_P.era-era)/2.0,-0.5,2.5),whip:clamp(1+(NORM_P.whip-whip)/0.5,-0.5,2.5),k9:clamp(k9/NORM_P.k9,0,2.5)});
+const normScore=(a,W)=>{ let s=0,w=0; for(const k in W){ s+=W[k]*a[k]; w+=W[k]; } return NORM_RATE*s/w; };
+const normWB=m=>NORM_W_B[m&&m.b]||NORM_W_B.std, normWP=m=>NORM_W_P[m&&m.p]||NORM_W_P.std;
+// 能力から見込んだ評価（成績がまだ無い・少ないとき）
+const priorRB=()=>clamp(58+4*(abilityRB()-51.3),5,110);   // 能力→評価の目安（CPUのレギュラーの成績から）
+const priorRP=m=>{ const R=abilityR(), e0=eraOfR(R); return normScore(achP(e0,0.8+0.13*e0,k9OfR(R)),normWP(m)); };
+// ノルマ方式の評価 → 前の物差し（起用の打診・代打の出番・オールスター・トレードなどの細かい基準に使う。だいたい同じ成績なら前と同じ判断になる）
+const toOldB=v=>(v+10.1)/1.583, toOldP=v=>(v+10.4)/1.475;
+const evalOld=()=>{ const v=evalR(); return isBat()?toOldB(v):toOldP(v); };
+// 投手の成績（ノルマの達成度）→ 投手の力と同じ目盛り（防御率3.30・奪三振率8で75、防御率が1違うと約10）。CPUはWHIPを防御率から見込む
+const pPerfRef={};
+function pPerfR(s,m){
+  const W=normWP(m), key=(m&&m.p)||'std', ip=s.outs/3, era=s.er*9/ip, k9=s.k!=null?s.k*9/ip:8, bbX=key==='bb';
+  const whip=s.h!=null?(s.h+(bbX?0:(s.bb||0)))/ip+(bbX?0.35:0):0.8+0.13*era;
+  const sc=e=>normScore(achP(e,0.8+0.13*e,8),W), ref=pPerfRef[key]||(pPerfRef[key]={a:sc(3.3),d:sc(3.3)-sc(4.3)});
+  return clamp(75+(normScore(achP(era,whip,k9),W)-ref.a)*10/ref.d,25,100);
+}
+// 野手：打席が少ないうちは能力から見込んだ評価に寄せる（60打席で半々）
+function seasonRateB(m,s){
+  if(!s||s.pa<10) return null;
+  const raw=normScore(achB(bAvg(s),bObp(s)+bSlg(s),s.hr/s.pa*600,(s.sb||0)/s.pa*600,(s.k||0)/s.pa),normWB(m));
+  const prior=priorRB();
+  return Math.max(0,prior+(raw-prior)*s.pa/(s.pa+60));
+}
+// 投手：投球回が少ないうちは能力から見込んだ評価に寄せる（15回で半々）。与四死球を気にしない監督はWHIPに四死球を数えない（平均的な四死球のぶん0.35を足す）
+function seasonRateP(m,st){
+  if(!st||st.outs<6) return null;
+  const ip=st.outs/3, bbX=!!(m&&m.p==='bb'), era=st.runs*9/ip, whip=(st.hits+(bbX?0:st.bb))/ip+(bbX?0.35:0), k9=st.k*9/ip, W=normWP(m);
+  const raw=normScore(achP(era,whip,k9),W);
+  const prior=priorRP(m);
+  return Math.max(0,prior+(raw-prior)*ip/(ip+15));
 }
 /* ---- 贔屓起用の打診 ---- */
 function favProposal(){
@@ -163,7 +204,7 @@ function mgrChangeCheck(fin){
     const st=pickStarters(T,null), rot=staff(T).rot;
     // 活躍した20代＝スタメン・ローテーションのうち、プロの平均（50）をはっきり超えている20代（あなたも評価50以上なら数える）
     const good=f=>hitScore(f)+(f.d-50)*0.2>=56;
-    const y20=st.filter(x=>!x.me&&x.f.age>=20&&x.f.age<=29&&good(x.f)).length+rot.filter(p=>!p.isMe&&p.age>=20&&p.age<=29&&pitScore(p)>=56).length+(PEN.team===t.id&&PEN.age>=20&&PEN.age<=29&&evalR()>=50?1:0);
+    const y20=st.filter(x=>!x.me&&x.f.age>=20&&x.f.age<=29&&good(x.f)).length+rot.filter(p=>!p.isMe&&p.age>=20&&p.age<=29&&pitScore(p)>=56).length+(PEN.team===t.id&&PEN.age>=20&&PEN.age<=29&&evalOld()>=50?1:0);
     if(y20>5) continue;
     const nm=genManager(PEN.year+1); T.mgr=nm; out.push({id:t.id,old:m,nw:nm,rank,y20});
   }

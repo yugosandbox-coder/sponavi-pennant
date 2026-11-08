@@ -19,15 +19,17 @@ function isRegular(ss,bss){
 }
 // 実績ポイント（ここ5年）。rv があれば今季のタイトルも入れる
 function realPts(rv){
-  const cur=PEN.year, tBy={}, regBy={};
-  (PEN.seasons||[]).forEach(s=>{ tBy[s.year]=(s.titles||[]).length; regBy[s.year]=isRegular(s.ss,s.bss); });
+  const cur=PEN.year, tBy={}, regBy={}, plBy={};
+  const plPts=a=>Math.round((a||[]).reduce((s,r)=>s+(PLACE_PTS[r]||0),0)*10)/10;   // タイトル争い2〜5位
+  (PEN.seasons||[]).forEach(s=>{ tBy[s.year]=(s.titles||[]).length; regBy[s.year]=isRegular(s.ss,s.bss); plBy[s.year]=s.places||[]; });
   tBy[cur]=rv&&rv.titles?rv.titles.filter(t=>t.won).length:(tBy[cur]||0); regBy[cur]=isRegular(PEN.ss,isTW()?PEN.bss:null);
+  if(rv&&rv.places) plBy[cur]=rv.places.map(p=>p.rank);
   const aw=y=>(PEN.titles||[]).filter(t=>t.y===y&&AWARD_PTS[t.name]).reduce((a,t)=>a+AWARD_PTS[t.name],0);
   const rows=[]; let tot=0;
   for(let y=Math.max(1,cur-4);y<=cur;y++){
     let st=0; for(let k=y;k>=1&&(tBy[k]||0)>0;k--) st++;
-    const t=tBy[y]||0, tp=t>0?2+(t-1):0, sb=t>0?streakBonus(st):0, reg=regBy[y]?1:0, a=aw(y), p=reg+tp+sb+a;
-    rows.push({y,reg,t,tp,sb,st,a,p}); tot+=p;
+    const t=tBy[y]||0, tp=t>0?2+(t-1):0, sb=t>0?streakBonus(st):0, reg=regBy[y]?1:0, a=aw(y), np=(plBy[y]||[]).length, pl=plPts(plBy[y]), p=Math.round((reg+tp+sb+a+pl)*10)/10;
+    rows.push({y,reg,t,tp,sb,st,a,np,pl,p}); tot+=p;
   }
   return {pts:Math.round(tot*10)/10,rows};
 }
@@ -44,10 +46,10 @@ function salaryFinalize(rv){
 }
 function salHTML(rv){
   if(!rv||!rv.rp||rv.released) return '';
-  const R=rv.rp, rowTxt=r=>`${r.y}年目：${[r.reg?'規定到達 1':'',r.t?`タイトル${r.t}つ ${r.tp}`:'',r.sb?`${r.st}年連続 +${r.sb}`:'',r.a?`表彰 +${r.a}`:''].filter(Boolean).join('・')||'0'}${r.p?`（${r.p}点）`:''}`;
+  const R=rv.rp, rowTxt=r=>`${r.y}年目：${[r.reg?'規定到達 1':'',r.t?`タイトル${r.t}つ ${r.tp}`:'',r.sb?`${r.st}年連続 +${r.sb}`:'',r.a?`表彰 +${r.a}`:'',r.np?`タイトル争い上位${r.np}つ +${r.pl}`:''].filter(Boolean).join('・')||'0'}${r.p?`（${r.p}点）`:''}`;
   return `<div class="hint" style="color:var(--ink)">📈 年俸の上限 <b>${yen(rv.cap)}</b>（ここ5年の実績 ${R.pts}点）${rv.dim!=null&&rv.dim<1&&!rv.ct?`<br><small>上限に近いほど上がりにくい：今年の上がり幅 ×${rv.dim}</small>`:''}${rv.mm?`　💼 マネーマネジメント +${Math.round(rv.mm*100)}%`:''}</div>
     <details class="salx" style="margin-top:2px"><summary class="hint" style="display:list-item;cursor:pointer">実績ポイントの内訳</summary><div class="hint">${R.rows.map(rowTxt).join('<br>')}<br>
-    <small>規定到達1点／タイトル1つ目2点・2つ目から+1点／連続タイトル 2年+0.5〜5年以上+2／日本シリーズMVP・WBC MVP 3点・CS MVP 1点・オールスターMVP 0.5点。<br>上限：1点で1億・3点で2億・6点で3.5億・10点で5億・15点で7億・21点で10億・26点で15億（0点は5,000万）</small></div></details>
+    <small>規定到達1点／タイトル1つ目2点・2つ目から+1点／タイトル争い（取れなかった部門）2位0.6点・3位0.4点・4位0.3点・5位0.2点／連続タイトル 2年+0.5〜5年以上+2／日本シリーズMVP・WBC MVP 3点・CS MVP 1点・オールスターMVP 0.5点。<br>上限：1点で1億・3点で2億・6点で3.5億・10点で5億・15点で7億・21点で10億・26点で15億（0点は5,000万）</small></div></details>
     <div class="hint">💴 査定が終わると、来季の年俸を先にもらえます（${PEN.house?'持ち家なので満額':'寮生活中は半分が寮費'}）</div>`;
 }
 // 年俸を受け取る（寮生活中は半分）
@@ -74,7 +76,7 @@ function cbBab(a){
 // 投手の能力（研究した球団との試合：球速+2・コントロール+5・スタミナ+5）
 function cbAbil(a){
   const s=cbOn('scout'); if(!s||!a||!PEN.pending||PEN.pending.opp!==s.team) return a;
-  return {...a,velo:Math.min(165,a.velo+2),control:Math.min(100,a.control+5),stamina:Math.min(100,a.stamina+5)};
+  return {...a,velo:Math.min(VELO_MAX,a.velo+2),control:Math.min(100,a.control+5),stamina:Math.min(100,a.stamina+5)};
 }
 // スキップしたときの防御率（コーチの効果ぶん少し良くなる）
 function cbEraAdj(opp){
@@ -250,7 +252,7 @@ function cbDo(D,st,arg){
       const loss=(PEN.injLog||[]).reduce((t,x)=>t+(x.down||0),0), rec=PEN.injRec||0, rest=Math.max(0,loss-rec), amt=r1(rest/3);
       st.loss=rest; const d={abil:{},babil:{}};
       if(amt>0){
-        if(PEN.abil&&!isBat()) for(const kk of ['velo','control','stamina']){ const cap=kk==='velo'?165:100, nv=r1(Math.min(cap,PEN.abil[kk]+amt)); d.abil[kk]=r1(nv-PEN.abil[kk]); PEN.abil[kk]=nv; }
+        if(PEN.abil&&!isBat()) for(const kk of ['velo','control','stamina']){ const cap=kk==='velo'?VELO_MAX:100, nv=r1(Math.min(cap,PEN.abil[kk]+amt)); d.abil[kk]=r1(nv-PEN.abil[kk]); PEN.abil[kk]=nv; }
         if(PEN.babil&&hasBat()) for(const kk of ['meet','power','speed','eye','def']){ const v=PEN.babil[kk]??50, nv=r1(Math.min(100,v+amt)); d.babil[kk]=r1(nv-v); PEN.babil[kk]=nv; }
       }
       on.yoga={amt,d};
@@ -288,7 +290,7 @@ function jtCands(){
     .sort((a,b)=>(b.src.length>1||b.src[0]!=='チーム')-(a.src.length>1||a.src[0]!=='チーム')||b.sc-a.sc);
   OFF_JT={pen:PEN,y:PEN.year,n:(PEN.jtLog||[]).length,list}; return list;
 }
-const JT_F={m:['meet','ミート'],p:['power','パワー'],s:['speed','速度'],e:['eye','選球眼'],d:['def','守備']};
+const JT_F={m:['meet','ミート'],p:['power','パワー'],s:['speed','走力'],e:['eye','選球眼'],d:['def','守備']};
 const JT_P={velo:['velo','球速',147,6],control:['control','コントロール',50,12],stamina:['stamina','スタミナ',86,12]};
 function cbJointTalk(D,st){
   let h='';
@@ -317,7 +319,7 @@ function cbJointApply(st,pick){
   if(kind==='F'){ let best=-1; for(const k in JT_F){ const v=L.reduce((t,r)=>t+(r.o[k]||0),0)/L.length; if(v>best){ best=v; key=k; } } lab=JT_F[key][1];
     const mk=JT_F[key][0], b0=PEN.babil[mk]??50; PEN.babil[mk]=r1(Math.min(100,b0+g)); st.mine=r1(PEN.babil[mk]-b0); L.forEach(r=>{ r.o[key]=Math.min(100,(r.o[key]||50)+g); }); }
   else { let best=-1e9; for(const k in JT_P){ const [,,m,sd]=JT_P[k]; const v=L.reduce((t,r)=>t+((r.o[k]||m)-m)/sd,0)/L.length; if(v>best){ best=v; key=k; } } lab=JT_P[key][1];
-    const add=key==='velo'?Math.max(1,Math.round(g*0.4)):g; g=add;   /* 球速は +1〜2km/h */ const a0=PEN.abil[key]; PEN.abil[key]=r1(Math.min(key==='velo'?165:100,a0+add)); st.mine=r1(PEN.abil[key]-a0); L.forEach(r=>{ r.o[key]=Math.min(key==='velo'?165:100,(r.o[key]||0)+add); r.o.q=pitQ(r.o); }); }
+    const add=key==='velo'?Math.max(1,Math.round(g*0.4)):g; g=add;   /* 球速は +1〜2km/h */ const a0=PEN.abil[key]; PEN.abil[key]=r1(Math.min(key==='velo'?VELO_MAX:100,a0+add)); st.mine=r1(PEN.abil[key]-a0); L.forEach(r=>{ r.o[key]=Math.min(key==='velo'?VELO_MAX:100,(r.o[key]||0)+add); r.o.q=pitQ(r.o); }); }
   const names=L.map(r=>kind==='F'?r.o.n:r.o.name);
   st.mates=L.map(r=>({name:kind==='F'?r.o.n:r.o.name,team:r.team,num:r.o.num,kind}));
   st.lab=lab; st.kind=kind;

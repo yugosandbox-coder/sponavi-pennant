@@ -19,7 +19,7 @@ const asTag=id=>(typeof G!=='undefined'&&G&&G.pen&&(G.pen.allstar||G.pen.wbc)&&i
 const AS_POS=[['C',3],['1B',3],['2B',3],['3B',3],['SS',3],['OF',9]];
 function asMeOK(){   // 自分が選ばれる条件：今年の評価が高く、出場も十分
   if(!PEN||PEN.released||(typeof injured==='function'&&injured())) return false;
-  const s=PEN.ss, ev=evalR();
+  const s=PEN.ss, ev=evalOld();
   if(isBat()) return ev>=54&&s.pa>=120;
   if(isTW()) return ev>=54&&(s.outs>=60||(PEN.bss&&PEN.bss.pa>=100));
   return ev>=54&&(s.outs>=60||(s.sv||0)+(s.hld||0)>=8);
@@ -133,7 +133,7 @@ function asUni(lg,team){
    野手：ポジションごとに評価のいちばん高い選手がスタメン、指名打者は残りでいちばん高い選手。ほかは控え（代打で出番） */
 const EV_MP=0.5;   // 大会・ポストシーズンでミッションが出る確率
 const EV_B=s=>{ if(!s||!(s.pa>=10)) return null; const pa=s.pa, ab=Math.max(1,s.ab||pa), bb=(s.bb||0)+(s.hbp||0), obp=(s.h+bb)/pa, slg=(s.h+(s.d2||0)+2*(s.d3||0)+3*(s.hr||0))/ab, kT=s.k!=null?(s.k/pa-0.2)*20:0;
-  return 50+(obp+slg-0.700)*90+(s.sb||0)/pa*60-kT; };
+  return 50+(obp+slg-0.775)*90+(s.sb||0)/pa*60-kT; };
 const evPriorF=f=>clamp(18+f.m*0.25+f.p*0.2+f.s*0.08+f.e*0.12+(f.d??50)*0.04,25,85);
 function evBlendB(prior,ly,car){ const a=EV_B(ly), c=EV_B(car), ws=a==null?0:Math.min(1,ly.pa/400)*0.5, wc=c==null?0:Math.min(1,car.pa/1500)*0.25;
   return prior*(1-ws-wc)+(ws?a*ws:0)+(wc?c*wc:0); }
@@ -144,10 +144,10 @@ function evBaseOfF(x){
 }
 function evBaseOfP(x,m){
   if(x.me){ const last=PEN.seasons[PEN.seasons.length-1], ls=last&&last.ss, c=PEN.career;
-    return pEval({rn:abilityR(),s:ls&&ls.outs?{outs:ls.outs,er:ls.runs*0.9,k:ls.k}:null,c:c&&c.outs?{outs:c.outs,er:c.runs*0.9}:null,age:PEN.age,pf:0},m); }
+    return pEval({me:true,rn:abilityR(),s:ls&&ls.outs?{outs:ls.outs,er:ls.runs*0.9,k:ls.k,h:ls.hits,bb:ls.bb}:null,c:c&&c.outs?{outs:c.outs,er:c.runs*0.9,k:c.k,h:c.hits,bb:c.bb}:null,age:PEN.age,pf:0},m); }
   const p=x.p; if(p.rn==null) p.q=pitQ(p);
   const cs=PEN.cs&&p.pid&&PEN.cs[p.pid];
-  return pEval({rn:p.rn,s:p.ly||null,c:evAddSt(p.car,cs?{outs:cs.outs,er:cs.er}:null),age:p.age,pf:0},m);
+  return pEval({rn:p.rn,s:p.ly||null,c:evAddSt(p.car,cs?{outs:cs.outs,er:cs.er,k:cs.k}:null),age:p.age,pf:0},m);
 }
 const evKF=x=>x.me?'ME':String(x.f.id!=null?x.f.id:x.f.n);
 const evKP=x=>x.me?'ME':String(x.p.pid!=null?x.p.pid:x.p.name);
@@ -284,7 +284,7 @@ function allstarCheck(){
   const role={kind:'ev'}; S.role=role; S.nextDay=1;   // 出番は penStep が作る（試合の後処理で pending が消されないように）。出番の中身はその日の評価で決まる
   const rt=evRoleText(X,'as');
   penNotice(`⭐ オールスターに${isBat()?'野手':isTW()?'二刀流（指名打者で出場）':'投手'}として選出！ チーム内の評価：${rt}（前年と通算の成績の評価順。大会中の成績とミッションで変わる）`);
-  PEN.talk={y:PEN.year,untilDay:PEN.day+2,text:`${PEN.pname}、オールスターにファン投票と監督推薦で選ばれたぞ。向こうでの起用は、全${S.mine}の${X.mgr.sur}監督がチームの中の評価で決める。今のところ「${rt}」だそうだ。結果とミッションで評価は変わるぞ。球団の誇りだ、楽しんでこい。`};
+  mgrSay(`${PEN.pname}、オールスターにファン投票と監督推薦で選ばれたぞ。向こうでの起用は、全${S.mine}の${X.mgr.sur}監督がチームの中の評価で決める。今のところ「${rt}」だそうだ。結果とミッションで評価は変わるぞ。球団の誇りだ、楽しんでこい。`);
 }
 // 日程を進める前に：オールスターの出番が残っていれば pending にする（penStep から）
 function allstarStep(){
@@ -384,6 +384,7 @@ function allstarFinalize(){
     me:S.sel?{sel:true,role:isBat()?'野手':isTW()?'二刀流':'投手',line:meT?line(meT):'出場なし',rank:meT?rank.indexOf(meT)+1:null,ev:myRole,mis:myEv&&myEv.mok+myEv.mng?`${myEv.mok}/${myEv.mok+myEv.mng}`:''}:{sel:false}};
   if(mvp&&mvp.me){ titleAward('オールスターMVP',1,1); res.me.award='MVP（持ち点+1）'; }
   else if(fs&&fs.me){ titleAward('オールスター敢闘賞',0.5,1); res.me.award='敢闘賞（持ち点+0.5）'; }
+  if(mvp&&!mvp.me) cpuAward(mvp.name,mvp.team,mvp.kind,1); if(fs&&!fs.me) cpuAward(fs.name,fs.team,fs.kind,0.5);   // CPUの選手にも持ち点
   { const X=asMine(S); PEN.asMates={y:PEN.year,F:X.F.filter(x=>!x.me&&x.f).map(x=>({id:x.f.id,team:x.id})),P:X.P.filter(x=>!x.me&&x.p).map(x=>({id:x.p.pid,team:x.id}))}; if(!S.sel) PEN.asMates=null; }   // 合同自主トレで呼べる仲間
   PEN.allstar=res; PEN.asState=null; PEN.pending=null;
   const g1=res.games[0], g2=res.games[1];

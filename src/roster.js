@@ -26,22 +26,35 @@ const AGE_ADJ=a=>a<=18?-13:a<=24?-13+(a-18)*2:a<=27?-1+(a-24)*1:a<=31?3-(a-29>0?
 const FTYPE_W=[['power',22],['contact',22],['speed',16],['defense',16],['balance',24]];
 const FTYPE_ADJ={power:{p:15,m:-4,s:-6,d:-5},contact:{m:15,p:-8,e:5,d:-2},speed:{s:18,d:4,p:-12,m:-2},defense:{d:16,p:-8,m:-4,e:-2},balance:{}};
 // 野手を作る（tier＝平均からのずれ。レギュラー級はプラス、控えはマイナス）
+// CPUの年齢ごとの能力（表示の値）：野手は5つの能力の合計の平均が18歳125 → 30歳300（そのあとは衰えが始まるまで横ばい）
+const CPU_SUM=a=>a<=18?125:a>=30?300:125+(a-18)*175/12;
+const CPU_DECL_GEN=a=>a<=32?0:a===33?1.5:a===34?4:a===35?7:7+(a-35)*4;   // 作るときの衰えの目安（1能力あたり・平均）
+const CPU_TIER_D=1.5;   // tier（平均からのずれ）1あたりの表示の値
 function genFielder(pos,age,tier){
-  const base=50+AGE_ADJ(age)+(tier||0), r=()=>clamp(Math.round(base+(rnd()-.5)*26),10,100);
-  const f={id:'f'+(Date.now()%1e6)+'_'+(FID++),n:randName(),pos,h:rnd()<0.33?'L':'R',m:r()-1,p:r()+3,s:r()-1,e:r(),d:r()-4,age,pf:0,num:ri(0,99)};   // 守備位置の補正ぶんを戻して平均50に
-  const ta=FTYPE_ADJ[wpick(FTYPE_W)]; for(const k in ta) f[k]=clamp(f[k]+ta[k],10,100);
-  if(pos==='C'){ f.d=clamp(f.d+10,10,100); f.s=clamp(f.s-15,10,100); }
-  if(pos==='SS'||pos==='2B'){ f.d=clamp(f.d+8,10,100); f.s=clamp(f.s+6,10,100); f.p=clamp(f.p-8,10,100); }
-  if(pos==='1B'){ f.p=clamp(f.p+10,10,100); f.d=clamp(f.d-10,10,100); }
-  if(pos==='OF'&&rnd()<0.4) f.s=clamp(f.s+10,10,100);
+  const mu=CPU_SUM(age)/5-CPU_DECL_GEN(age)+(tier||0)*CPU_TIER_D-CPU_G.off, r=()=>mu+(rnd()-.5)*30;   // off＝守備位置の補正・レギュラー級の多さのぶんを戻す
+  const D={m:r(),p:r(),s:r(),e:r(),d:r()};
+  const ta=FTYPE_ADJ[wpick(FTYPE_W)]; for(const k in ta) D[k]+=ta[k]*1.3;   // タイプで能力が偏る
+  if(pos==='C'){ D.d+=12; D.s-=18; }
+  if(pos==='SS'||pos==='2B'){ D.d+=10; D.s+=7; D.p-=10; }
+  if(pos==='1B'){ D.p+=12; D.d-=12; }
+  if(pos==='OF'&&rnd()<0.4) D.s+=12;
+  const f={id:'f'+(Date.now()%1e6)+'_'+(FID++),n:randName(),pos,h:rnd()<0.33?'L':'R',age,pf:0,num:ri(0,99)};
+  for(const k in D) f[k]=Math.round(abPerf(clamp(D[k],1,100))*10)/10;   // 試合では内部値
+  if(age>=34&&rnd()<0.8) f.decl=age-ri(0,1);
   return f;
 }
 // 投手を作る（tier＝平均からのずれ）。コントロール・スタミナの平均は50、球速は年齢と質で上下
+// CPUの投手：コントロール＋スタミナの合計の平均が18歳50 → 30歳140、球速の平均が18歳135 → 30歳144km/h。先発型はスタミナ、中継ぎ型はコントロール・球速に寄りがち
+const CPU_PCS=a=>a<=18?50:a>=30?140:50+(a-18)*7.5;
+const CPU_PV=a=>a<=18?135:a>=30?144:135+(a-18)*0.75;
+const CPU_PDECL=a=>a<=32?0:a===33?2:a===34?6:a===35?10:10+(a-35)*6;   // 作るときの衰えの目安（コントロール＋スタミナ）
 function genRosterPitcher(age,tier){
-  const p=genPitcher(); p.age=age; const adj=AGE_ADJ(age)+(tier||0);
-  p.velo=clamp(Math.round(147+adj*0.35+(rnd()-.5)*16),128,162);
-  p.control=clamp(Math.round(50+adj+(rnd()-.5)*36),10,100);
-  p.stamina=clamp(Math.round(86+adj*0.5+(rnd()-.5)*30),35,100);   // スタミナ＝投げられる球数の目安（80で約95球）
+  const p=genPitcher(); p.age=age; const t=tier||0; p.prole=rnd()<0.45?'sp':'rp'; const sp=p.prole==='sp';
+  const cs=CPU_PCS(age)-CPU_PDECL(age)+t*3, stS=sp?0.62:0.45;
+  p.velo=clamp(Math.round(CPU_PV(age)-(age>=34?(age-33)*0.7:0)+t*0.35+(sp?-1:1.5)+(rnd()-.5)*14),120,VELO_MAX);
+  p.stamina=clamp(Math.round(cs*stS+(rnd()-.5)*24),1,100);   // スタミナ＝投げられる球数の目安（80で約95球）
+  p.control=clamp(Math.round(cs*(1-stS)+(rnd()-.5)*24),1,100);
+  if(age>=34&&rnd()<0.8) p.decl=age-ri(0,1);
   p.q=pitQ(p); return p;
 }
 // 投手の質 q（1より小さいほど打たれにくい）：自分と同じ式の「投手の力」→ 防御率 → リーグの試合でその防御率になる q
@@ -111,13 +124,15 @@ const eraToR=e=>clamp(55+(5.3-e)/0.1,25,100);   // 防御率 → 投手の力と
 function pEval(o,m){
   const s=o.s, c=o.c, so=s&&s.outs||0, co=c&&c.outs||0;
   const ws=so?Math.min(1,so/90)*0.6:0, wc=co>=30?(so?ws*3/7:Math.min(1,co/450)*0.6*3/7):0;
-  let v=o.rn*(1-ws-wc)+(ws?eraToR(s.er*27/so)*ws:0)+(wc?eraToR(c.er*27/co)*wc:0);
-  if(m&&m.p==='k'&&s&&so>=30) v+=clamp((s.k*27/so-8),-4,6);   // 奪三振至上主義
+  // 自分の成績はノルマ（防御率・WHIP・奪三振率）の達成度で、監督の性格で重みが変わる。CPUは被安打・四球の記録がないので防御率で（奪三振至上主義は奪三振率も）
+  const pf=x=>o.me?pPerfR(x,m):eraToR(x.er*27/x.outs);
+  let v=o.rn*(1-ws-wc)+(ws?pf(s)*ws:0)+(wc?pf(c)*wc:0);
+  if(!o.me&&m&&m.p==='k'&&s&&so>=30) v+=clamp((s.k*27/so-8),-4,6);   // 奪三振至上主義（CPU）
   v+=(m&&m.a==='merit'?0.3:1)*(o.pf||0)+mgrAgeAdj(m,o.age)*0.8;
   if(o.prev!=null){ const wp=Math.max(0,1-Math.max(so/45,(PEN&&PEN.day||0)/40)); v=v*(1-wp)+o.prev*wp; }   // 去年の順位を引き継ぐ（今年15回・40試合で今年の評価だけに）
   return v;
 }
-function myPitEval(m,prev){ const ss=PEN.ss, c=PEN.career; return pEval({rn:abilityR(),s:{outs:ss.outs,er:ss.runs*0.9,k:ss.k},c:{outs:c.outs,er:c.runs*0.9},age:PEN.age,pf:Math.min(15,ss.mBonus||0)*0.5+favBonus()-(ss.tPen||0),prev},m); }
+function myPitEval(m,prev){ const ss=PEN.ss, c=PEN.career; return pEval({me:true,rn:abilityR(),s:{outs:ss.outs,er:ss.runs*0.9,k:ss.k,h:ss.hits,bb:ss.bb},c:{outs:c.outs,er:c.runs*0.9,k:c.k,h:c.hits,bb:c.bb},age:PEN.age,pf:Math.min(15,ss.mBonus||0)*0.5+favBonus()-(ss.tPen||0),prev},m); }
 const staffKey=T=>T.P.map(p=>p.pid).join(',');
 const PEN_MIN=5;   // ブルペン（ローテ外の先発候補を除く）に最低限残す人数
 function staffBuild(T,id,keep,reroll){
@@ -207,6 +222,7 @@ function lineupPattern(L){
 // 守れるポジションが2つあるときは、チームにとっていちばん良くなる（監督が必要とする）ポジションで出る
 function bestStarters(T,id){
   if(!(isBat()&&PEN.team===id)) return pickStarters(T,null);
+  if(PEN.bAssign&&PEN.bAssign.bench) return pickStarters(T,null);   // 監督の判断で控え
   const sum=st=>st.reduce((t,x)=>t+x.val,0);
   let best=null;
   for(const pos of myPositions()){ const st=pickStarters(T,myFielder(pos)); if(!best||sum(st)>sum(best)) best=st; }
@@ -231,7 +247,7 @@ function rebuildTeam(id){
 const myPositions=()=>PEN.favMod&&PEN.favMod.pos?[PEN.favMod.pos]:PEN.bAssign&&PEN.bAssign.pos&&isBat()?[PEN.bAssign.pos]:(PEN.bposs&&PEN.bposs.length?PEN.bposs:[PEN.bpos||'OF']);   // 打診で決まった守備位置があればそこだけ
 function myFielder(pos){
   const a=perfB(PEN.babil);   // 内部値でCPUと比べる
-  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalR()-50)*0.6),num:B_NUM,isMe:true};
+  return {id:'me',n:PEN.pname,pos:pos||myPositions()[0],h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:a.def??50,age:PEN.age,pf:Math.round((evalOld()-50)*0.6),num:B_NUM,isMe:true};
 }
 
 /* ---- 年をまたぐとき：成長・衰え・引退、ドラフト ---- */
@@ -242,17 +258,30 @@ function cpuEvents(age,star){   // 覚醒・タイトル相当の持ち点（確
   if(star===1) p+=3; else if(star===2) p+=1;   // タイトル相当
   return p;
 }
-const CPU_COST={m:2,p:3,s:1,e:1,d:1};   // 0.1上げるのに必要な持ち点×0.1（ミート0.2・パワー0.3・ほか0.1）
+// CPUの1年の基本の持ち点（若いうちは大きく伸び、30〜32歳は少し。衰えが始まったらなし）
+const CPU_G=Object.assign({fy:9.5,fm:0.5,py:8.5,pm:0.5,off:2,pv:14,rv:22},(typeof process!=='undefined'&&process.env&&process.env.CPUG)?JSON.parse(process.env.CPUG):{});
+const cpuGrowBase=(age,isP)=>age<=30?(isP?CPU_G.py:CPU_G.fy):age<=32?(isP?CPU_G.pm:CPU_G.fm):0;
 const CPU_WEIGHT={'フルスイング':{p:4,m:2,e:1,s:1,d:1},'ヒットメーカー':{m:4,e:2,s:1,p:1,d:1},'スピードスター':{s:4,d:2,m:1,e:1,p:1},'守備職人':{d:4,s:1,m:1,e:1,p:1},'代打男':{m:3,p:3,e:1,s:1,d:1},'アスリート':{m:2,p:2,s:2,e:1,d:2},'バランス':{m:2,p:2,s:1,e:2,d:2}};
+// 持ち点を能力に振る（野手）：表示の値で1点＝1。タイプで振られやすい能力が違う（ランダム）
 function cpuGrowF(f,pts){
-  const W=CPU_WEIGHT[f.btype]||CPU_WEIGHT['バランス']; let left=pts, guard=0;
-  while(left>0.0999&&guard++<400){ const k=wpick(Object.entries(W).map(([a,w])=>[a,w])); const c=CPU_COST[k]*0.1; if(c>left+1e-9||f[k]>=100){ if(Object.keys(W).every(x=>CPU_COST[x]*0.1>left+1e-9||f[x]>=100)) break; continue; } f[k]=clamp(Math.round((f[k]+0.1)*10)/10,10,100); left=Math.round((left-c)*1000)/1000; }
+  const W=CPU_WEIGHT[f.btype]||CPU_WEIGHT['バランス'], keys=Object.keys(W), D={}; keys.forEach(k=>D[k]=abShow(f[k]));
+  let left=pts, guard=0;
+  while(left>0.05&&guard++<20){ const open=keys.filter(k=>D[k]<100); if(!open.length) break;
+    const w={}; open.forEach(k=>w[k]=W[k]*(0.3+rnd()*1.4)); const sw=open.reduce((t,k)=>t+w[k],0); let used=0;
+    open.forEach(k=>{ const a=Math.min(100-D[k],left*w[k]/sw); D[k]+=a; used+=a; }); left-=used; if(used<1e-6) break; }
+  keys.forEach(k=>f[k]=clamp(Math.round(abPerf(D[k])*10)/10,1,100));
 }
+// 持ち点を能力に振る（投手）：球速0.1km/h＝0.5点・コントロール/スタミナ0.1＝0.1点・変化球のLvアップ。先発型はスタミナ、中継ぎ型はコントロール・球速に振られやすい
 function cpuGrowP(p,pts){
-  let left=pts, guard=0;   // 球速0.1km/h＝0.5pt、制球・スタミナ0.1＝0.1pt、変化球Lvアップは「次のLv」pt（Lv1→2は1、2→3は3、以降 次のLv）
-  while(left>0.0999&&guard++<400){ const k=pick(['velo','control','control','stamina','stamina','lv']);
-    if(k==='lv'){ const ts=p.types.filter(t=>t!=='ストレート'&&pitLv(p,t)<7); if(!ts.length) continue; const t=pick(ts), nl=pitLv(p,t)+1, c=nl<=2?1:nl===3?3:nl; if(c>left+1e-9) continue; p.plv=p.plv||{}; p.plv[t]=nl; left-=c; continue; }
-    const c=k==='velo'?0.5:0.1, cap=k==='velo'?162:100; if(c>left+1e-9||p[k]>=cap){ if(left<0.1) break; continue; } p[k]=Math.round((p[k]+0.1)*10)/10; left=Math.round((left-c)*1000)/1000; }
+  if(!p.prole) p.prole=(p.stamina||0)>=70?'sp':'rp';
+  const W=p.prole==='sp'?{velo:CPU_G.pv,control:32,stamina:43,lv:5}:{velo:CPU_G.rv,control:42,stamina:18,lv:10};
+  let left=pts, lvP=pts*W.lv/100*(0.5+rnd()), guard=0;
+  while(lvP>=1&&guard++<10){ const ts=(p.types||[]).filter(t=>t!=='ストレート'&&pitLv(p,t)<7); if(!ts.length) break; const t=pick(ts), nl=pitLv(p,t)+1, c=nl<=2?1:nl===3?3:nl; if(c>lvP) break; p.plv=p.plv||{}; p.plv[t]=nl; lvP-=c; left-=c; }
+  if(left<=0) return;
+  const r={velo:W.velo*(0.5+rnd()),control:W.control*(0.5+rnd()),stamina:W.stamina*(0.5+rnd())}, sw=r.velo+r.control+r.stamina;
+  p.velo=Math.round(Math.min(VELO_MAX,p.velo+left*r.velo/sw/5)*10)/10;
+  p.control=Math.round(Math.min(100,p.control+left*r.control/sw)*10)/10;
+  p.stamina=Math.round(Math.min(100,p.stamina+left*r.stamina/sw)*10)/10;
 }
 // 去年の成績から決まるCPUの持ち点（自分と同じように、活躍・覚醒・タイトルで増える）
 //  ev：{pts, m, p}（m/p＝覚醒でミート・パワーが直接+5）
@@ -270,21 +299,25 @@ function cpuStatEvents(x,s,isP,titles,age){
       if(age<=25&&s.outs>=Math.ceil(SEASON_GAMES*3/2)&&era<=3.00&&rnd()<0.25){ ev.pts+=20; ev.why.push('エースピッチャーへの兆し'); }
     }
   }
-  ev.pts+=3*(titles||0);                                              // タイトル1つにつき+3
+  ev.pts+=titles||0;                                                  // タイトル争い（1〜5位）・表彰（MVP・敢闘賞）の持ち点
   if(age>=27&&rnd()<0.05) ev.pts+=5; if(age>=30&&rnd()<0.015) ev.pts+=10;   // ベテランの覚醒（まれ）
   return ev;
 }
+// 表示の値で増減して内部値に戻す
+const fAddD=(f,k,d)=>{ f[k]=clamp(Math.round(abPerf(clamp(abShow(f[k])+d,1,100))*10)/10,1,100); };
 function ageFielder(f,T,star,ev){
   f.age++;
-  if(f.age>=30){ const d=f.age<=32?()=>ri(-2,0):()=>ri(-4,0); for(const k of ['m','p','e','d']) f[k]=clamp(f[k]+d(),10,100); f.s=clamp(f.s+ri(-4,0),10,100); }   // 衰え
-  if(ev){ f.m=clamp(f.m+ev.m,10,100); f.p=clamp(f.p+ev.p,10,100); }
-  const pts=CPU_BASE(f.age)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(f.age,star));
+  if(!f.decl&&rnd()<declP(f.age)) f.decl=f.age;   // 衰えの始まり（33歳50%・34歳75%・35歳以上100%）
+  if(f.decl){ const y=f.age-f.decl+1; for(const k of ['m','p','s','e','d']) fAddD(f,k,-((1+0.8*y)*(0.5+rnd())+(k==='s'?1:0))); }   // 衰え（年々大きくなる）
+  if(ev){ if(ev.m) fAddD(f,'m',ev.m); if(ev.p) fAddD(f,'p',ev.p); }
+  const pts=cpuGrowBase(f.age,false)*(f.decl?0:1)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(f.age,star));
   cpuGrowF(f,pts); f.btype=cpuTypeOf(f,true);
 }
 function agePitcher(p,T,star,ev){
   p.age++;
-  if(p.age>=30){ const d=p.age<=33?()=>ri(-2,0):()=>ri(-3,0); p.velo=clamp(p.velo+d(),125,162); p.control=clamp(p.control+d()*2,10,100); p.stamina=clamp(p.stamina+d(),10,100); }
-  const pts=CPU_BASE(p.age)*1.4+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(p.age,star));
+  if(!p.decl&&rnd()<declP(p.age)) p.decl=p.age;   // 衰えの始まり
+  if(p.decl){ const y=p.age-p.decl+1, k=()=>0.5+rnd(); p.velo=clamp(Math.round((p.velo-(0.5+0.4*y)*k())*10)/10,110,VELO_MAX); p.control=clamp(Math.round((p.control-(1+0.8*y)*k())*10)/10,1,100); p.stamina=clamp(Math.round((p.stamina-(1.5+1*y)*k())*10)/10,1,100); }
+  const pts=cpuGrowBase(p.age,true)*(p.decl?0:1)+(T&&T.mgr?mgrCampBonus(T.mgr):0.5)+(ev?ev.pts:cpuEvents(p.age,star));
   cpuGrowP(p,pts); p.q=pitQ(p);
 }
 function retireAndTrim(T){
@@ -304,22 +337,25 @@ function retireAndTrim(T){
 // ドラフト：4＋順位 の人数（投手1〜5・野手1〜5）。返り値は指名した選手
 function draftFor(id,rank){
   const T=PEN.teams[id], N=4+rank, np=ri(Math.max(1,N-5),Math.min(5,N-1)), nf=N-np, got=[];
-  for(let i=0;i<np;i++){ const p=genRosterPitcher(ri(18,22),ri(-6,8)); p.rookie=PEN.year; T.P.push(p); got.push({k:'P',n:p.name,v:p.velo,age:p.age}); }
+  for(let i=0;i<np;i++){ const p=genRosterPitcher(ri(18,22),ri(-8,6)); p.rookie=PEN.year; T.P.push(p); got.push({k:'P',n:p.name,v:p.velo,age:p.age}); }
   for(let i=0;i<nf;i++){ const f=genFielder(pick(POSS),ri(18,22),ri(-6,8)); f.rookie=PEN.year; T.F.push(f); got.push({k:'F',n:f.n,pos:f.pos,age:f.age,v:Math.round(posValue(f,f.pos))}); }
   return {np,nf,got};
 }
 // シーズンの切り替え（年俸査定のあと）
 function rosterNewSeason(fin,cs){
   const res={}, hasCS=!!(cs&&Object.keys(cs).length);
-  // 去年のタイトル（各リーグの1位）：打率・本塁打・打点・盗塁・安打・出塁率／防御率・勝利・奪三振・セーブ
+  // 去年のタイトル争い（各リーグの1〜5位）の持ち点：打率・本塁打・打点・盗塁・安打・出塁率／防御率・勝利・奪三振・セーブ（自分も順位に入れて数える）
   const tit={};
-  if(hasCS) for(const lg of ['セ','パ']){
-    const F=[],P=[]; lgTeams(lg).forEach(id=>{ const T=PEN.teams[id]; (T.F||[]).forEach(f=>{ if(cs[f.id]) F.push({k:f.id,s:cs[f.id]}); }); (T.P||[]).forEach(p=>{ if(p.pid&&cs[p.pid]) P.push({k:p.pid,s:cs[p.pid]}); }); });
-    const top=(L,v,ok,low)=>{ const c=L.filter(x=>ok(x.s)); if(!c.length) return; c.sort((a,b)=>low?v(a.s)-v(b.s):v(b.s)-v(a.s)); tit[c[0].k]=(tit[c[0].k]||0)+1; };
-    top(F,s=>s.ab?s.h/s.ab:0,s=>s.pa>=QUAL_PA); top(F,s=>s.hr,s=>s.hr>0); top(F,s=>s.rbi,s=>s.rbi>0); top(F,s=>s.sb,s=>s.sb>0); top(F,s=>s.h,s=>s.h>0);
-    top(F,s=>s.pa?(s.h+s.bb)/s.pa:0,s=>s.pa>=QUAL_PA);
-    top(P,s=>s.outs?s.er*27/s.outs:99,s=>s.outs>=SEASON_GAMES*3,true); top(P,s=>s.w,s=>s.w>0); top(P,s=>s.k,s=>s.k>0); top(P,s=>s.sv,s=>s.sv>0);
-  }
+  if(hasCS){ const last=(PEN.seasons||[]).slice(-1)[0], meOk=last&&last.year===PEN.year-1&&TEAM[last.team], meLg=meOk?TEAM[last.team].lg:null;
+    const meB=meOk?(last.pos==='B'?last.ss:last.pos==='W'?last.bss:null):null, meP=meOk&&last.pos!=='B'?last.ss:null;
+    for(const lg of ['セ','パ']){
+      const F=[],P=[]; lgTeams(lg).forEach(id=>{ const T=PEN.teams[id]; (T.F||[]).forEach(f=>{ if(cs[f.id]) F.push({k:f.id,s:cs[f.id]}); }); (T.P||[]).forEach(p=>{ if(p.pid&&cs[p.pid]) P.push({k:p.pid,s:cs[p.pid]}); }); });
+      if(lg===meLg){ if(meB) F.push({k:'ME',s:meB}); if(meP) P.push({k:'ME',s:{...meP,er:meP.runs}}); }
+      for(const st in CS_STAT){ const o=CS_STAT[st], L=(o.b?F:P).filter(x=>o.ok(x.s,SEASON_GAMES)).map(x=>({k:x.k,v:o.v(x.s)})).sort((a,b)=>o.low?a.v-b.v:b.v-a.v);
+        L.slice(0,8).forEach(x=>{ const rk=L.findIndex(y=>y.v===x.v)+1; if(rk<=5&&x.k!=='ME') tit[x.k]=r1((tit[x.k]||0)+(typeof TITLE_CP!=='undefined'?TITLE_CP[rk]:0)); }); }
+    } }
+  const cpts=PEN.cpuPts||{}; PEN.cpuPts={};   // 去年の表彰（MVP・敢闘賞）の持ち点
+  for(const k in cpts) tit[k]=r1((tit[k]||0)+cpts[k]);
   for(const t of NPB){
     const T=PEN.teams[t.id];
     // リーグ上位（タイトル相当）：各リーグの野手上位3人・投手上位3人に+3、次の3人に+1
@@ -341,7 +377,7 @@ function rosterNewSeason(fin,cs){
 }
 // 二刀流：先発の日はDHなし。8人の野手＋自分で、打撃の能力と成績から監督が打順を決める
 function twLineup(){
-  const T=myT(), a=perfB(PEN.babil), perf=Math.round((twBatEval()-50)*0.5);
+  const T=myT(), a=perfB(PEN.babil), perf=Math.round((toOldB(twBatEval())-50)*0.5);
   const me={id:'me',n:PEN.pname,pos:'P',h:PEN.bhand,m:a.meet+perf,p:a.power+perf,s:a.speed,e:a.eye,d:50,age:PEN.age,isMe:true};
   const st=pickStarters(T,null,SLOTS.slice(0,8)); st.push({f:me,me:true,slot:'P',val:0});
   return battingOrder(st,myMgr()).map((x,i)=>x.me?{...meBatter(),order:i+1}:{...plainB(toBatter(x.f,i+1)),order:i+1});
@@ -363,7 +399,7 @@ function gamePitchers(id,day){
 function twCompete(quiet){
   if(!isTW()) return;
   const T=myT(), a=perfB(PEN.babil);
-  const me={id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((twBatEval()-50)*0.6),isMe:true,num:MYNUM};
+  const me={id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((toOldB(twBatEval())-50)*0.6),isMe:true,num:MYNUM};
   const st=battingOrder(pickStarters(T,me)), i=st.findIndex(x=>x.me);
   const was=!!PEN.dh;
   PEN.dh=i>=0; PEN.dhOrder=i>=0?i+1:0;
@@ -385,7 +421,7 @@ function csGet(key,isP){ const C=PEN.cs||(PEN.cs={}); return C[key]||(C[key]=isP
 function catcherDef(T){ if(!T) return 50; const i=(T.lpos||[]).indexOf('C'), b=i>=0&&T.lineup?T.lineup[i]:null;
   if(b&&b.isMe) return abPerf((PEN.babil&&PEN.babil.def)??70);
   const f=b&&T.F?T.F.find(x=>x.id===b.fid):null; return f?f.d:(T.fdef||50); }
-// CPUの盗塁：足に自信のある選手（速度60以上）だけが走る。成功率は足・捕手の守備・投手の球の速さ（平均）で決まる
+// CPUの盗塁：足に自信のある選手（走力60以上）だけが走る。成功率は足・捕手の守備・投手の球の速さ（平均）で決まる
 function cpuStealP(spd,cDef,pitchSpd){ return clamp(0.46+(spd-50)*0.008+(50-cDef)*0.004+(140-(pitchSpd||140))*0.004,0.3,0.93); }
 function csStealTry(b,s,O){
   if(b.speed<60||rnd()>(b.speed-55)*0.01) return;
@@ -435,7 +471,7 @@ function csTeamGame(tid,rf,ra,res,oid,me){
   if(res==='W'&&rf-ra<=3&&!/S/.test(dec)){ const c=used.find(u=>u.close); if(c&&rnd()<0.9) c.s.sv++; used.filter(u=>!u.sp&&!u.close&&!u.er&&u.o>=1).forEach(u=>{ if(rnd()<0.7) u.s.hld=(u.s.hld||0)+1; }); }
 }
 /* ===== CPUの試合を選手1人ずつ1打席ずつ回す（全試合）。結果と成績はこの試合の中身そのもの ===== */
-const LG_K={q:1.05,hrCut:0.4,hit:0.03,steal:0.02};   // 見た目をNPBらしくする調整値（本塁打を減らし安打を少し増やす・盗塁の多さ）
+const LG_K={q:1.05,hrCut:0,hit:0,steal:0.02};   // 見た目をNPBらしくする調整値（盗塁の多さ）。安打はミートに比例、本塁打はヒットのうちパワーで決まる割合なので、上乗せ・削りはなし
 function simLeagueGame(aid,bid,opts){
   opts=opts||{}; ensurePids();
   const A=PEN.teams[aid], B=PEN.teams[bid], day=PEN.day, rec=opts.rec!==false;
