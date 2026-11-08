@@ -9511,7 +9511,8 @@ function pnCard(e){
       ${pnPitTbl([['今季',cs],['昨季',p.ly],['通算',p.car]])}</div>`; }
   if(e.k==='ME'){ const B=hasBat(), P=!isBat(), a=PEN.abil||{}, b=PEN.babil||{};
     const role=isBat()?(PEN.role==='スタメン'?`${PEN.order}番・${POS_JP[PEN.slot]||''}`:PEN.role||''):(typeof pitRoleLabel==='function'?pitRoleLabel():PEN.role||'');
-    return `<div class="pnc"><div class="pnh"><b>${PEN.pname}</b> <small>（あなた）${TEAM[PEN.team]?TEAM[PEN.team].short:''}・${role}・${PEN.age}歳</small></div>
+    const info=typeof meContractTxt==='function'?`<div class="hint" style="margin:2px 0 6px;line-height:1.6">年俸 <b style="color:var(--ink)">${yen(PEN.salary)}</b>　${meContractTxt()}<br>起用の評価 <b style="color:var(--ink)">${Math.round(evalR())}点</b></div>`:'';
+    return `<div class="pnc"><div class="pnh"><b>${PEN.pname}</b> <small>（あなた）${TEAM[PEN.team]?TEAM[PEN.team].short:''}・${role}・${PEN.age}歳</small></div>${info}
       ${B?[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],['守備','def']].filter(([l,k])=>k!=='def'||isBat()).map(([l,k])=>pnBar(l,b[k]??0)).join(''):''}
       ${P?`${pnBar('球速',((a.velo||130)-120)*2.5,`${Math.round(a.velo||0)}km/h`)}${pnBar('コントロール',a.control||0)}${pnBar('スタミナ',a.stamina||0)}<div class="pnk">${(PEN.rep||[]).map(t=>`<span>${t} Lv.${(PEN.plev&&PEN.plev[t])||'-'}</span>`).join('')}</div>`:''}
       ${B?pnBatTbl([['今季',isTW()?PEN.bss:PEN.ss],['通算',isTW()?PEN.bcareer:PEN.career]]):''}${P?pnPitTbl([['今季',PEN.ss],['通算',PEN.career]]):''}</div>`; }
