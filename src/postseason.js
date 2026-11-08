@@ -163,10 +163,10 @@ function psBind(el){
   if(b) b.onclick=()=>{ psRunAll(); renderPennant(); save(); window.scrollTo(0,0); };
 }
 
-/* ---- 33歳を超えてからの衰え：年々大きくなる（34歳で5倍、1歳ごとに+1倍、最大20倍。マイナスの変化だけ） ---- */
+/* ---- 33歳を超えてからの衰え：年々大きくなる（衰え1年目5倍、1年ごとに+1.5倍、最大20倍。マイナスの変化だけ）。下がらないための成績の基準も1年ごとに厳しくなる（declK） ---- */
 function agingAmplify(ab){
   if(!PEN||!ab||!PEN.declAge) return ab; const y=PEN.age-PEN.declAge+1;   // 衰えが始まってからの年数
-  const m=clamp(4+y,5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
+  const m=clamp(3.5+1.5*y,5,20)/(typeof cbOn==='function'&&cbOn('anti')?2:1);   // アンチエイジング：倍率が半分
   const amp=o=>{ if(!o) return; for(const k of ['velo','control','stamina','meet','power','speed','eye','def']) if(typeof o[k]==='number'&&o[k]<0) o[k]=o[k]*m; o.agingMul=m; };
   amp(ab); if(ab.bat) amp(ab.bat);
   return ab;

@@ -1011,17 +1011,19 @@ function salaryChgB(y,s){ s=s||PEN.ss; return (y-52)/45+s.hr*0.004+s.rbi*0.001+s
 function abilityChangeB(s,minPA){
   s=s||PEN.ss; minPA=minPA||100;
   const age=PEN.age, old=!!PEN.declAge, out={meet:0,power:0,speed:0,eye:0,def:0,why:{}};   // 衰えが始まっていたら（33〜35歳で始まる）
+  const dk=declK();   // 衰えの2年目から、1年ごとに下がらないための基準が厳しくなる
   const pa=s.pa;
   if(pa>=minPA){
-    const avg=bAvg(s), iso=bSlg(s)-avg, bbp=(s.bb+s.hbp)/pa;
-    out.meet = avg>=.310?2: avg>=.275?1: avg>=.215?0:-1; out.why.meet=`打率 ${f3(avg)}`;
+    const avg=bAvg(s), iso=bSlg(s)-avg, bbp=(s.bb+s.hbp)/pa, ka=0.010*dk, kx=0.03*dk, kb=0.008*dk;
+    out.meet = avg>=.310+ka?2: avg>=.275+ka?1: avg>=.215+ka?0:-1; out.why.meet=`打率 ${f3(avg)}`;
     const xb=s.h?iso*s.ab/s.h:0;   // ヒット1本あたりの上乗せ塁打（長打の割合。パワーだけで決まる）
-    out.power= xb>=.92?2: xb>=.80?1: xb>=.63?0:-1; out.why.power=`長打の割合（ヒット1本あたりの上乗せ塁打）${xb.toFixed(2)}・本塁打${s.hr}`;
-    out.eye  = bbp>=.12?2: bbp>=.085?1: bbp>=.05?0:-1; out.why.eye=`四死球率 ${Math.round(bbp*1000)/10}%・三振${s.k}`;
+    out.power= xb>=.92+kx?2: xb>=.80+kx?1: xb>=.63+kx?0:-1; out.why.power=`長打の割合（ヒット1本あたりの上乗せ塁打）${xb.toFixed(2)}・本塁打${s.hr}`;
+    out.eye  = bbp>=.12+kb?2: bbp>=.085+kb?1: bbp>=.05+kb?0:-1; out.why.eye=`四死球率 ${Math.round(bbp*1000)/10}%・三振${s.k}`;
   }else{ out.why.meet=out.why.power=out.why.eye=`打席が少なく判断できず（${pa}打席）`; }
-  out.speed = s.sb>=30?1: (s.sb+s.d3)>=3?0: pa>=minPA?-1:0; out.why.speed=`盗塁${s.sb}・三塁打${s.d3}`;
+  out.speed = s.sb>=30+5*dk?1: (s.sb+s.d3)>=3+dk?0: pa>=minPA?-1:0; out.why.speed=`盗塁${s.sb}・三塁打${s.d3}`;
   if(age>30) out.speed-=1;   // 足は30歳を超えると落ちやすい
-  out.def = s.gs>=120?2 : s.gs>=60?1 : s.gs>=20?0 : -1; out.why.def=`スタメン${s.gs}試合（守った試合が多いほど上手くなる）`;
+  out.def = s.gs>=120+10*dk?2 : s.gs>=60+10*dk?1 : s.gs>=20+10*dk?0 : -1; out.why.def=`スタメン${s.gs}試合（守った試合が多いほど上手くなる）`;
+  if(dk) for(const k of ['meet','power','eye','speed','def']) if(out.why[k]) out.why[k]+=`（衰え${declY()}年目：基準が厳しい）`;
   if(age>31) out.def-=1;
   if(old){ out.meet-=2; out.power-=1; out.eye-=1; out.speed-=1; }
   out.meet=clamp(out.meet,old?-3:-1,old?1:2); out.power=clamp(out.power,old?-3:-1,old?1:2);
@@ -1044,7 +1046,7 @@ function applyAbilityChangeB(ch){ if(!ch) return; const a=PEN.babil; for(const k
 function abilChangeHTMLB(ch,tw){
   const a=PEN.babil, f=v=>v>0?`<span class="up">+${v}</span>`:v<0?`<span class="dn">${v}</span>`:'±0';
   const rows=[['ミート','meet'],['パワー','power'],['走力','speed'],['選球眼・技術','eye'],...(tw?[]:[['守備','def']])].map(([n,k])=>`<tr><th>${n}</th><td>${a[k]??50} → <b>${r1(clamp((a[k]??50)+(ch[k]||0),0,100))}</b>（${f(r1(ch[k]||0))}）<br><small style="color:var(--mute)">${ch.why[k]||''}</small></td></tr>`).join('');
-  return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
+  return `<div class="sh2">${tw?'打撃の能力の変化':'能力の変化'}（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり（'+declY()+'年目）、下がらないための基準が厳しく、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}</table></div>`;
 }
 function batLine(s){
   return `${s.g}試合（スタメン${s.gs}）　打率 <b>${s.ab?f3(bAvg(s)):'-'}</b>　${s.hr}本塁打 ${s.rbi}打点 ${s.sb}盗塁<br>${s.h}安打（二塁打${s.d2}・三塁打${s.d3}）　出塁率 ${s.pa?f3(bObp(s)):'-'}　OPS ${s.pa?f3(bObp(s)+bSlg(s)):'-'}`;

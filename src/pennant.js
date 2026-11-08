@@ -1269,6 +1269,8 @@ function yearReview(){
 // 育成期間（戦力外にならない期間）：野手は3年目まで（22歳以下）、投手・二刀流は5年目まで（23歳以下）。この間は成績による能力ダウンなし
 // 育成期間（戦力外にならない・成績による能力ダウンなし）：[この年目より前, この年齢より前]
 const DEV_P=Object.assign({B:[8,25],P:[8,25]},(typeof process!=='undefined'&&process.env&&process.env.DEVP)?JSON.parse(process.env.DEVP):{});
+// 衰えが始まってからの年数（1年目は0。2年目から1年ごとに、能力が下がらないための成績の基準が厳しくなる。6まで）
+const declK=()=>PEN&&PEN.declAge?clamp((PEN.age||18)-PEN.declAge,0,6):0, declY=()=>PEN&&PEN.declAge?(PEN.age||18)-PEN.declAge+1:0;
 const isDevP=()=>{ const d=isBat()?DEV_P.B:DEV_P.P; return PEN.year<d[0]&&(PEN.age||18)<d[1]; };
 function abilityChange(){
   const ss=PEN.ss, old=!!PEN.declAge, starter=ss.gs>=Math.max(1,ss.g/2), bt=ss.byType||{}, ip=ss.outs/3;
@@ -1276,20 +1278,21 @@ function abilityChange(){
   const out={velo:0,control:0,stamina:0,brk:{},why:{}};
   // 球速：先発はストレートが全投球の50%以上かつ1000球以上、中継ぎは400球以上投げた年だけ。ストレートの奪三振率で判断
   const enough = starter ? (st.n>=1000 && tot>0 && st.n/tot>=0.5) : st.n>=400;
+  const dk=declK(), dkw=dk?`（衰え${declY()}年目：基準が厳しい）`:'';   // 衰えの2年目から、1年ごとに下がらないための基準が厳しくなる
   if(enough&&ip>0){
-    const sk9=st.k*9/ip; let v = sk9>=7?2 : sk9>=5?1 : sk9>=3.5?0 : -1;
+    const sk9=st.k*9/ip-0.5*dk; let v = sk9>=7?2 : sk9>=5?1 : sk9>=3.5?0 : -1;
     if(old) v-=1; out.velo=clamp(v,old?-2:-1,old?1:2);
-    out.why.velo=`ストレートの奪三振率 ${sk9.toFixed(2)}（ストレート${Math.round(st.n)}球）`;
+    out.why.velo=`ストレートの奪三振率 ${(st.k*9/ip).toFixed(2)}（ストレート${Math.round(st.n)}球）${dkw}`;
   }else{ out.velo=old?-1:0; out.why.velo=`ストレートの投球数が基準に届かず（${Math.round(st.n)}球${starter&&tot?`・割合${Math.round(st.n/tot*100)}%`:''}）`; }
   // コントロール：与四球率（平均2.5）
   if(ip>=10){
-    const bb9=ss.bb*9/ip; let c = bb9<=1.0?3 : bb9<=1.8?2 : bb9<=2.5?1 : bb9<=3.5?0 : -1;
-    if(old) c-=2; out.control=clamp(c,old?-3:-1,old?1:3); out.why.control=`与四球率 ${bb9.toFixed(2)}`;
+    const bb9=ss.bb*9/ip, b9=bb9+0.2*dk; let c = b9<=1.0?3 : b9<=1.8?2 : b9<=2.5?1 : b9<=3.5?0 : -1;
+    if(old) c-=2; out.control=clamp(c,old?-3:-1,old?1:3); out.why.control=`与四球率 ${bb9.toFixed(2)}${dkw}`;
   }else{ out.control=old?-1:0; out.why.control='投球回が少なく判断できず'; }
   // スタミナ：先発は1登板あたりの投球回（8回以上が目安）、中継ぎは登板数（50登板が目安）
   let s;
-  if(starter){ const ipg=ss.gs?ss.outs/3/ss.gs:0; s= ipg>=8.5?3 : ipg>=8?2 : ipg>=7?1 : ipg>=6?0 : ipg>=5?-1 : -2; out.why.stamina=`1登板あたり ${ipg.toFixed(1)}回`; }
-  else { s= ss.g>=60?3 : ss.g>=50?2 : ss.g>=40?1 : ss.g>=30?0 : ss.g>=20?-1 : -2; out.why.stamina=`${ss.g}登板`; }
+  if(starter){ const ipg=ss.gs?ss.outs/3/ss.gs:0, q=ipg-0.3*dk; s= q>=8.5?3 : q>=8?2 : q>=7?1 : q>=6?0 : q>=5?-1 : -2; out.why.stamina=`1登板あたり ${ipg.toFixed(1)}回${dkw}`; }
+  else { const g=ss.g-4*dk; s= g>=60?3 : g>=50?2 : g>=40?1 : g>=30?0 : g>=20?-1 : -2; out.why.stamina=`${ss.g}登板${dkw}`; }
   if(old) s-=2; out.stamina=clamp(s,old?-4:-2,old?1:3);
   if(isDevP()) for(const k of ['velo','control','stamina']) if(out[k]<0){ out[k]=0; out.why[k]+='（育成期間なので成績によるダウンなし）'; }
   // 変化球：成績で球種ごとに1段階ダウン〜1段階アップ
@@ -1455,7 +1458,7 @@ function seasonRollover(fin){
 
 /* ---- 春季キャンプ：開幕前に持ち点で能力を上げる（野手0.5・投手と二刀流0.7 ＋ 覚醒でためた持ち点）／変化球を覚える・守備位置を増やす（持ち点全部） ---- */
 
-// キャンプの基礎点：投手も野手も年齢で変わる（18歳2.0から1歳ごとに+0.1、30歳の3.2が最大、そこから1歳ごとに-0.1）
+// キャンプの基礎点：投手も野手も年齢で変わる（22歳まで2.0・23〜27歳2.5・28〜32歳3.0・33〜37歳2.5・38歳から2.0）
 const BASE_AGE=a=>Math.max(1,Math.floor(Math.max(1,3.2-Math.abs(a-30)*0.1)*2+1e-9)/2);   // 投手も野手も年齢で増減（0.5刻みに切り下げ）：〜22歳2.0・23〜27歳2.5・28〜32歳3.0・33〜37歳2.5・38歳〜2.0
 const campBase=()=>BASE_AGE(PEN&&PEN.age||18);
 const campPts=()=>r1(campBase()+mgrCampBonus(myMgr())+((PEN&&PEN.awake&&PEN.awake.bank)||0)+((PEN&&PEN.carry)||0));   // 使い残した点数は翌年に繰り越し
@@ -1782,7 +1785,7 @@ function renderPennant0(){
     const fin=rv.fin||{'セ':standings('セ'),'パ':standings('パ')}, myLg=T.lg;
     const champ=lg=>fin[lg][0].id, rank=fin[myLg].findIndex(x=>x.id===P.team)+1;
     const head=`<h2>${P.year}年目 シーズン終了</h2>
-      <div class="pcardx">${tchip(P.team,true)}　${rec.w}勝${rec.l}敗${rec.t}分　<b>${LG_NAME[myLg]}${rank}位</b>${champ(myLg)===P.team?'　🏆 リーグ優勝！':''}<br>${roleName(P.role)}　${statLine(P.ss)}</div>`;
+      <div class="pcardx">${tchip(P.team,true)}　${rec.w}勝${rec.l}敗${rec.t}分　<b>${LG_NAME[myLg]}${rank}位</b>${champ(myLg)===P.team?'　🏆 リーグ優勝！':''}<br>${isTW()?'投手：':''}${roleName(P.role)}　${statLine(P.ss)}${isTW()?`<br>打撃：${batLine(P.bss||batStat())}`:''}</div>`;   // 二刀流は打撃の成績も
     if(rv.stage==='ps'&&rv.ps&&!psMyTeamIn(rv.ps)) psRunAll();   // 自分のチームが出ないポストシーズンは結果だけ
     if(rv.stage==='ps'){
       el.innerHTML=`<div class="pen">${head}
@@ -2081,10 +2084,12 @@ function myStatsHTML(){
   const P=PEN, f2=(n,o)=>o?(n*27/o).toFixed(2):'-.--';
   const rowsP=s=>[['登板',s.g],['先発',s.gs],['勝利',s.w],['敗戦',s.l],['セーブ',s.sv],['ホールド',s.hld||0],['投球回',fmtIP(s.outs)],['奪三振',s.k],['四球',s.bb],['防御率',f2(s.runs,s.outs)],['WHIP',s.outs?((s.hits+s.bb)*3/s.outs).toFixed(2):'-.--']];
   const rowsB=s=>[['試合',s.g],['打席',s.pa],['打率',s.ab?f3(bAvg(s)):'-'],['安打',s.h],['本塁打',s.hr],['打点',s.rbi],['盗塁',s.sb],['四死球',(s.bb||0)+(s.hbp||0)],['三振',s.k],['出塁率',s.pa?f3(bObp(s)):'-'],['OPS',s.pa?f3(bObp(s)+bSlg(s)):'-'],['失策',s.fg||s.ds?(s.err||0):'-'],['UZR',fmtUZR(s)]];
-  const tbl=(title,a,b)=>`<table class="stt sctbl"><thead><tr><th>${title}</th><th>今季</th><th>通算</th></tr></thead><tbody>${a.map((r,i)=>`<tr><th>${r[0]}</th><td>${r[1]}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
-  if(isBat()) return tbl('打撃',rowsB(P.ss),rowsB(P.career));
-  let h=tbl('投手',rowsP(P.ss),rowsP(P.career));
-  if(isTW()) h+=tbl('打撃',rowsB(P.bss||batStat()),rowsB(P.bcareer||batStat()));
+  // 昨季：去年のシーズンの記録（投手と打撃は、そのとき投げていた／打っていた成績だけ）
+  const last=(P.seasons||[]).slice(-1)[0], lastB=last?(last.pos==='B'?last.ss:last.pos==='W'?last.bss:null):null, lastP=last&&last.pos!=='B'?last.ss:null;
+  const tbl=(title,a,l,b)=>`<table class="stt sctbl c3"><thead><tr><th>${title}</th><th>今季</th><th>昨季</th><th>通算</th></tr></thead><tbody>${a.map((r,i)=>`<tr><th>${r[0]}</th><td>${r[1]}</td><td>${l?l[i][1]:'-'}</td><td>${b[i][1]}</td></tr>`).join('')}</tbody></table>`;
+  if(isBat()) return tbl('打撃',rowsB(P.ss),lastB&&rowsB(lastB),rowsB(P.career));
+  let h=tbl('投手',rowsP(P.ss),lastP&&rowsP(lastP),rowsP(P.career));
+  if(isTW()) h+=tbl('打撃',rowsB(P.bss||batStat()),lastB&&rowsB(lastB),rowsB(P.bcareer||batStat()));
   return h;
 }
 function draftNewsHTML(){
@@ -2106,7 +2111,7 @@ function abilChangeHTML(ch){
     .map(([n,v,d,u,w])=>(w=String(w||'').replace(/(\d+\.\d+)球/g,(m,x)=>Math.round(+x)+'球'),`<tr><th>${n}</th><td>${v}${u} → <b>${r1(clamp(v+d,0,n==='球速'?VELO_MAX:100))}${u}</b>（${f(r1(d))}）<br><small style="color:var(--mute)">${w}</small></td></tr>`)).join('');
   const br=Object.entries(ch.brk).filter(([t])=>PEN.rep.includes(t)).map(([t,d])=>{const cur=lvOf(t), nx=clamp(cur+d,0,LV_MAX);
     return `<tr><th>${ptn(t)}</th><td>Lv.${cur} → <b>${nx===0?'投げられなくなる':'Lv.'+nx}</b>（${f(d)}）${ch.aging&&ch.aging.t===t?`<br><small style="color:var(--mute)">衰えで −${ch.aging.d}</small>`:''}</td></tr>`}).join('');
-  return `<div class="sh2">能力の変化（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}${br}</table></div>`;
+  return `<div class="sh2">能力の変化（来季に反映${PEN.declAge?'・'+PEN.declAge+'歳から衰えが始まり（'+declY()+'年目）、下がらないための基準が厳しく、マイナスが大きい（'+(ch.agingMul||5)+'倍）':''}）</div><div class="pcardx"><table class="stt abch">${rows}${br}</table></div>`;
 }
 function seasonTable(){
   return `<table class="stt"><thead><tr><th>年</th><th>所属・役割</th><th>成績</th><th>年俸</th></tr></thead><tbody>`+
