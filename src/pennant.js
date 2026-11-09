@@ -664,7 +664,7 @@ function penSkip(){
   const oRate=Math.max(2.4,3.6+B.off-A.def*0.5), mRate=Math.max(1.8,3.9+A.off-B.def);   // 味方のリリーフの失点・味方打線の得点
   if(p.kind==='start'){
     const S0=clamp(PEN.abil.stamina*(typeof fatStaMul==='function'?fatStaMul():1),1,100), st=staNew(S0), myQ=pitQ({velo:PEN.abil.velo,control:PEN.abil.control,stamina:PEN.abil.stamina,types:PEN.rep,plv:PEN.plev,levs:{}});   // その日のスタミナ（疲労で減る）・投手の質（CPUと同じ式）
-    const outs=clamp(Math.round(spOutsAvg(S0)+(st.max-(S0-10))*0.1135/staK(S0)+(1-myQ)*25+(rnd()-.5)*4),3,27);   // CPUの先発と同じ基準（スタミナが多く、打たれにくいほど長く投げる）
+    const outs=clamp(Math.round(spOutsAvg(S0)+(st.max-S0*STA_DAY)*SPO_B/staK(S0)+(1-myQ)*25+(rnd()-.5)*4),3,27);   // CPUの先発と同じ基準（スタミナが多く、打たれにくいほど長く投げる）
     const runs=poisson(era*outs/27*(0.6+rnd()*0.8)); line=mkLine(outs,runs);
     so=runs+poisson(oRate*(27-outs)/27); sm=poisson(mRate); res=teamResult(so,sm);
     if(res==='W'&&sm<=so) sm=so+1; if(res==='L'&&so<=sm) so=sm+1;
@@ -1857,7 +1857,7 @@ function renderPennant0(){
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）${rv.twAns==='ok'?`<br>来季から<b>${rv.twConv==='P'?'投手':'野手（外野手）'}に専念</b>`:rv.twAns==='stay'?'<br>二刀流を続ける代わりに大幅ダウン':''}`}
         <div class="hint">${rv.yRB!=null?'<span class="tg tgP">投手</span> ':''}今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${evB}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.places||[]).length?`／タイトル争い${rv.places.map(p=>p.name+p.rank+'位').join('・')}で+${Math.round(placeBonus(rv.places)*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
       <div class="hint">${rateBasisTxt(rv.ys)}</div>
-      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const cut=fatOffCut(PEN.age,PEN.recov), nx=Math.round(Math.max(0,myFat()-cut)); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round(cut)}抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から1歳ごとに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
+      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const cut=fatOffCut(PEN.age,PEN.recov), nx=Math.round(Math.max(0,myFat()-cut)); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round(cut)}抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から抜けにくくなり、35歳・40歳を過ぎるとさらに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
       ${rv.abil?(rv.twConv==='B'?(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):''):rv.twConv==='P'?abilChangeHTML(rv.abil):isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
@@ -1905,7 +1905,7 @@ function renderPennant0(){
       <div class="row" style="margin-top:8px"><button class="btn main" data-fr="rest" style="margin:0">休む</button><button class="btn" data-fr="go">強行出場する</button></div>
       <div class="hint">強行出場するとスタメンで出て、疲労がさらに溜まる。疲れているほどケガ・スランプが起きやすく（今のケガ率 ${typeof injRate==='function'?injRate():'-'}%／試合）、途中で代えられることもある。疲労${FAT_LIM}を超えると能力も下がる</div></div>`;
   }else if(P.prompt&&P.prompt.kind==='staRole'){   // スタミナが低い新人の先発
-    const S=P.abil.stamina, cap=Math.round(S/staK(S)), capLo=Math.round(Math.max(3,S-20)/staK(S));
+    const S=P.abil.stamina, cap=Math.round(S/staK(S)), capLo=Math.round(Math.max(3,S*0.78)/staK(S));
     prompt=`<div class="pcardx hi trade"><div class="sh2" style="margin-top:0">🧢 ${mgrName(myMgr())}から相談</div>
       ${managerSay(`${P.pname}、開幕前に話しておきたい。お前のスタミナ（${S}）だと、先発しても${capLo}〜${cap}球くらいで息切れしそうだ。先発のままいくか、まずは中継ぎで短いイニングから慣れていくか、どうする？`)}
       <div class="row" style="margin-top:8px"><button class="btn main" data-sr="keep" style="margin:0">先発のままいく</button><button class="btn" data-sr="relief">中継ぎから始める</button></div>

@@ -174,11 +174,12 @@ const PVELO=146, MYNUM=18;   // ストレートの平均球速（通常モード
 const myVelo=()=>G&&G.abil?G.abil.velo:PVELO;
 const fatigue=()=>0;   // （旧）スタミナを超えた球数 → スタミナの残量（staF）に置き換え
 /* ---- スタミナ：スタミナの数値がそのまま残量。1球ごとに球種で決まる量を使う（自分もCPUも同じ） ----
-   全投手・全球種の平均で「(スタミナ＋n)÷0.78」球投げられる（n：〜50は5、〜70は10、〜80は15、〜90は20、〜100は30）
-   その日の残量は スタミナ−20〜±0。目安：スタミナ90でヒットを打たれなければ110〜140球、70で85〜105球、50で55〜75球
+   全投手・全球種の平均で「(スタミナ＋n)÷0.78」球投げられる（n：40で18・60で35・90で20・100で30）
+   その日の残量は スタミナの78〜100%。目安：ヒットを打たれなければ スタミナ90で110〜140球、60で95〜120球、40で57〜74球
+   平均的な先発の投球回：スタミナ50で約4⅔回、55〜60で約5〜5½回、80で約6回、100で約7回
    打たれるとさらに使う（ストレート何球分か）：単打1・二塁打2・三塁打3・エラーで出塁4・本塁打6、失点1につき2
    半分を切ると、少しずつ制球・球威・球の質が落ち、全球種の球速が近づいていく */
-const staN=S=>S<=50?5:S<=70?10:S<=80?15:S<=90?20:30;
+const staN=S=>S<=40?18:S<=60?18+(S-40)*0.85:S<=90?35-(S-60)*0.5:20+(S-90);   // スタミナに足す球数（40で18・60で35・90で20・100で30。間はなめらかに）
 const STA_FAM={fast:1.0,slider:1.1,shoot:1.1,curve:1.3,sinker:1.5,fork:1.5};   // 持ち点のコストが高い球種ほど多く使う
 const staW=(t,lv)=>(STA_FAM[PFAM[t]]||1.2)*(1+0.06*((lv||2)-2));                 // Lvが高いほど多く使う
 let STA_AVG=null;
@@ -188,8 +189,10 @@ function staAvg(){ if(STA_AVG) return STA_AVG; let s=0; const N=2000;
 const STA_PER=0.78;   // 1球あたりに使う量の倍率（スタミナ90で110〜140球になるように）
 const staK=S=>S/(S+staN(S))*STA_PER;   // 平均的な1球で使う量
 const staCost=(t,lv,S)=>staW(t,lv)/staAvg()*staK(S);
-function staNew(S){ S=clamp(S??50,1,100); const m=Math.max(3,r1(S-ri(0,20))); return {S,max:m,cur:m}; }   // 日によって−20〜±0のブレ
-const spOutsAvg=S=>{ S=clamp(S??50,1,100); return 4.75+0.1135*Math.max(3,S-10)/staK(S); };   // 先発の平均のアウト数（CPUの試合を1打席ずつ回したときの平均。スタミナ100で約21・80で約16・60で約12。投手の質で上下）
+function staNew(S){ S=clamp(S??50,1,100); const m=Math.max(3,r1(S*(1-ri(0,22)/100))); return {S,max:m,cur:m}; }   // 日によってスタミナの78〜100%のブレ
+const STA_DAY=0.89;   // その日の残量の平均（スタミナの89%）
+const SPO_A=2.96, SPO_B=0.1255;   // 先発のアウト数＝A＋B×その日に投げられる球数（CPUの試合を1打席ずつ回した結果から）
+const spOutsAvg=S=>{ S=clamp(S??50,1,100); return SPO_A+SPO_B*Math.max(3,S*STA_DAY)/staK(S); };   // 先発の平均のアウト数（CPUの試合を1打席ずつ回したときの平均。スタミナ100で約21・80で約16・60で約12。投手の質で上下）
 const STA_HIT={'1B':1,IFH:1,'2B':2,'3B':3,E:4,HR:6};   // 打たれたときに余分に使う量（ストレート何球分か）
 const staHitCost=(res,runs,S,lv)=>((STA_HIT[res]||0)+(runs||0)*2)*staCost('ストレート',lv??3,S);   // ＋失点1につきストレート2球分
 const staF=st=>st?clamp((0.5-st.cur/st.max)/0.5,0,1.5):0;   // 0＝半分以上残っている、1＝空っぽ、1.5＝使い切ったあと
@@ -1167,7 +1170,7 @@ const avgLin=(c,s)=>{ const d=typeof abShow==='function'?abShow(c??50):(c??50); 
 const HR_SHARE=Object.assign({max:0.25,e:1},(typeof process!=='undefined'&&process.env&&process.env.HRSH)?JSON.parse(process.env.HRSH):{});
 const HR_ME=Object.assign({k:1.0},(typeof process!=='undefined'&&process.env&&process.env.HRME)?JSON.parse(process.env.HRME):{});   // 自分の打席の本塁打の割合の調整（1＝CPU・スキップと同じ）
 const hrShare=p=>HR_SHARE.max*Math.pow(clamp((typeof abShow==='function'?abShow(p??50):(p??50))/100,0,1),HR_SHARE.e);
-const SIM_AVG=Object.assign({k:1.15,bt:0.25},(typeof process!=='undefined'&&process.env&&process.env.SIMAVG)?JSON.parse(process.env.SIMAVG):{});   // 自動で進む打席（CPU同士・スキップ）の打率が avgLin になるようにする調整
+const SIM_AVG=Object.assign({k:1.13,bt:0.25},(typeof process!=='undefined'&&process.env&&process.env.SIMAVG)?JSON.parse(process.env.SIMAVG):{});   // 自動で進む打席（CPU同士・スキップ）の打率が avgLin になるようにする調整
 function simPA(b,q){
   const BT=b.type, bb=clamp((0.04+b.eye*0.0007)*SIM_K.bb,0.04,0.15);
   const hit=clamp((avgLin(b.contact,b.speed)*SIM_AVG.k*0.8*q+btFx(BT,'hit')*SIM_AVG.bt)*(1-(b.fp||0)),0,0.5), k=clamp(0.3-b.contact*0.0016+btFx(BT,'k'),0.08,0.35);   // ヒット（本塁打を含む）はミートで決まる
