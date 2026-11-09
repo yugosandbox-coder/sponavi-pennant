@@ -2569,7 +2569,7 @@ function penNextKind(){
   const relOK=!((PEN.role==='中継ぎ'||PEN.role==='抑え'||PEN.role==='裏ローテ')&&typeof fatRelBlock==='function'&&fatRelBlock());   // 中継ぎ：疲労・連投の上限・休養の申し出でベンチに入らない日
   if(relOK&&PEN.role==='中継ぎ'&&PEN.penRank===2&&rnd()<0.34*saveShare(myT())) return 'closer';   // セットアッパー：クローザーと評価が近いとセーブ機会も
   if(relOK&&(PEN.role==='中継ぎ'||PEN.role==='裏ローテ')&&rnd()<relProb()) return 'relief';   // 中継ぎ・ロングリリーフの登板（二刀流でも投げる日が優先）
-  if(isTW()&&PEN.dh) return typeof fatRestToday==='function'&&fatRestToday()?null:'bat';   // 二刀流：投げない日は指名打者で（疲れていたら休み）
+  if(isTW()&&PEN.dh) return PEN.twStartDay===PEN.day-1?null:(typeof fatRestToday==='function'&&fatRestToday()?null:'bat');   // 二刀流：投げない日は指名打者で（先発の翌日・疲れていたら休み）
   if(isStarter(PEN.role)||PEN.role==='中継ぎ') return null;
   if(PEN.role==='抑え') return relOK&&rnd()<0.34*(1-saveShare(myT()))?'closer':null;   // セットアッパーと評価が近いとセーブ機会を分け合う
   return null;
@@ -4010,7 +4010,7 @@ function renderPennant0(){
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）${rv.twAns==='ok'?`<br>来季から<b>${rv.twConv==='P'?'投手':'野手（外野手）'}に専念</b>`:rv.twAns==='stay'?'<br>二刀流を続ける代わりに大幅ダウン':''}`}
         <div class="hint">${rv.yRB!=null?'<span class="tg tgP">投手</span> ':''}今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${evB}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.places||[]).length?`／タイトル争い${rv.places.map(p=>p.name+p.rank+'位').join('・')}で+${Math.round(placeBonus(rv.places)*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
       <div class="hint">${rateBasisTxt(rv.ys)}</div>
-      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const k=fatOffKeep(PEN.age,PEN.recov), nx=Math.round(myFat()*k); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round((1-k)*100)}%抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から1歳ごとに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
+      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const cut=fatOffCut(PEN.age,PEN.recov), nx=Math.round(Math.max(0,myFat()-cut)); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round(cut)}抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から1歳ごとに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
       ${rv.abil?(rv.twConv==='B'?(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):''):rv.twConv==='P'?abilChangeHTML(rv.abil):isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
@@ -4245,7 +4245,7 @@ function meRoleRows(){
     rows.push(['守れる位置',myPosAll().map(p=>POS_JP[p]||p).join('・')]);
   }else{
     rows.push(['起用',`<b>${typeof pitRoleLabel==='function'?pitRoleLabel():roleName(P.role)}</b>（${PCAT_JP[myPcat()]||''}）`]);
-    if(isTW()) rows.push(['投げない日',P.dh?`指名打者（${P.dhOrder}番）で出場`:'出場なし（指名打者の争いに負けている）']);
+    if(isTW()) rows.push(['投げない日',P.dh?`指名打者（${P.dhOrder}番）で出場${isStarter(P.role)?'（先発の翌日は休み）':''}`:'出場なし（指名打者の争いに負けている）']);
   }
   if(P.trial){ const T=P.trial; rows.push([T.down?'見極め中':'お試し中',`${PCAT_JP[T.to]||''}　${T.n||0}／5登板${T.down?`（元の${PCAT_JP[T.from]||''}に戻れるかの見極め）`:''}`]); }
   if(P.btrial){ const T=P.btrial; rows.push([T.down?'見極め中':'お試し中',`${bUseTxt(T.to)}　${T.n||0}／5試合${T.down?`（${T.fromTxt||''}に戻れるかの見極め）`:''}`]); }
@@ -7093,6 +7093,7 @@ function allstarCheck(){
   const strip=(S,m,t)=>({F:S.F.map(x=>({f:x.f,id:x.id,me:!!x.me})),P:S.P.map(x=>({p:x.p,id:x.id,me:!!x.me})),mgr:{...m},mgrTeam:t});
   PEN.asState={y:PEN.year,A:strip(A,mgrA,teamA),B:strip(B,mgrB,teamB),mine:TEAM[PEN.team].lg,sel:!!(A.me||B.me),games:{}};
   penNotice(`⭐ オールスターの監督：全セ＝${TEAM[teamA].short}の${mgrA.sur}監督、全パ＝${TEAM[teamB].short}の${mgrB.sur}監督（各リーグ1位）`);
+  if(typeof fatEventDay==='function'){ fatEventDay(0); fatEventDay(0); if(!PEN.asState.sel){ fatEventDay(0); fatEventDay(0); } }   // 疲労：休み2日＋試合の2日（出なければ休みの日と同じ回復）
   if(!PEN.asState.sel){ allstarFinalize(); return; }
   const S=PEN.asState, X=asMine(S); evEnsure(S.A); evEnsure(S.B); asSide(X,1);
   const role={kind:'ev'}; S.role=role; S.nextDay=1;   // 出番は penStep が作る（試合の後処理で pending が消されないように）。出番の中身はその日の評価で決まる
@@ -7111,7 +7112,7 @@ function asNextPending(day){
     if(S.sims&&S.sims[d]) continue;
     const r=(typeof injured==='function'&&injured())?null:asRoleDay(S,d);
     if(r){ S.nextDay=d; PEN.pending={day:PEN.day,opp:null,kind:'allstar',asDay:d,asKind:r.kind,slot:r.slot||null,started:false}; return; }
-    asSimDay(S,d,false);   // 出番なし（先発した翌日・2日目の先発候補の1日目）：その日の試合はシミュレーション
+    asSimDay(S,d,false); if(typeof fatEventDay==='function') fatEventDay(0);   // 出番なし（先発した翌日・2日目の先発候補の1日目）：その日の試合はシミュレーション。疲労は休みの日と同じ回復
   }
   allstarFinalize();
 }
@@ -7162,6 +7163,7 @@ function allstarGameDone(){
   if(G.mission){ if(bat) checkMissionB(); else checkMission(); }   // 評価はオールスターの中だけ
   try{ asSimDay(S,p.asDay,true); }catch(e){}   // ほかの選手の成績（自分は実際の成績）
   evApplyMe(asMine(S),bat?'B':'P',S.games[p.asDay].st);
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGameG(p.asKind));   // 出場した日：普通の試合と同じように疲労
   PEN.pending=null; S.nextDay=p.asDay+1;
 }
 // スキップ：その試合の自分の成績はシミュレーションに任せる
@@ -7169,6 +7171,7 @@ function allstarSkip(){
   const S=PEN.asState, p=PEN.pending; if(!S||!p||p.kind!=='allstar') return;
   if(gameIsPending()) closePenGame();
   S.games[p.asDay]='sim'; asSimDay(S,p.asDay,false);
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGain(p.asKind,null,{as:true}));   // スキップでも出場はしている
   PEN.pending=null; S.nextDay=p.asDay+1;
 }
 // 2試合が終わったら：ほかの選手はシミュレーション、自分は実際の成績で表彰を決める
@@ -7232,6 +7235,8 @@ function psInit(fin){
 const psCur=S=>S.series[PS_ORDER[S.idx]];
 const psWinner=s=>s.wa>=s.need?s.a:s.wb>=s.need?s.b:null;
 const psMine=s=>!!(s&&PEN&&!PEN.released&&(s.a===PEN.team||s.b===PEN.team));
+// 疲労：自分のリーグのCSと日本シリーズの試合の日を1日と数える（もう片方のリーグのCSは同じ日程なので数えない）。出なければ休みの日と同じ回復
+const psFatDay=(s,g)=>{ if(typeof fatEventDay!=='function'||!PEN||PEN.released) return; if(s.lg&&TEAM[PEN.team]&&s.lg!==TEAM[PEN.team].lg) return; fatEventDay(g||0); };
 // 次のシリーズを用意する（終わっていれば）
 function psAdvance(S){
   while(S.idx<PS_ORDER.length){
@@ -7254,9 +7259,10 @@ function psMyKind(s,gameNo){
   if(!psMine(s)||(typeof injured==='function'&&injured())) return null;
   if(isBat()) return PEN.role==='スタメン'?'bat':(rnd()<Math.min(0.6,pinchProb()*1.3)?'pinch':null);
   const slot={'エース':0,'ローテ':1,'裏ローテ':2}[PEN.role];
-  if(slot!=null) return (gameNo-1)%4===slot?'start':(isTW()&&PEN.dh?'bat':null);
-  if(PEN.role==='中継ぎ') return rnd()<Math.min(0.6,relProb()*1.4)?'relief':null;
-  if(PEN.role==='抑え') return rnd()<0.45?'closer':null;
+  const tired=typeof myFat==='function'?myFat():0, thr=typeof myFatThr==='function'?myFatThr():99;   // 疲労：レギュラーシーズンと同じく、疲れすぎていれば先発を回避・中継ぎは休ませる
+  if(slot!=null) return (gameNo-1)%4===slot&&tired<thr+FAT_SP?'start':(isTW()&&PEN.dh&&(gameNo-2)%4!==slot?'bat':null);   // 二刀流：先発の翌日は指名打者で出ない
+  if(PEN.role==='中継ぎ') return tired<thr&&rnd()<Math.min(0.6,relProb()*1.4)?'relief':null;
+  if(PEN.role==='抑え') return tired<thr&&rnd()<0.45?'closer':null;
   return null;
 }
 // チームを「選手の集まり」に（asGame 用）。自分は実際の成績を使うので入れない
@@ -7285,7 +7291,7 @@ function psNext(){
     const opp=s.a===PEN.team?s.b:s.a;
     const p=makePending(kind,opp); if(p){ p.ps=true; p.psKey=s.key; p.psName=s.name; p.gameNo=gameNo; PEN.pending=p; return true; }
   }
-  psSimGame(s,null); psAdvance(S); psAwards(S); if(S.done) psFinish();
+  psSimGame(s,null); psFatDay(s,0); psAdvance(S); psAwards(S); if(S.done) psFinish();
   return false;
 }
 // 自分の試合が終わった（penGameDone から）
@@ -7295,6 +7301,7 @@ function psGameDone(){
   const st=G.st, res=G.result?G.result.res:(myTot()>oppTot()?'W':myTot()<oppTot()?'L':'T');
   const myA=s.a===PEN.team, my=myTot(), op=oppTot();
   if(res==='T'){ PEN.pending=null; return; }   // 引き分けはやり直し（ポストシーズンに引き分けはない扱い）
+  psFatDay(s,typeof fatEventGameG==='function'?fatEventGameG(p.kind):0);   // 出場した日：普通の試合と同じように疲労
   if(G.mission){ if(G.bat&&!G.tw) checkMissionB(); else checkMission(); }   // 監督のミッション（達成は翌年の評価に持ち越し）
   // 自分の成績（ポストシーズン用）
   const M=S.myStat;
@@ -7318,7 +7325,7 @@ function psSkip(){
   const p=PEN.pending, rv=PEN.review, S=rv&&rv.ps; if(!p||!S) return;
   if(gameIsPending()) closePenGame();
   const s=S.series[p.psKey]; PEN.pending=null; if(!s) return;
-  psSimGame(s,{kind:p.kind,line:'出場（スキップ）',played:false});
+  psSimGame(s,{kind:p.kind,line:'出場（スキップ）',played:false}); psFatDay(s,typeof fatEventGain==='function'?fatEventGain(p.kind,null):0);
   psAdvance(S); psAwards(S); if(S.done) psFinish();
 }
 // 残りをまとめて（自分の出番もスキップ）。untilKey＝'JS' なら日本シリーズの前で止める
@@ -7439,11 +7446,12 @@ function injuryHTML(){
 
 /* ================================================================
    疲労（0〜100）と回復力（0〜100）：プレイヤーもCPUも
-   ・試合に出ると溜まる（野手：打席・守備位置／投手：球数・連投）。年齢で溜まりやすくなる（24歳まで×0.95 → 30歳×1.0 → 35歳×1.12 → 40歳×1.32）
+   ・試合に出ると溜まる（野手：打席・守備位置。指名打者は×0.85／投手：球数・連投）。二刀流は先発の翌日は指名打者で出ず、指名打者の日は×0.5。年齢で溜まりやすくなる（24歳まで×0.95 → 30歳×1.0 → 35歳×1.12 → 40歳×1.32）
      衰えが始まるとさらに溜まりやすい（1年目×1.06・3年目×1.18・5年目×1.3）
-   ・毎日少しずつ回復：(1＋疲労の0.5%)×回復力の倍率（回復力50で×0.9・65で×1.6・80で×2.65・90で×3.5・100で×4.2）。出なかった日は1.5倍。オールスター休みで−15
+   ・毎日少しずつ回復：(1＋疲労の0.5%)×回復力の倍率（回復力50で×0.9・65で×1.6・80で×2.65・90で×3.5・100で×4.2）。出なかった日は1.5倍
+   ・オールスター・ポストシーズン・WBC：出場した日は普通の試合と同じように溜まり、出ない日は休みの日と同じだけ回復（オールスターは4日・ポストシーズンは自分のリーグのCSと日本シリーズの試合の日・WBCは日本の試合の日）。ポストシーズンも疲れすぎていれば先発回避・中継ぎは休み
    ・目安（外野のスタメン級）：回復力50で年70試合前後、80で1年はほぼフル出場（続けると少しずつ減る）、90〜100で毎年フル出場
-   ・オフに抜ける割合：回復力50で4割強・80で6割・100で8割弱（31歳から1歳ごとに−8%）。残りは翌シーズンに持ち越し
+   ・オフに抜ける量：23＋6.5×回復の速さ（回復力50で29・80で40・100で50。31歳から1歳ごとに−8%、最低3）。残りは翌シーズンに持ち越し
    ・溜まるとスランプ・ケガが起きやすく（重く）なり、投手は試合の始めのスタミナが減る。85以上（限界）は能力も下がる
    ・監督は性格に応じて休ませる（休養日・併用・途中交代・先発回避・中継ぎの連投制限）。自分から休養を申し出ることもできる（評価が少し下がる）
    ================================================================ */
@@ -7455,11 +7463,13 @@ const recK=r=>{ r=clamp(r??40,0,100); let i=1; while(i<REC_K.length-1&&r>REC_K[i
 const fatDecl=(age,decl)=>decl?1+0.06*Math.max(1,(age||22)-decl+1):1;   // 衰えが始まると溜まりやすい（1年目×1.06 → 3年目×1.18 → 5年目×1.3）
 const FAT_FLD={C:1.6,SS:1.0,'2B':1.0,'3B':0.8,LF:0.7,CF:0.7,RF:0.7,OF:0.7,'1B':0.6,DH:0};   // 守備の負担
 const FAT_GB=1.3, FAT_GP=1.4;   // 溜まり方の強さ（野手・投手）
-const fatBat=(pa,pos,part)=>(1.4+pa*0.3+(FAT_FLD[pos]??0.7)*(part??1))*FAT_GB;   // 野手のスタメン（打席・守備）
+const FAT_DH=0.85, FAT_DH_TW=0.5;   // 指名打者は守備がない分少し軽い（×0.85）。二刀流の指名打者はさらに軽く半分（×0.5）
+const fatBat=(pa,pos,part)=>(1.4+pa*0.3+(FAT_FLD[pos]??0.7)*(part??1))*FAT_GB*(pos==='DH'?FAT_DH:1);   // 野手のスタメン（打席・守備）
+const fatTwDH=pa=>fatBat(pa,'DH',1)*FAT_DH_TW/FAT_DH;   // 二刀流の指名打者の日
 const fatSub=(pa,fld)=>(0.4+pa*0.3+(fld||0)*0.3)*FAT_GB;                           // 途中出場・代打・代走
 const fatPit=(pitches,streak)=>(pitches*0.2+1+(streak>=2?6:streak===1?3:0))*FAT_GP;   // 投手（球数。連投：2日目+3・3日目から+6）
 const fatRecDay=F=>1+0.005*(F||0);   // 1日の回復（回復力の倍率をかける。出なかった日は1.5倍）
-const fatOffKeep=(age,rec)=>1-Math.min(0.95,Math.max(0.05,(0.35+0.1*recK(rec))*(1-0.08*Math.max(0,(age||22)-30))));   // オフのあとに残る割合（抜ける割合：回復力50で4割強・80で6割・100で8割弱。31歳から1歳ごとに−8%）
+const fatOffCut=(age,rec)=>Math.max(3,(23+6.5*recK(rec))*(1-0.08*Math.max(0,(age||22)-30)));   // オフに抜ける量（値。疲労65で前の割合とほぼ同じ）   // オフのあとに残る割合（抜ける割合：回復力50で4割強・80で6割・100で8割弱。31歳から1歳ごとに−8%）
 // 監督が休ませる目安（性格で変わる）：休養重視・総力戦は早め、少数精鋭・実力主義は遅め。若手優先はベテランを早めに、ベテラン優先は遅めに
 function fatThr(m,age){ let t=({six:72,seven:65,eight:58,ten:56})[m&&m.r]??65; if(m&&m.a==='merit') t+=3; if(m&&m.a==='young'&&age>=30) t-=5; if(m&&m.a==='vet'&&age>=30) t+=5; return t; }
 const relCap=m=>({six:4,seven:3,eight:2,ten:2})[m&&m.r]??3;   // 中継ぎの連投の上限
@@ -7485,11 +7495,11 @@ function fatAfterGame(me){
   if(!me) return false;
   const k=me.kind, pos=PEN.slot||PEN.bpos||'OF'; let g=0, played=false;
   const pitched=!isBat()&&(dP>0||(me.outs!=null&&(me.outs>0||me.runs>0)))&&k!=='oddB'&&k!=='bat'&&k!=='pinch';
-  if(pitched){ const st=PEN.lastPDay===PEN.day-1?(PEN.pStreak||1):0; PEN.pStreak=st+1; PEN.lastPDay=PEN.day; g+=fatPit(dP||Math.round((me.outs||0)*5.3+6),st); played=true; }
+  if(pitched){ const st=PEN.lastPDay===PEN.day-1?(PEN.pStreak||1):0; PEN.pStreak=st+1; PEN.lastPDay=PEN.day; if(k==='start') PEN.twStartDay=PEN.day; /* 二刀流：先発の翌日は指名打者で出ない */ g+=fatPit(dP||Math.round((me.outs||0)*5.3+6),st); played=true; }
   if(isBat()){
     if(k==='start'||k==='bat'){ g+=fatBat(dA,pos,/守備固めと交代|疲労で交代/.test(me.note||'')?0.75:1); played=true; }
     else if(dA>0||k==='pinch'||k==='runner'||k==='defsub'||k==='oddP'){ g+=fatSub(dA,k==='defsub'?(FAT_FLD[pos]??0.7):0); played=true; }
-  }else if(isTW()&&dA>0){ g+=pitched?dA*0.3:fatBat(dA,'DH',1); played=true; }   // 二刀流：先発の日は打席の分だけ足す・指名打者の日はDHのスタメン
+  }else if(isTW()&&dA>0){ g+=pitched?dA*0.3:fatTwDH(dA); played=true; }   // 二刀流：先発の日は打席の分だけ足す・指名打者の日は半分
   if(g>0) PEN.fat=r1(clamp((PEN.fat||0)+g*fatGainMul(),0,100));
   return played;
 }
@@ -7497,10 +7507,20 @@ function fatAfterGame(me){
 function fatDaily(played){
   if(!PEN) return; const F=PEN.fat||0;
   let r=fatRecDay(F)*recK(myRecov())*(played?1:1.5)*(typeof cbOn==='function'&&cbOn('onsen')?1.2:1);
-  PEN.fat=r1(Math.max(0,F-r)); if(PEN.day===75) PEN.fat=r1(Math.max(0,PEN.fat-15));
+  PEN.fat=r1(Math.max(0,F-r));
 }
+// 大会（オールスター・ポストシーズン・WBC）の1日：出場したら普通の試合と同じように溜まり（出た日の回復）、出なければ休みの日と同じだけ回復
+//   kind：出番（start・relief・closer・bat・pinch…）、st：その試合の自分の成績（球数・打席。スキップした試合はなし＝目安）
+function fatEventGain(kind,st,opt){
+  if(!PEN||!kind) return 0; const bat=kind==='bat'||kind==='pinch'||kind==='runner'||kind==='defsub', pos=(opt&&opt.slot)||PEN.slot||PEN.bpos||'OF';
+  if(!bat){ const pc=st&&st.pitches!=null?st.pitches:kind==='start'?(opt&&opt.as?45:95):18; return fatPit(pc,0); }
+  if(kind==='bat'){ const pa=st&&st.pa!=null?st.pa:4; return isTW()?fatTwDH(pa):fatBat(pa,pos,1); }
+  return fatSub(st&&st.pa!=null?st.pa:1,0);
+}
+function fatEventDay(g){ if(!PEN||PEN.released) return; if(g>0) PEN.fat=r1(clamp((PEN.fat||0)+g*fatGainMul(),0,100)); fatDaily(g>0); }
+const fatEventGameG=kind=>{ if(typeof G==='undefined'||!G||!G.st) return fatEventGain(kind,null); const b=G.bat&&!G.tw; return fatEventGain(b?(kind==='pinch'?'pinch':'bat'):kind,b?{pa:G.st.pa}:{pitches:G.st.pitches},{as:!!(G.pen&&G.pen.allstar),slot:G.slot}); };   // 実際に出た大会の試合
 // オフ（年俸査定のあと・年齢が上がる前）：抜けきらなかった分は持ち越し
-function fatOffseason(){ if(!PEN) return; const F=PEN.fat||0; PEN.fatEnd=F; PEN.fat=r1(F*fatOffKeep(PEN.age,myRecov())); PEN.fatNext=PEN.fat; PEN.fatSnap=null; PEN.pStreak=0; PEN.lastPDay=-9; }
+function fatOffseason(){ if(!PEN) return; const F=PEN.fat||0; PEN.fatEnd=F; PEN.fat=r1(Math.max(0,F-fatOffCut(PEN.age,myRecov()))); PEN.fatNext=PEN.fat; PEN.fatSnap=null; PEN.pStreak=0; PEN.lastPDay=-9; }
 // 影響
 const fatSlumpMul=()=>1+myFat()/40;                               // スランプの起きやすさ
 const fatSlumpLen=()=>Math.min(10,5+Math.floor(myFat()/20));      // スランプの長さ（試合）
@@ -7565,20 +7585,21 @@ const cpuFatPen=F=>F>=FAT_LIM?0.04:0;   // 限界だけ少し打てなくなる�
 const cpuPTired=(p,T)=>!!p&&!p.isMe&&((p.out||0)>PEN.day||(p.fat||0)>=fatThr(T&&T.mgr,p.age)||(p.lastPDay===PEN.day-1&&(p.pStreak||0)>=relCap(T&&T.mgr)));
 // 毎日（日付が進んだあと）：試合で増えた成績から疲労を足し、回復させ、明日の休養（スタメンの入れ替え）を決める
 function cpuFatDaily(){
-  if(!PEN||!PEN.teams||!PEN.cs) return; const C=PEN.cs, d=PEN.day, Y=PEN.year, AS=d===75;
+  if(!PEN||!PEN.teams||!PEN.cs) return; const C=PEN.cs, d=PEN.day, Y=PEN.year, AS=d===(typeof AS_DAY!=='undefined'?AS_DAY:75);
+  const asRest=(F,rec)=>{ for(let i=0;i<4;i++) F=Math.max(0,F-fatRecDay(F)*recK(rec)*1.5); return F; };   // オールスター休み：4日（出ない日と同じ回復）
   for(const t of NPB){ const T=PEN.teams[t.id]; if(!T) continue;
     if(T.lineupBase){ T.lineup=T.lineupBase; delete T.lineupBase; }   // きのうの入れ替えを戻す
     const L=T.lineup||[], slot={}; L.forEach((b,i)=>{ if(b&&b.fid) slot[b.fid]=(T.lpos||[])[i]; });
     for(const f of T.F||[]){ const c=C[f.id]||{pa:0}, s=f.fs&&f.fs.y===Y?f.fs:(f.fs={y:Y,pa:c.pa||0});
       const dA=Math.max(0,(c.pa||0)-s.pa); s.pa=c.pa||0; let F=f.fat||0;
       if(dA>0) F+=(dA>=3?fatBat(dA,slot[f.id]||f.pos,1):fatSub(dA,0))*FAT_AGE(f.age)*fatDecl(f.age,f.decl);
-      F=Math.max(0,F-fatRecDay(F)*recK(f.rec)*(dA>0?1:1.5)); if(AS) F=Math.max(0,F-15); f.fat=r1(Math.min(100,F));
+      F=Math.max(0,F-fatRecDay(F)*recK(f.rec)*(dA>0?1:1.5)); if(AS) F=asRest(F,f.rec); f.fat=r1(Math.min(100,F));
       if(f.fat>=FAT_LIM&&!((f.out||0)>d)&&rnd()<0.5) f.out=d+ri(3,7);   // 限界：数試合いなくなる
     }
     for(const p of T.P||[]){ if(!p||p.isMe||!p.pid) continue; const c=C[p.pid]||{g:0,outs:0}, s=p.fs&&p.fs.y===Y?p.fs:(p.fs={y:Y,g:c.g||0,outs:c.outs||0});
       const dG=Math.max(0,(c.g||0)-s.g), dO=Math.max(0,(c.outs||0)-s.outs); s.g=c.g||0; s.outs=c.outs||0; let F=p.fat||0;
       if(dG>0){ const st=p.lastPDay===d-2?(p.pStreak||1):0; p.pStreak=st+1; p.lastPDay=d-1; F+=fatPit(Math.round(dO*5.3+6),st)*FAT_AGE(p.age)*fatDecl(p.age,p.decl); }
-      F=Math.max(0,F-fatRecDay(F)*recK(p.rec)*(dG>0?1:1.5)); if(AS) F=Math.max(0,F-15); p.fat=r1(Math.min(100,F));
+      F=Math.max(0,F-fatRecDay(F)*recK(p.rec)*(dG>0?1:1.5)); if(AS) F=asRest(F,p.rec); p.fat=r1(Math.min(100,F));
       if(p.fat>=FAT_LIM&&!((p.out||0)>d)&&rnd()<0.5) p.out=d+ri(3,7);
     }
     // 明日のスタメン：疲れた選手（目安以上・34歳からは目安−10で35%）・離脱中の選手を控えと入れ替える（自分は入れ替えない）
@@ -7594,7 +7615,7 @@ function cpuFatDaily(){
 }
 // CPUのオフ：抜けきらなかった分は持ち越し（rosterNewSeason で年齢が上がる前に）
 function cpuFatOffseason(){ if(!PEN||!PEN.teams) return; for(const id in PEN.teams){ const T=PEN.teams[id]; if(T.lineupBase){ T.lineup=T.lineupBase; delete T.lineupBase; }
-  (T.F||[]).forEach(f=>{ f.fat=r1((f.fat||0)*fatOffKeep(f.age,f.rec)); f.fs=null; f.out=0; }); (T.P||[]).forEach(p=>{ if(p&&!p.isMe){ p.fat=r1((p.fat||0)*fatOffKeep(p.age,p.rec)); p.fs=null; p.out=0; p.pStreak=0; } }); } }
+  (T.F||[]).forEach(f=>{ f.fat=r1(Math.max(0,(f.fat||0)-fatOffCut(f.age,f.rec))); f.fs=null; f.out=0; }); (T.P||[]).forEach(p=>{ if(p&&!p.isMe){ p.fat=r1(Math.max(0,(p.fat||0)-fatOffCut(p.age,p.rec))); p.fs=null; p.out=0; p.pStreak=0; } }); } }
 // ---- 表示
 function fatBarHTML(F,small){ const s=fatStage(F); return `<span class="fatb${small?' sm':''}"><i><b style="width:${Math.min(100,F||0)}%;background:${s[2]}"></b></i><em style="color:${s[2]}">${Math.round(F||0)}</em><small>${s[1]}</small></span>`; }
 /* ================================================================
@@ -7805,7 +7826,7 @@ function wbcNext(){
       const opp=a==='JPN'?b:a, gameNo=W.jpnGames=(W.jpnGames||0)+1;
       const mk=W.sel&&W.role?wbcMyKind(W,gameNo):null;
       if(mk){ PEN.pending={day:PEN.day,opp,kind:'wbc',wbcKind:mk.k,slot:mk.slot||null,wbcGame:gameNo,wbcPair:[a,b],stage:W.stage,started:false}; return true; }
-      wbcSimGame(a,b,null,gameNo); continue;
+      wbcSimGame(a,b,null,gameNo); if(typeof fatEventDay==='function') fatEventDay(0); continue;   // 日本の試合の日：出なければ休みの日と同じ回復
     }
     wbcSimGame(a,b,null);
   }
@@ -7875,12 +7896,13 @@ function wbcGameDone(){
   const line=bat?batLineTxt(st):`${fmtIP(st.outs)}回${st.runs}失点${G.result&&G.result.dec!=='－'?'・'+G.result.dec:''}`;
   wbcRecord(a,b,sa,sb,others,{kind:p.wbcKind,line,played:true});
   W.myGames.push({stage:p.stage,opp:p.opp,line,res:my>op?'W':'L'});
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGameG(p.wbcKind));   // 出場した日：普通の試合と同じように疲労
   PEN.pending=null; wbcAdvance();
 }
 function wbcSkip(){
   const W=PEN.wbc, p=PEN.pending; if(!W||!p||p.kind!=='wbc') return;
   if(gameIsPending()) closePenGame();
-  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false},p.wbcGame);
+  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false},p.wbcGame); if(typeof fatEventDay==='function') fatEventDay(fatEventGain(p.wbcKind,null));
   W.myGames.push({stage:p.stage,opp:p.opp,line:'出場（スキップ）',res:(a==='JPN'?r.sa>r.sb:r.sb>r.sa)?'W':'L'});
   PEN.pending=null; wbcAdvance();
 }
