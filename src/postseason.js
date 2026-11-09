@@ -14,6 +14,8 @@ function psInit(fin){
 const psCur=S=>S.series[PS_ORDER[S.idx]];
 const psWinner=s=>s.wa>=s.need?s.a:s.wb>=s.need?s.b:null;
 const psMine=s=>!!(s&&PEN&&!PEN.released&&(s.a===PEN.team||s.b===PEN.team));
+// 疲労：自分のリーグのCSと日本シリーズの試合の日を1日と数える（もう片方のリーグのCSは同じ日程なので数えない）。出なければ休みの日と同じ回復
+const psFatDay=(s,g)=>{ if(typeof fatEventDay!=='function'||!PEN||PEN.released) return; if(s.lg&&TEAM[PEN.team]&&s.lg!==TEAM[PEN.team].lg) return; fatEventDay(g||0); };
 // 次のシリーズを用意する（終わっていれば）
 function psAdvance(S){
   while(S.idx<PS_ORDER.length){
@@ -36,9 +38,10 @@ function psMyKind(s,gameNo){
   if(!psMine(s)||(typeof injured==='function'&&injured())) return null;
   if(isBat()) return PEN.role==='スタメン'?'bat':(rnd()<Math.min(0.6,pinchProb()*1.3)?'pinch':null);
   const slot={'エース':0,'ローテ':1,'裏ローテ':2}[PEN.role];
-  if(slot!=null) return (gameNo-1)%4===slot?'start':(isTW()&&PEN.dh?'bat':null);
-  if(PEN.role==='中継ぎ') return rnd()<Math.min(0.6,relProb()*1.4)?'relief':null;
-  if(PEN.role==='抑え') return rnd()<0.45?'closer':null;
+  const tired=typeof myFat==='function'?myFat():0, thr=typeof myFatThr==='function'?myFatThr():99;   // 疲労：レギュラーシーズンと同じく、疲れすぎていれば先発を回避・中継ぎは休ませる
+  if(slot!=null) return (gameNo-1)%4===slot&&tired<thr+FAT_SP?'start':(isTW()&&PEN.dh&&(gameNo-2)%4!==slot?'bat':null);   // 二刀流：先発の翌日は指名打者で出ない
+  if(PEN.role==='中継ぎ') return tired<thr&&rnd()<Math.min(0.6,relProb()*1.4)?'relief':null;
+  if(PEN.role==='抑え') return tired<thr&&rnd()<0.45?'closer':null;
   return null;
 }
 // チームを「選手の集まり」に（asGame 用）。自分は実際の成績を使うので入れない
@@ -67,7 +70,7 @@ function psNext(){
     const opp=s.a===PEN.team?s.b:s.a;
     const p=makePending(kind,opp); if(p){ p.ps=true; p.psKey=s.key; p.psName=s.name; p.gameNo=gameNo; PEN.pending=p; return true; }
   }
-  psSimGame(s,null); psAdvance(S); psAwards(S); if(S.done) psFinish();
+  psSimGame(s,null); psFatDay(s,0); psAdvance(S); psAwards(S); if(S.done) psFinish();
   return false;
 }
 // 自分の試合が終わった（penGameDone から）
@@ -77,6 +80,7 @@ function psGameDone(){
   const st=G.st, res=G.result?G.result.res:(myTot()>oppTot()?'W':myTot()<oppTot()?'L':'T');
   const myA=s.a===PEN.team, my=myTot(), op=oppTot();
   if(res==='T'){ PEN.pending=null; return; }   // 引き分けはやり直し（ポストシーズンに引き分けはない扱い）
+  psFatDay(s,typeof fatEventGameG==='function'?fatEventGameG(p.kind):0);   // 出場した日：普通の試合と同じように疲労
   if(G.mission){ if(G.bat&&!G.tw) checkMissionB(); else checkMission(); }   // 監督のミッション（達成は翌年の評価に持ち越し）
   // 自分の成績（ポストシーズン用）
   const M=S.myStat;
@@ -100,7 +104,7 @@ function psSkip(){
   const p=PEN.pending, rv=PEN.review, S=rv&&rv.ps; if(!p||!S) return;
   if(gameIsPending()) closePenGame();
   const s=S.series[p.psKey]; PEN.pending=null; if(!s) return;
-  psSimGame(s,{kind:p.kind,line:'出場（スキップ）',played:false});
+  psSimGame(s,{kind:p.kind,line:'出場（スキップ）',played:false}); psFatDay(s,typeof fatEventGain==='function'?fatEventGain(p.kind,null):0);
   psAdvance(S); psAwards(S); if(S.done) psFinish();
 }
 // 残りをまとめて（自分の出番もスキップ）。untilKey＝'JS' なら日本シリーズの前で止める

@@ -279,6 +279,7 @@ function allstarCheck(){
   const strip=(S,m,t)=>({F:S.F.map(x=>({f:x.f,id:x.id,me:!!x.me})),P:S.P.map(x=>({p:x.p,id:x.id,me:!!x.me})),mgr:{...m},mgrTeam:t});
   PEN.asState={y:PEN.year,A:strip(A,mgrA,teamA),B:strip(B,mgrB,teamB),mine:TEAM[PEN.team].lg,sel:!!(A.me||B.me),games:{}};
   penNotice(`⭐ オールスターの監督：全セ＝${TEAM[teamA].short}の${mgrA.sur}監督、全パ＝${TEAM[teamB].short}の${mgrB.sur}監督（各リーグ1位）`);
+  if(typeof fatEventDay==='function'){ fatEventDay(0); fatEventDay(0); if(!PEN.asState.sel){ fatEventDay(0); fatEventDay(0); } }   // 疲労：休み2日＋試合の2日（出なければ休みの日と同じ回復）
   if(!PEN.asState.sel){ allstarFinalize(); return; }
   const S=PEN.asState, X=asMine(S); evEnsure(S.A); evEnsure(S.B); asSide(X,1);
   const role={kind:'ev'}; S.role=role; S.nextDay=1;   // 出番は penStep が作る（試合の後処理で pending が消されないように）。出番の中身はその日の評価で決まる
@@ -297,7 +298,7 @@ function asNextPending(day){
     if(S.sims&&S.sims[d]) continue;
     const r=(typeof injured==='function'&&injured())?null:asRoleDay(S,d);
     if(r){ S.nextDay=d; PEN.pending={day:PEN.day,opp:null,kind:'allstar',asDay:d,asKind:r.kind,slot:r.slot||null,started:false}; return; }
-    asSimDay(S,d,false);   // 出番なし（先発した翌日・2日目の先発候補の1日目）：その日の試合はシミュレーション
+    asSimDay(S,d,false); if(typeof fatEventDay==='function') fatEventDay(0);   // 出番なし（先発した翌日・2日目の先発候補の1日目）：その日の試合はシミュレーション。疲労は休みの日と同じ回復
   }
   allstarFinalize();
 }
@@ -348,6 +349,7 @@ function allstarGameDone(){
   if(G.mission){ if(bat) checkMissionB(); else checkMission(); }   // 評価はオールスターの中だけ
   try{ asSimDay(S,p.asDay,true); }catch(e){}   // ほかの選手の成績（自分は実際の成績）
   evApplyMe(asMine(S),bat?'B':'P',S.games[p.asDay].st);
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGameG(p.asKind));   // 出場した日：普通の試合と同じように疲労
   PEN.pending=null; S.nextDay=p.asDay+1;
 }
 // スキップ：その試合の自分の成績はシミュレーションに任せる
@@ -355,6 +357,7 @@ function allstarSkip(){
   const S=PEN.asState, p=PEN.pending; if(!S||!p||p.kind!=='allstar') return;
   if(gameIsPending()) closePenGame();
   S.games[p.asDay]='sim'; asSimDay(S,p.asDay,false);
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGain(p.asKind,null,{as:true}));   // スキップでも出場はしている
   PEN.pending=null; S.nextDay=p.asDay+1;
 }
 // 2試合が終わったら：ほかの選手はシミュレーション、自分は実際の成績で表彰を決める

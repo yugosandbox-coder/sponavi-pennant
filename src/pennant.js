@@ -416,7 +416,7 @@ function penNextKind(){
   const relOK=!((PEN.role==='中継ぎ'||PEN.role==='抑え'||PEN.role==='裏ローテ')&&typeof fatRelBlock==='function'&&fatRelBlock());   // 中継ぎ：疲労・連投の上限・休養の申し出でベンチに入らない日
   if(relOK&&PEN.role==='中継ぎ'&&PEN.penRank===2&&rnd()<0.34*saveShare(myT())) return 'closer';   // セットアッパー：クローザーと評価が近いとセーブ機会も
   if(relOK&&(PEN.role==='中継ぎ'||PEN.role==='裏ローテ')&&rnd()<relProb()) return 'relief';   // 中継ぎ・ロングリリーフの登板（二刀流でも投げる日が優先）
-  if(isTW()&&PEN.dh) return typeof fatRestToday==='function'&&fatRestToday()?null:'bat';   // 二刀流：投げない日は指名打者で（疲れていたら休み）
+  if(isTW()&&PEN.dh) return PEN.twStartDay===PEN.day-1?null:(typeof fatRestToday==='function'&&fatRestToday()?null:'bat');   // 二刀流：投げない日は指名打者で（先発の翌日・疲れていたら休み）
   if(isStarter(PEN.role)||PEN.role==='中継ぎ') return null;
   if(PEN.role==='抑え') return relOK&&rnd()<0.34*(1-saveShare(myT()))?'closer':null;   // セットアッパーと評価が近いとセーブ機会を分け合う
   return null;
@@ -1857,7 +1857,7 @@ function renderPennant0(){
         `年俸 ${yen(P.salary)} → <b>${yen(rv.newSal)}</b>（${rv.ct?'複数年契約のため固定':`${rv.chg>=0?'+':''}${Math.round(rv.chg*100)}%`}）${rv.twAns==='ok'?`<br>来季から<b>${rv.twConv==='P'?'投手':'野手（外野手）'}に専念</b>`:rv.twAns==='stay'?'<br>二刀流を続ける代わりに大幅ダウン':''}`}
         <div class="hint">${rv.yRB!=null?'<span class="tg tgP">投手</span> ':''}今年の評価 ${Math.round(rv.yR)}点／通算の評価 ${rv.cR==null?'-':Math.round(rv.cR)+'点'}${evB}${P.ss.mOK?`／ミッション達成 ${P.ss.mOK}回`:''}${rv.nT?`／タイトル${rv.nT}つで+${Math.round(rv.nT*TITLE_BONUS*100)}%`:''}${(rv.places||[]).length?`／タイトル争い${rv.places.map(p=>p.name+p.rank+'位').join('・')}で+${Math.round(placeBonus(rv.places)*100)}%`:''}${(rv.chg0??rv.chg)>=salMaxUp(P.salary)-1e-9?`（1年の上限+${Math.round(salMaxUp(P.salary)*100)}%）`:''}</div>${typeof salHTML==='function'?salHTML(rv):''}${rv.ex&&rv.ex.why&&rv.ex.why.length?`<div class="hint">${rv.ex.why.join('／')}</div>`:''}${stagPenalty()?`<div class="hint" style="color:#f0a0a0">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はもう待てないと言っている）：評価 −${stagPenalty()}点</div>`:PEN.stag&&PEN.stag.n?`<div class="hint">伸び悩み${PEN.stag.n}年目（${mgrName(myMgr())}はあと${Math.max(0,stagLimit()-PEN.stag.n)}年までは待つと言っている）</div>`:''}</div>
       <div class="hint">${rateBasisTxt(rv.ys)}</div>
-      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const k=fatOffKeep(PEN.age,PEN.recov), nx=Math.round(myFat()*k); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round((1-k)*100)}%抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から1歳ごとに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
+      ${typeof fatBarHTML==='function'&&!rv.released?(()=>{ const cut=fatOffCut(PEN.age,PEN.recov), nx=Math.round(Math.max(0,myFat()-cut)); return `<div class="sh2">疲労（来季への持ち越し）</div><div class="pcardx"><div class="fatline" style="margin:0">シーズン終了時 ${fatBarHTML(myFat())}</div><div class="hint" style="margin:4px 0 0">オフに${Math.round(cut)}抜けて、来季の開幕は <b style="color:${fatStage(nx)[2]}">約${nx}</b>（${fatStage(nx)[1]}）から（${PEN.age}歳・回復力${r1(PEN.recov??40)}。回復力が高いほどオフに抜け、31歳から1歳ごとに抜けにくくなる）${PEN.declAge?`<br>衰えが始まっているので、回復力が${r1(2+0.5*(PEN.age-PEN.declAge))}下がり、疲労も溜まりやすくなる（来季×${fatDecl(PEN.age+1,PEN.declAge).toFixed(2)}）`:''}</div></div>`; })():''}
       ${rv.abil?(rv.twConv==='B'?(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):''):rv.twConv==='P'?abilChangeHTML(rv.abil):isBat()?abilChangeHTMLB(rv.abil):abilChangeHTML(rv.abil)+(rv.abil.bat?abilChangeHTMLB(rv.abil.bat,true):'')):''}
       <button class="btn main" id="penNext">${rv.faNone?'トライアウトへ':rv.released?'結果を受け入れる':`${P.year+1}年目へ`}</button>`}</div>`;
     const on2=(id,f)=>{const e=document.getElementById(id); if(e) e.onclick=f;};
@@ -2092,7 +2092,7 @@ function meRoleRows(){
     rows.push(['守れる位置',myPosAll().map(p=>POS_JP[p]||p).join('・')]);
   }else{
     rows.push(['起用',`<b>${typeof pitRoleLabel==='function'?pitRoleLabel():roleName(P.role)}</b>（${PCAT_JP[myPcat()]||''}）`]);
-    if(isTW()) rows.push(['投げない日',P.dh?`指名打者（${P.dhOrder}番）で出場`:'出場なし（指名打者の争いに負けている）']);
+    if(isTW()) rows.push(['投げない日',P.dh?`指名打者（${P.dhOrder}番）で出場${isStarter(P.role)?'（先発の翌日は休み）':''}`:'出場なし（指名打者の争いに負けている）']);
   }
   if(P.trial){ const T=P.trial; rows.push([T.down?'見極め中':'お試し中',`${PCAT_JP[T.to]||''}　${T.n||0}／5登板${T.down?`（元の${PCAT_JP[T.from]||''}に戻れるかの見極め）`:''}`]); }
   if(P.btrial){ const T=P.btrial; rows.push([T.down?'見極め中':'お試し中',`${bUseTxt(T.to)}　${T.n||0}／5試合${T.down?`（${T.fromTxt||''}に戻れるかの見極め）`:''}`]); }

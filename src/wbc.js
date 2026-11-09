@@ -137,7 +137,7 @@ function wbcNext(){
       const opp=a==='JPN'?b:a, gameNo=W.jpnGames=(W.jpnGames||0)+1;
       const mk=W.sel&&W.role?wbcMyKind(W,gameNo):null;
       if(mk){ PEN.pending={day:PEN.day,opp,kind:'wbc',wbcKind:mk.k,slot:mk.slot||null,wbcGame:gameNo,wbcPair:[a,b],stage:W.stage,started:false}; return true; }
-      wbcSimGame(a,b,null,gameNo); continue;
+      wbcSimGame(a,b,null,gameNo); if(typeof fatEventDay==='function') fatEventDay(0); continue;   // 日本の試合の日：出なければ休みの日と同じ回復
     }
     wbcSimGame(a,b,null);
   }
@@ -207,12 +207,13 @@ function wbcGameDone(){
   const line=bat?batLineTxt(st):`${fmtIP(st.outs)}回${st.runs}失点${G.result&&G.result.dec!=='－'?'・'+G.result.dec:''}`;
   wbcRecord(a,b,sa,sb,others,{kind:p.wbcKind,line,played:true});
   W.myGames.push({stage:p.stage,opp:p.opp,line,res:my>op?'W':'L'});
+  if(typeof fatEventDay==='function') fatEventDay(fatEventGameG(p.wbcKind));   // 出場した日：普通の試合と同じように疲労
   PEN.pending=null; wbcAdvance();
 }
 function wbcSkip(){
   const W=PEN.wbc, p=PEN.pending; if(!W||!p||p.kind!=='wbc') return;
   if(gameIsPending()) closePenGame();
-  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false},p.wbcGame);
+  const [a,b]=p.wbcPair; const r=wbcSimGame(a,b,{kind:p.wbcKind,line:'出場（スキップ）',played:false},p.wbcGame); if(typeof fatEventDay==='function') fatEventDay(fatEventGain(p.wbcKind,null));
   W.myGames.push({stage:p.stage,opp:p.opp,line:'出場（スキップ）',res:(a==='JPN'?r.sa>r.sb:r.sb>r.sa)?'W':'L'});
   PEN.pending=null; wbcAdvance();
 }
