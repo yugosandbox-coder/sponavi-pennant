@@ -30,6 +30,16 @@ const FTYPE_ADJ={power:{p:15,m:-4,s:-6,d:-5},contact:{m:15,p:-8,e:5,d:-2},speed:
 const CPU_SUM=a=>a<=18?CPU_G.s0:a>=30?CPU_G.s1:CPU_G.s0+(a-18)*(CPU_G.s1-CPU_G.s0)/12;
 const CPU_DECL_GEN=a=>a<=32?0:a===33?1.5:a===34?4:a===35?7:7+(a-35)*4;   // 作るときの衰えの目安（1能力あたり・平均）
 const CPU_TIER_D=1.5;   // tier（平均からのずれ）1あたりの表示の値
+// 同じ名前の選手が球界に同時にいないように：今いる選手・自分・このプレイ中に作った名前と重ならない名前を選ぶ
+const NAME_MADE=new Set();
+function leagueNames(){ const S=new Set(NAME_MADE); if(typeof PEN!=='undefined'&&PEN){ if(PEN.pname) S.add(PEN.pname); for(const id in (PEN.teams||{})){ const T=PEN.teams[id]; (T.F||[]).forEach(f=>{ if(f&&f.n) S.add(f.n); }); (T.P||[]).forEach(p=>{ if(p&&!p.isMe&&p.name) S.add(p.name); }); } } return S; }
+function uniqName(){ const S=leagueNames(); let n=randName(), g=0; while(S.has(n)&&g++<400) n=randName(); NAME_MADE.add(n); return n; }
+// 前の版のセーブ・新しいペナント：同じ名前の選手がいたら、あとの選手の名前を変える（自分の名前は変えない）
+function dedupeNames(){ if(!PEN||!PEN.teams) return 0; const seen=new Set([PEN.pname]); let n=0;
+  for(const id in PEN.teams){ const T=PEN.teams[id];
+    (T.F||[]).forEach(f=>{ if(!f) return; if(seen.has(f.n)){ f.n=uniqName(); n++; } seen.add(f.n); NAME_MADE.add(f.n); });
+    (T.P||[]).forEach(p=>{ if(!p||p.isMe) return; if(seen.has(p.name)){ p.name=uniqName(); n++; } seen.add(p.name); NAME_MADE.add(p.name); }); }
+  return n; }
 function genFielder(pos,age,tier){
   const mu=CPU_SUM(age)/5-CPU_DECL_GEN(age)+(tier||0)*CPU_TIER_D-CPU_G.off, r=()=>mu+(rnd()-.5)*30;   // off＝守備位置の補正・レギュラー級の多さのぶんを戻す
   const D={m:r(),p:r(),s:r(),e:r(),d:r()};
@@ -38,7 +48,7 @@ function genFielder(pos,age,tier){
   if(pos==='SS'||pos==='2B'){ D.d+=10; D.s+=7; D.p-=10; }
   if(pos==='1B'){ D.p+=12; D.d-=12; }
   if(pos==='OF'&&rnd()<0.4) D.s+=12;
-  const f={id:'f'+(Date.now()%1e6)+'_'+(FID++),n:randName(),pos,h:rnd()<0.33?'L':'R',age,pf:0,num:ri(0,99)};
+  const f={id:'f'+(Date.now()%1e6)+'_'+(FID++),n:uniqName(),pos,h:rnd()<0.33?'L':'R',age,pf:0,num:ri(0,99)};
   for(const k in D) f[k]=Math.round(abPerf(clamp(D[k],1,100))*10)/10;   // 試合では内部値
   if(age>=34&&rnd()<0.8) f.decl=age-ri(0,1);
   f.rec=cpuRecGen(age); f.fat=0;   // 回復力・疲労
@@ -52,7 +62,7 @@ const CPU_PDECL=a=>a<=32?0:a===33?2:a===34?6:a===35?10:10+(a-35)*6;   // 作る�
 const CPU_SP_STS=0.76, CPU_SP_GW={control:20,stamina:60};   // 先発型：コントロール＋スタミナのうちスタミナに振る割合（作るとき）・伸びるときの重み（スタミナ寄り）
 const SP_STA_W=0.5;   // 先発ローテの順位で見るスタミナの重み（80を基準に1あたり0.3。60で−6・100で+6）
 function genRosterPitcher(age,tier){
-  const p=genPitcher(); p.age=age; const t=tier||0; p.prole=rnd()<0.55?'sp':'rp'; const sp=p.prole==='sp';
+  const p=genPitcher(); p.name=uniqName(); p.age=age; const t=tier||0; p.prole=rnd()<0.55?'sp':'rp'; const sp=p.prole==='sp';
   const cs=CPU_PCS(age)-CPU_PDECL(age)+t*3, stS=sp?CPU_SP_STS:0.45;
   p.velo=clamp(Math.round(CPU_PV(age)-(age>=34?(age-33)*0.7:0)+t*0.35+(sp?-1:1.5)+(rnd()-.5)*14),120,VELO_MAX);
   p.stamina=clamp(Math.round(cs*stS+(rnd()-.5)*24),1,100);   // スタミナ＝投げられる球数の目安（80で約90〜120球）
@@ -377,10 +387,12 @@ function rosterNewSeason(fin,cs){
     const lgF=[],lgP=[]; lgTeams(t.lg).forEach(id=>{ PEN.teams[id].F.forEach(f=>lgF.push(f)); PEN.teams[id].P.forEach(p=>lgP.push(p)); });
     const topF=lgF.sort((a,b)=>hitScore(b)-hitScore(a)), topP=lgP.sort((a,b)=>pitScore(b)-pitScore(a));
     const starOf=(x,arr)=>{ const i=arr.indexOf(x); return i>=0&&i<3?1:i>=0&&i<6?2:0; };
-    if(hasCS) T.P.forEach(p=>{ const c=p.pid&&cs[p.pid]; if(c&&c.outs){ p.car=p.car||{outs:0,er:0}; p.car.outs+=c.outs; p.car.er+=c.er; p.car.k=(p.car.k||0)+(c.k||0); } });   // 投手の通算成績（チーム内の評価に使う）
+    if(hasCS) T.P.forEach(p=>{ const c=p.pid&&cs[p.pid]; if(c&&c.outs){ const fresh=!p.car; p.car=p.car||{outs:0,er:0}; for(const k in c) if(typeof c[k]==='number'&&(fresh||k in p.car||k==='k')) p.car[k]=(p.car[k]||0)+c[k]; } });   // 投手の通算成績（登板・勝敗・S・Hも。チーム内の評価に使う）
     // 前年の成績・野手の通算成績（オールスター・WBCのチーム内の評価に使う）
-    T.F.forEach(f=>{ const c=hasCS&&cs[f.id]; if(c&&c.pa){ f.ly={pa:c.pa,ab:c.ab,h:c.h,d2:c.d2,d3:c.d3,hr:c.hr,bb:c.bb,k:c.k,sb:c.sb}; f.car=f.car||{}; for(const k in f.ly) f.car[k]=(f.car[k]||0)+f.ly[k]; } else delete f.ly; });
-    T.P.forEach(p=>{ const c=hasCS&&p.pid&&cs[p.pid]; if(c&&c.outs) p.ly={outs:c.outs,er:c.er,k:c.k||0}; else delete p.ly; });
+    // 前の版の通算（打点・試合・勝敗などがない）は、ない項目を数え始めない（途中からの合計を通算と見せないように）
+    const carAdd=(o,c)=>{ const fresh=!o.car; o.car=o.car||{}; for(const k in c) if(typeof c[k]==='number'&&(fresh||k in o.car)) o.car[k]=(o.car[k]||0)+c[k]; };
+    T.F.forEach(f=>{ const c=hasCS&&cs[f.id]; if(c&&c.pa){ f.ly={...c}; carAdd(f,c); } else delete f.ly; });   // 昨季：試合・打点も含めて全部
+    T.P.forEach(p=>{ const c=hasCS&&p.pid&&cs[p.pid]; if(c&&c.outs) p.ly={...c}; else delete p.ly; });
     if(hasCS){ T.F.forEach(f=>ageFielder(f,T,0,cpuStatEvents(f,cs[f.id],false,tit[f.id],f.age))); T.P.forEach(p=>agePitcher(p,T,0,cpuStatEvents(p,p.pid&&cs[p.pid],true,tit[p.pid],p.age))); }   // 去年の成績で成長
     else { T.F.forEach(f=>ageFielder(f,T,starOf(f,topF))); T.P.forEach(p=>agePitcher(p,T,starOf(p,topP))); }
     retireAndTrim(T);
@@ -411,10 +423,10 @@ function gamePitchers(id,day){
   return {sp, pen:s.pen.slice(0,3), bull:s.pen.slice(0,5), me:spId==='ME'};
 }
 // 二刀流：投げない日の指名打者争い（打撃の能力＋打撃成績の評価で、チームの指名打者候補と比べる）
+const twMeB=()=>{ const a=perfB(PEN.babil); return {id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((toOldB(twDhEval())-50)*0.6)-TW_DH_PEN,isMe:true,num:MYNUM}; };   // 指名打者の争いでの自分（二刀流は少し不利）
 function twCompete(quiet){
   if(!isTW()) return;
-  const T=myT(), a=perfB(PEN.babil);
-  const me={id:'me',n:PEN.pname,pos:'DH',h:PEN.bhand,m:a.meet,p:a.power,s:a.speed,e:a.eye,d:0,age:PEN.age,pf:Math.round((toOldB(twDhEval())-50)*0.6)-TW_DH_PEN,isMe:true,num:MYNUM};   // 二刀流は指名打者の争いで少し不利
+  const T=myT(), me=twMeB();
   const st=battingOrder(pickStarters(T,me)), i=st.findIndex(x=>x.me);
   const was=!!PEN.dh;
   PEN.dh=i>=0; PEN.dhOrder=i>=0?i+1:0;
