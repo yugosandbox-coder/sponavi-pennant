@@ -77,6 +77,16 @@ const COACH_LOOK={
     {lab:'藤色の着物の若女将',skin:0,outfit:'kimono',top:'#8e6bb0',shirt:'#f3ecd8',hair:'bun',hc:'#1a1a1a',face:'smile',acc:[]},
     {lab:'紺の着物の女将',skin:1,outfit:'kimono',top:'#22325a',shirt:'#f3ecd8',hair:'bun',hc:'#2a1a12',face:'calm',acc:['towel']},
     {lab:'白髪の大女将',skin:1,outfit:'kimono',top:'#7a2e3a',shirt:'#f3ecd8',hair:'bun',hc:'#d9d9d9',face:'smile',acc:['wrinkle']},
+    // 案4〜8（提案）
+    {lab:'桜色の着物にかんざしの若女将',skin:0,outfit:'kimono',top:'#e8a7b8',shirt:'#fff8ef',obi:'#c9a227',pat:'sakura',hair:'bun',hc:'#1a1a1a',face:'smile',acc:['kanzashi','sensu']},
+    {lab:'割烹着のおかみさん',skin:1,outfit:'kappogi',top:'#4a6b5a',hair:'bun',hc:'#3a2418',face:'grin',acc:['tray']},
+    {lab:'羽織と提灯の老舗の女将',skin:1,outfit:'kimono',top:'#1f2a44',shirt:'#f3ecd8',obi:'#8a6d3b',pat:'dots',haori:'#4a2a33',hair:'bun',hc:'#2a1a12',face:'calm',acc:['lantern']},
+    {lab:'日本髪の大女将',skin:0,outfit:'kimono',top:'#2b2b2b',shirt:'#f3ecd8',obi:'#c9a227',hair:'nihongami',hc:'#1a1a1a',face:'calm',acc:['kanzashi','wrinkle','teacup']},
+    {lab:'手ぬぐいを頭にのせた湯守り',skin:2,outfit:'kimono',top:'#f2f2f2',shirt:'#2a5b9a',obi:'#2a5b9a',pat:'kasuri',hair:'pony',hc:'#2b1d14',face:'grin',acc:['tenugui','yumoita']},
+    // 案9〜11：案1（藤色の着物の若女将）と案6（羽織と提灯の老舗の女将）を混ぜたもの。案9で決定
+    {lab:'藤色の着物に羽織と提灯の若女将',skin:0,outfit:'kimono',top:'#8e6bb0',shirt:'#f3ecd8',obi:'#8a6d3b',pat:'dots',haori:'#4a2a33',hair:'bun',hc:'#1a1a1a',face:'smile',acc:['lantern']},
+    {lab:'藤色の着物に紺の羽織の若女将',skin:0,outfit:'kimono',top:'#8e6bb0',shirt:'#f3ecd8',obi:'#c9a227',pat:'dots',haori:'#22325a',hair:'bun',hc:'#1a1a1a',face:'smile',acc:['lantern']},
+    {lab:'紺の着物に藤色の羽織の若女将',skin:0,outfit:'kimono',top:'#1f2a44',shirt:'#f3ecd8',obi:'#8a6d3b',pat:'dots',haori:'#8e6bb0',hair:'bun',hc:'#1a1a1a',face:'smile',acc:['lantern']},
   ],
   // ---- リハビリトレーナー（ヨガ教室・アンチエイジング・コンディショニング）
   rehab:[
@@ -103,13 +113,17 @@ const COACH_LOOK={
   ],
 };
 const COACH_KIND_JP={mental:'メンタリスト',analyst:'スポーツアナリスト',trainer:'パーソナルトレーナー',agent:'代理人',realtor:'不動産屋',doctor:'怪しい医者',club:'球団コーチ',legend:'伝説の野球選手',rehab:'リハビリトレーナー',okami:'女将さん'};
+// 着物の柄（桜・水玉・かすり）
+const kimonoPat=(p,top)=>p==='sakura'?[[32,98],[64,96],[38,122],[66,122],[28,112],[70,108]].map(([x,y])=>`<g transform="translate(${x} ${y})">${[0,72,144,216,288].map(a=>`<circle cx="${(1.6*Math.cos(a*Math.PI/180)).toFixed(1)}" cy="${(1.6*Math.sin(a*Math.PI/180)).toFixed(1)}" r="1.3" fill="#fff3f6"/>`).join('')}</g>`).join('')
+  :p==='dots'?[[30,96],[40,104],[62,100],[70,94],[34,122],[64,122],[44,124],[56,120]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.5" fill="#ffffff55"/>`).join('')
+  :p==='kasuri'?[[30,96],[38,104],[62,98],[70,106],[32,122],[44,124],[58,122],[68,120],[50,92]].map(([x,y])=>`<path d="M${x-2} ${y} L${x+2} ${y} M${x} ${y-2} L${x} ${y+2}" stroke="#2a5b9a" stroke-width="1.1" opacity=".8"/>`).join(''):'';
 let CSVG_N=0;
 function svgCoach(kind,i){
   const L=(COACH_LOOK[kind]||COACH_LOOK.mental)[i||0]||COACH_LOOK.mental[0];
   const sk=CSK[L.skin||0], has=a=>(L.acc||[]).includes(a), dark=c=>c;
   const top=L.top, hc=L.hc;
-  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('flask')||has('syringe')||has('pill')||has('ball')||has('tape')||has('bottle')||has('chart')||has('stopwatch')&&false;
-  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab')||has('trophy')||has('band')||has('bigball')||has('medball');
+  const raise=has('pendulum')||has('cards')||has('tablet')||has('phone')||has('key')||has('contract')||has('papers')||has('notebook')||has('calc')||has('plan')||has('file')||has('flask')||has('syringe')||has('pill')||has('ball')||has('tape')||has('bottle')||has('chart')||has('lantern')||has('sensu')||has('teacup')||has('stopwatch')&&false;
+  const both=has('laptop')||has('house')||has('clipboard')||has('bigtab')||has('trophy')||has('band')||has('bigball')||has('medball')||has('tray')||has('yumoita');
   const U=L.outfit==='uniform'?(typeof curUni==='function'?curUni():{jk:'#1f3c7a',jt:'#ffffff',cap:'#1f3c7a',cl:'#ffffff',s:'C'}):null;   // 球団コーチは所属球団のユニフォーム
   let back='', body='', arms='', hands='', head='', hair='', face='', front='', held='';
   // ---- 後ろ髪（頭より先に描く）
@@ -124,7 +138,10 @@ function svgCoach(kind,i){
   }else if(L.outfit==='oldjersey'){
     body+=`<path d="${'M24 128 L26 92 Q50 82 74 92 L76 128 Z'}" fill="${top}"/>${[32,40,60,68].map(x=>`<path d="M${x} 90 L${x} 128" stroke="${L.stripe}" stroke-width=".8" opacity=".55"/>`).join('')}<path d="M42 84 L50 96 L58 84" fill="none" stroke="${L.stripe}" stroke-width="2"/><text x="50" y="118" font-size="16" font-weight="900" text-anchor="middle" fill="${L.stripe}" font-family="serif">${L.num||'1'}</text>`;
   }else if(L.outfit==='kimono'){
-    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M40 84 L56 118 M60 84 L46 106" stroke="${L.shirt||'#ddd'}" stroke-width="3"/><path d="M24 110 L76 110 L76 116 L24 116 Z" fill="#6b4f2a"/>`;
+    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/>${kimonoPat(L.pat,top)}<path d="M40 84 L56 118 M60 84 L46 106" stroke="${L.shirt||'#ddd'}" stroke-width="3"/><path d="M24 110 L76 110 L76 116 L24 116 Z" fill="${L.obi||'#6b4f2a'}"/>${L.obi?`<path d="M24 113 L76 113" stroke="#0003" stroke-width=".8"/><rect x="46" y="110.5" width="8" height="5" rx="1" fill="#0002"/>`:''}`;
+    if(L.haori) body+=`<path d="M20 128 L24 90 Q32 86 40 85 L47 128 Z" fill="${L.haori}"/><path d="M80 128 L76 90 Q68 86 60 85 L53 128 Z" fill="${L.haori}"/><path d="M44 100 Q50 104 56 100" stroke="#f3ecd8" stroke-width="1.4" fill="none"/><circle cx="50" cy="103" r="1.6" fill="#f3ecd8"/>`;   // 羽織と羽織紐
+  }else if(L.outfit==='kappogi'){   // 割烹着（白い上っ張り。襟元から着物が見える）
+    body+=`<path d="M20 128 L24 90 Q50 82 76 90 L80 128 Z" fill="${top}"/><path d="M22 128 L25 92 Q36 86 42 85 L50 99 L58 85 Q64 86 75 92 L78 128 Z" fill="#f7f5ef"/><path d="M40 84 L50 99 L60 84" fill="none" stroke="#f3ecd8" stroke-width="2"/><path d="M33 118 L67 118" stroke="#0001" stroke-width="1"/><rect x="58" y="104" width="9" height="8" rx="1" fill="none" stroke="#0002"/>`;
   }else if(L.outfit==='scrubs'){
     body+=`<path d="M24 128 L26 92 Q50 82 74 92 L76 128 Z" fill="${top}"/><path d="M42 84 L50 98 L58 84" fill="none" stroke="#0003" stroke-width="2"/><rect x="56" y="104" width="10" height="8" rx="1" fill="#0002"/>`;
   }else if(L.outfit==='tank'){
@@ -157,7 +174,7 @@ function svgCoach(kind,i){
   if(L.outfit==='samue') body+=`<path d="M40 84 L58 112 M60 84 L46 104" stroke="#e8e0cc" stroke-width="2.4"/><path d="M26 112 L74 112" stroke="#1a2238" stroke-width="3"/>`;
   if(L.outfit==='hoodie') body+=`<path d="M44 86 L45 100 M56 86 L55 100" stroke="#ddd" stroke-width="1.2"/><path d="M36 112 L64 112 L62 124 L38 124 Z" fill="#0003"/>`;
   // ---- 腕（右手に物を持つと腕を上げる）
-  const armC=L.outfit==='tank'||has('short')?sk:L.outfit==='vest'?(L.shirt||'#fff'):L.outfit==='uniform'?U.jk:top, aw=L.outfit==='tank'||has('short')?(has('muscle')?13:10):10;
+  const armC=L.outfit==='tank'||has('short')?sk:L.outfit==='vest'?(L.shirt||'#fff'):L.outfit==='uniform'?U.jk:L.outfit==='kappogi'?'#f7f5ef':L.haori||top, aw=L.outfit==='tank'||has('short')?(has('muscle')?13:10):10;
   const lArm=both?`M26 94 Q18 104 34 110`:`M26 94 Q14 104 17 119`, rArm=(raise||both)?`M74 94 Q86 102 ${both?'66 110':'82 106'}`:`M74 94 Q86 104 83 119`;
   arms+=`<path d="${lArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/><path d="${rArm}" fill="none" stroke="${armC}" stroke-width="${aw}" stroke-linecap="round"/>`;
   if(L.outfit==='track') arms+=`<path d="${lArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(-3 0)"/><path d="${rArm}" fill="none" stroke="${L.stripe}" stroke-width="1.2" transform="translate(3 0)"/>`;
@@ -179,6 +196,7 @@ function svgCoach(kind,i){
     long:`<path d="M29 56 Q28 33 50 32 Q72 33 71 56 Q66 42 54 40 Q46 46 34 46 Q30 50 29 56 Z" fill="${hc}"/>`,
     bob:`<path d="M29 58 Q28 33 50 32 Q72 33 71 58 Q68 46 62 44 L38 44 Q32 46 29 58 Z" fill="${hc}"/><path d="M36 44 L64 44 L64 47 L36 47 Z" fill="${hc}"/>`,
     pony:`<path d="M30 52 Q30 33 50 32 Q70 33 70 52 Q66 41 50 41 Q34 41 30 52 Z" fill="${hc}"/>`,
+    nihongami:`<ellipse cx="50" cy="28" rx="13" ry="7" fill="${hc}"/><path d="M44 28 Q50 24 56 28" stroke="#0004" stroke-width="1" fill="none"/><ellipse cx="29.5" cy="50" rx="5" ry="8" fill="${hc}"/><ellipse cx="70.5" cy="50" rx="5" ry="8" fill="${hc}"/><path d="M30 54 Q29 33 50 33 Q71 33 70 54 Q66 41 50 41 Q34 41 30 54 Z" fill="${hc}"/>`,   // 日本髪（大きな髷と横の張り）
     bun:`<circle cx="50" cy="30" r="7" fill="${hc}"/><path d="M30 54 Q30 33 50 33 Q70 33 70 54 Q66 42 50 42 Q34 42 30 54 Z" fill="${hc}"/>`,
     bald:`<path d="M30 58 Q30 50 32 48 L33 60 Z" fill="${hc}"/><path d="M70 58 Q70 50 68 48 L67 60 Z" fill="${hc}"/><path d="M42 38 Q50 35 56 37" stroke="#ffffff55" stroke-width="2" fill="none"/>`,
     buzz:`<path d="M30 52 Q30 34 50 33 Q70 34 70 52 Q66 44 50 43 Q34 44 30 52 Z" fill="${hc}" opacity=".75"/>`,
@@ -194,6 +212,8 @@ function svgCoach(kind,i){
   if(has('scrubcap')) hair+=`<path d="M29 52 Q29 31 50 31 Q71 31 71 52 Q60 46 50 46 Q40 46 29 52 Z" fill="${L.top||'#2f6f5a'}"/><path d="M30 50 Q50 44 70 50" stroke="#0003" stroke-width="1.2" fill="none"/>`;
   if(has('headmirror')) hair+=`<path d="M30 47 Q50 38 70 47" fill="none" stroke="#333" stroke-width="2.2"/><circle cx="50" cy="40" r="6.5" fill="#dfe6ee" stroke="#777" stroke-width="1.4"/><circle cx="50" cy="40" r="2" fill="#333"/>`;
   if(has('hairband')) hair+=`<path d="M30 49 Q50 36 70 49" fill="none" stroke="#f5c542" stroke-width="3"/>`;
+  if(has('kanzashi')) hair+=`<path d="M58 33 L68 24" stroke="#c9a227" stroke-width="1.4"/><g transform="translate(${L.hair==='nihongami'?63:60} ${L.hair==='nihongami'?24:28})">${[0,72,144,216,288].map(a=>`<circle cx="${(3*Math.cos(a*Math.PI/180)).toFixed(1)}" cy="${(3*Math.sin(a*Math.PI/180)).toFixed(1)}" r="2.2" fill="#e0566e"/>`).join('')}<circle r="1.5" fill="#f5c542"/></g><path d="M66 27 L67 33 M68 26 L70 32" stroke="#c9a227" stroke-width=".8"/><circle cx="67" cy="34" r="1" fill="#c9a227"/><circle cx="70" cy="33" r="1" fill="#c9a227"/>`;   // かんざし（花とびら）
+  if(has('tenugui')) hair+=`<path d="M35 38 Q50 30 65 38 L64 33 Q50 25.5 36 33 Z" fill="#ffffff" stroke="#0002"/><path d="M36.5 35.5 Q50 28 63.5 35.5" stroke="#2a5b9a" stroke-width="1" fill="none"/><path d="M38 37.5 Q50 31 62 37.5" stroke="#2a5b9a" stroke-width=".7" fill="none"/>`;   // 頭にのせた手ぬぐい
   if(has('hachimaki')) hair+=`<path d="M29 48 Q50 42 71 48 L71 52 Q50 46 29 52 Z" fill="#ffffff"/><path d="M70 49 L78 44 M70 50 L79 52" stroke="#fff" stroke-width="2"/>`;
   if(has('headset')) hair+=`<path d="M29 56 Q29 30 50 30 Q71 30 71 56" fill="none" stroke="#222" stroke-width="2.4"/><rect x="26" y="53" width="6" height="10" rx="2" fill="#222"/><path d="M29 62 Q32 70 42 69" fill="none" stroke="#222" stroke-width="1.6"/><circle cx="43" cy="69" r="1.8" fill="#222"/>`;
   if(has('sunglassup')) hair+=`<rect x="36" y="40" width="12" height="5" rx="2" fill="#111"/><rect x="52" y="40" width="12" height="5" rx="2" fill="#111"/><path d="M48 42 L52 42" stroke="#111" stroke-width="1.5"/>`;
@@ -262,6 +282,11 @@ function svgCoach(kind,i){
   if(has('clipboard')) held+=`<rect x="38" y="98" width="24" height="28" rx="2" fill="#8a5a2b"/><rect x="41" y="102" width="18" height="22" fill="#fff"/><rect x="45" y="96" width="10" height="4" rx="1" fill="#bbb"/><path d="M43 107 L57 107 M43 111 L57 111 M43 115 L53 115" stroke="#999" stroke-width="1"/>`;
   if(has('bigtab')) held+=`<rect x="33" y="92" width="34" height="34" rx="3" fill="#1d1f24"/><rect x="36" y="95" width="28" height="27" fill="#4ea1ff"/><path d="M38 118 L44 110 L50 113 L56 104 L62 100" stroke="#fff" stroke-width="1.4" fill="none"/><rect x="39" y="98" width="10" height="3" fill="#ffffffaa"/><circle cx="50" cy="124" r="1" fill="#666"/>`;
   if(has('house')) held+=`<path d="M38 112 L50 100 L62 112 L62 126 L38 126 Z" fill="#f4e3c1" stroke="#8a5a2b" stroke-width="1"/><path d="M35 113 L50 98 L65 113" fill="none" stroke="#c0392b" stroke-width="3" stroke-linejoin="round"/><rect x="47" y="116" width="6" height="10" fill="#8a5a2b"/><rect x="40" y="114" width="5" height="5" fill="#9ec3e6"/><rect x="55" y="114" width="5" height="5" fill="#9ec3e6"/>`;
+  if(has('lantern')) held+=`<path d="M${hx} ${hy-2} L${hx} ${hy-10}" stroke="#3b2412" stroke-width="1.4"/><rect x="${hx-4}" y="${hy-13}" width="8" height="2.5" fill="#222"/><ellipse cx="${hx}" cy="${hy-22}" rx="7" ry="9.5" fill="#f4e3c1" stroke="#c0392b" stroke-width="1.2"/>${[-5,0,5].map(d=>`<path d="M${hx-6.5} ${hy-22+d} Q${hx} ${hy-20+d} ${hx+6.5} ${hy-22+d}" stroke="#c0392b55" stroke-width=".7" fill="none"/>`).join('')}<rect x="${hx-4}" y="${hy-33}" width="8" height="2.5" fill="#222"/><text x="${hx}" y="${hy-19.5}" font-size="7" font-weight="900" text-anchor="middle" fill="#c0392b" font-family="serif">湯</text>`;   // 提灯
+  if(has('sensu')) held+=`<path d="M${hx} ${hy-1} L${hx-12} ${hy-17} A16 16 0 0 1 ${hx+8} ${hy-20} Z" fill="#f4efe2" stroke="#8a6d3b" stroke-width=".9"/>${[0.2,0.4,0.6,0.8].map(t=>{ const x=hx-12+20*t, y=hy-17-3*Math.sin(t*Math.PI); return `<path d="M${hx} ${hy-1} L${x.toFixed(1)} ${y.toFixed(1)}" stroke="#8a6d3b88" stroke-width=".6"/>`; }).join('')}<circle cx="${hx-3}" cy="${hy-13}" r="2.6" fill="#e0566e"/>`;   // 扇子
+  if(has('teacup')) held+=`<path d="M${hx-5} ${hy-12} L${hx+5} ${hy-12} L${hx+4} ${hy-3} Q${hx} ${hy-1} ${hx-4} ${hy-3} Z" fill="#5a7d6a" stroke="#2f4a3b" stroke-width=".8"/><path d="M${hx-2} ${hy-16} Q${hx} ${hy-18} ${hx-1} ${hy-20} M${hx+2} ${hy-15} Q${hx+4} ${hy-17} ${hx+3} ${hy-20}" stroke="#ffffffaa" stroke-width=".8" fill="none"/>`;   // 湯呑み（湯気）
+  if(has('tray')) held+=`<ellipse cx="50" cy="110" rx="19" ry="5" fill="#7a1f1f" stroke="#4a1010" stroke-width="1"/><path d="M40 102 L46 102 L45.5 108 Q43 109.5 40.5 108 Z M54 102 L60 102 L59.5 108 Q57 109.5 54.5 108 Z" fill="#5a7d6a" stroke="#2f4a3b" stroke-width=".7"/><path d="M43 99 Q44 97 43 95 M57 99 Q58 97 57 95" stroke="#ffffffaa" stroke-width=".8" fill="none"/>`;   // お盆と湯呑み
+  if(has('yumoita')) held+=`<rect x="22" y="104" width="56" height="7" rx="1.5" fill="#c8a26a" stroke="#8a6a3a" stroke-width="1"/><path d="M26 107.5 L74 107.5" stroke="#8a6a3a66" stroke-width=".8"/>`;   // 湯もみ板
   const handsTop=both||raise;   // 物を持っている手は物の上に描く
   return `<svg viewBox="0 0 100 130" width="92" height="120" aria-hidden="true">
   <ellipse cx="50" cy="126" rx="30" ry="4" fill="#0006"/>${back}${body}${front}${arms}${handsTop?held+hands:hands+held}${head}${hair}${face}</svg>`;

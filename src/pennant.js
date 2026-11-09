@@ -1541,12 +1541,13 @@ const CAMP_BK=['meet','power','speed','eye','def'];
 function campCostTW(c){
   let P=c.stretch?stretchCost():0, B=c.bconv?0.1:0;
   if(isPLearn(c)) P+=learnCost(c.learn.t,!!c.learn.base);
-  for(const k in c.add){ const v=unitCost(k)*c.add[k]; if(CAMP_BK.includes(k)) B+=v; else P+=v; }
+  for(const k in c.add){ const v=unitCost(k)*c.add[k]; if(k==='rec'){ P+=v/2; B+=v/2; } else if(CAMP_BK.includes(k)) B+=v; else P+=v; }   // 回復力は投手と打撃から半分ずつ
   for(const t in c.lv){ const b=lvOf(t); for(let i=0;i<c.lv[t];i++) P+=lvCost(b+i,t); }
-  return {P:r1(P),B:r1(B)};
+  return {P:r2(P),B:r2(B)};
 }
 const campFits=c=>{ const CP=campPts()+1e-6; if(isTW()){ const t=campCostTW(c); return t.P<=CP&&t.B<=CP; } return campCost(c)<=CP; };
-const campLeftTW=c=>{ const t=campCostTW(c), CP=campPts(); return {P:r1(Math.max(0,CP-t.P)),B:r1(Math.max(0,CP-t.B))}; };
+const campLeftTW=c=>{ const t=campCostTW(c), CP=campPts(); return {P:r2(Math.max(0,CP-t.P)),B:r2(Math.max(0,CP-t.B))}; };
+const r2=v=>Math.round(v*100)/100, ptTxt=v=>{ const s=r2(v).toFixed(2); return s.endsWith('0')?s.slice(0,-1):s; };   // 二刀流の回復力は半分ずつなので0.05刻みもある
 function campCost(c){
   const bc=(c.bconv?0.1:0)+(c.stretch?stretchCost():0);   // 打席のコンバートは0.1ポイント（ミートが5下がる）、ストレッチは持ち点の1/3
   if(fullLearn(c)) return r1(campPts()+bc);   // 守備位置を覚えるときは持ち点全部
@@ -1670,7 +1671,7 @@ function renderCamp(el){
   if(!P.camp.learn&&!campFits(P.camp)) campReset(P.camp);   // 以前のポイント制で振った途中データは振り直し
   const c=P.camp, CP=campPts(), TWc=isTW(), lTW=TWc?campLeftTW(c):null, left=TWc?lTW.P:r1(CP-campCost(c)), a=P.abil, L=fullLearn(c), bank=(P.awake&&P.awake.bank)||0;   // 二刀流：left＝投手の残り（ストレッチ・変化球もこちら）
   // 1行：能力名（必要点数）｜数値｜−ALL｜−0.1｜+0.1｜+0.5（能力が0.5上がる分）、2行目：バー（振れる範囲まで）
-  const row=(k,name,cur,add,unit,cost,full)=>{ const can=!(L||full||cost>(TWc&&CAMP_BK.includes(k)?lTW.B:left)+1e-6), isLv=k.startsWith('lv:'), cap=k==='velo'?VELO_MAX:100; /* バーは「いまの能力〜上限」の目盛り（ほかの行を動かしても位置が変わらない） */ return `<div class="crow"><span class="cn">${name}<small>${full?'MAX':fmtPt(cost)+'pt'}${!full&&k!=='rec'&&teamMult(isLv?'lv':k)<1?'・特色':''}</small></span>
+  const row=(k,name,cur,add,unit,cost,full)=>{ const can=!(L||full||cost>(TWc?(k==='rec'?2*Math.min(lTW.P,lTW.B):CAMP_BK.includes(k)?lTW.B:lTW.P):left)+1e-6), isLv=k.startsWith('lv:'), cap=k==='velo'?VELO_MAX:100; /* バーは「いまの能力〜上限」の目盛り（ほかの行を動かしても位置が変わらない） */ return `<div class="crow"><span class="cn">${name}<small>${full?'MAX':fmtPt(cost)+'pt'}${!full&&k!=='rec'&&teamMult(isLv?'lv':k)<1?'・特色':''}</small></span>
     <span class="cv">${add?`${cur}→<b>${typeof cur==='number'?r1(cur+add):(lvOf(k.slice(3))+add>LV_MAX?'スイーパー':'Lv.'+(lvOf(k.slice(3))+add))}</b>`:cur}<small>${unit}</small></span>
     <button class="cbtn sm" data-ck="${k}" data-d="all" ${!add||L?'disabled':''}>−ALL</button><button class="cbtn" data-ck="${k}" data-d="-1" ${!add||L?'disabled':''}>−</button><button class="cbtn" data-ck="${k}" data-d="1" ${can?'':'disabled'}>＋</button>${isLv?'<span></span>':`<button class="cbtn sm" data-ck="${k}" data-d="5" ${can?'':'disabled'}>+.5</button>`}
     ${isLv?'':(()=>{ const mn=k==='velo'?110:0, pb=((cur-mn)/(cap-mn)*100).toFixed(1), pc=((cur+(add||0)-mn)/(cap-mn)*100).toFixed(1); return `<input type="range" class="cbar" data-cb="${k}" data-base="${cur}" min="${mn}" max="${cap}" step="0.1" value="${r1(cur+(add||0))}" style="background:linear-gradient(90deg,#8d9a90 0 ${pb}%,#f5c542 ${pb}% ${pc}%,#243329 ${pc}% 100%)" ${L?'disabled':''}>`; })()}</div>`; };   // バー＝能力の棒グラフ（0〜100、球速は110〜170）。元の能力より下には戻せない
@@ -1695,7 +1696,7 @@ function renderCamp(el){
       ${row('stamina','スタミナ',a.stamina,c.add.stamina,'',unitCost('stamina')*0.1,a.stamina+c.add.stamina>=100-1e-6)}
       ${brk||'<div class="hint">変化球はまだありません</div>'}`;
   const trait=`<div class="hint" style="color:#f3dfa0">🏟 ${TEAM[P.team].short}の特色：${TRAIT_JP[P.team]}</div>`;
-  const rv0=r1(P.recov??40), recRow=`<div class="tgh" style="margin-top:16px"><span class="tg" style="background:#3a5a8c;color:#fff">共通</span></div>`+row('rec','回復力',rv0,c.add.rec||0,'',unitCost('rec')*0.1,rv0+(c.add.rec||0)>=100-1e-6)+`<div class="hint">回復力：疲労の抜ける速さ（今の疲労 ${Math.round(myFat())}）。${P.age}歳は0.1で${fmtPt(unitCost('rec')*0.1)}pt（22歳まで0.1pt、1歳ごとに+5%。年を取るほど上がりにくい）${TWc?'・二刀流は投手の持ち点から':''}</div>`;
+  const rv0=r1(P.recov??40), recRow=`<div class="tgh" style="margin-top:16px"><span class="tg" style="background:#3a5a8c;color:#fff">共通</span></div>`+row('rec','回復力',rv0,c.add.rec||0,'',unitCost('rec')*0.1,rv0+(c.add.rec||0)>=100-1e-6)+`<div class="hint">回復力：疲労の抜ける速さ（今の疲労 ${Math.round(myFat())}）。${P.age}歳は0.1で${fmtPt(unitCost('rec')*0.1)}pt（22歳まで0.1pt、1歳ごとに+5%。年を取るほど上がりにくい）${TWc?'・二刀流は投手と打撃の持ち点から半分ずつ使う（両方に残っている分だけ上げられる。どちらかが0なら上げられない）':''}</div>`;
   const abRows = B ? Object.keys(B_ABK).map(bRow).join('')+recRow+`<div class="hint">0.1上げるごとに0.1pt（最大100）。「特色」のついた能力は球団の特色で安くなっています</div>`+trait
     : W ? `<div class="tgh" style="margin-top:4px"><span class="tg tgP">投手</span></div>`+pRows+`<div class="tgh" style="margin-top:18px"><span class="tg tgB"><span class="tgt">打撃</span></span></div>`+BAT4.map(bRow).join('')+recRow+
       `<div class="hint">球速0.1km/h＝0.5pt（最大${VELO_MAX}km/h）・コントロール・スタミナ・打撃の能力は0.1で0.1pt・変化球のLvアップ＝Lv.1→2は1pt、1つ上がるごとに+0.5pt（6→7は3.5pt）・スライダーLv.7→スイーパー（Lv.1から）は1pt・ストレートのLvアップ＝Lv.1→2は1pt、2→3は3pt、それ以降は「次のLv」pt（最大Lv.${LV_MAX}）</div>`+trait
@@ -1718,7 +1719,7 @@ function renderCamp(el){
     ${managerSay(P.year===1?`ようこそ${TEAM[P.team].short}へ。監督の${myMgr().sur}だ。開幕までのキャンプで何を鍛えるか、自分で決めてみろ。`:myMgr().y===P.year?`今年から監督になった${myMgr().sur}だ。${P.age}歳のシーズン、何を伸ばす？ 俺の見方は下に書いてある。`:`今年のキャンプだ。${P.age}歳のシーズン、何を伸ばす？`,true)}
     ${P.mgrNews&&P.mgrNews.length?`<div class="hint" style="margin:-2px 0 6px">他球団の監督交代：${P.mgrNews.join('／')}</div>`:''}
     ${mgrCard()}
-    <div class="pcardx"><div class="camppt">${TWc?'投手・打撃それぞれに ':''}持ち点 <b>${CP.toFixed(1)}</b><small style="color:var(--mute)">（基本${campBase().toFixed(1)}＋監督${mgrCampBonus(myMgr()).toFixed(1)}${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); const aw=r1(L.filter(x=>x.kind!=='title').reduce((t,x)=>t+(x.pts||0),0)), tt=r1(L.filter(x=>x.kind==='title').reduce((t,x)=>t+(x.pts||0),0)); return `${aw?`＋覚醒${aw}`:''}${tt?`＋タイトル${tt}`:''}${bank&&!aw&&!tt?`＋持ち越し${bank}`:''}${P.carry?`＋去年からの繰り越し${P.carry}`:''}`; })()}）</small>${TWc?`<div style="margin-top:4px"><span class="tg tgP sm">投手</span> 残り <b class="${lTW.P?'':'zero'}">${lTW.P.toFixed(1)}</b>　<span class="tg tgB sm"><span class="tgt">打撃</span></span> 残り <b class="${lTW.B?'':'zero'}">${lTW.B.toFixed(1)}</b> ポイント</div>`:`　残り <b class="${left?'':'zero'}">${left.toFixed(1)}</b> ポイント`}</div>
+    <div class="pcardx"><div class="camppt">${TWc?'投手・打撃それぞれに ':''}持ち点 <b>${CP.toFixed(1)}</b><small style="color:var(--mute)">（基本${campBase().toFixed(1)}＋監督${mgrCampBonus(myMgr()).toFixed(1)}${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); const aw=r1(L.filter(x=>x.kind!=='title').reduce((t,x)=>t+(x.pts||0),0)), tt=r1(L.filter(x=>x.kind==='title').reduce((t,x)=>t+(x.pts||0),0)); return `${aw?`＋覚醒${aw}`:''}${tt?`＋タイトル${tt}`:''}${bank&&!aw&&!tt?`＋持ち越し${bank}`:''}${P.carry?`＋去年からの繰り越し${P.carry}`:''}`; })()}）</small>${TWc?`<div style="margin-top:4px"><span class="tg tgP sm">投手</span> 残り <b class="${lTW.P?'':'zero'}">${ptTxt(lTW.P)}</b>　<span class="tg tgB sm"><span class="tgt">打撃</span></span> 残り <b class="${lTW.B?'':'zero'}">${ptTxt(lTW.B)}</b> ポイント</div>`:`　残り <b class="${left?'':'zero'}">${left.toFixed(1)}</b> ポイント`}</div>
       ${(()=>{ const L=(P.awake&&P.awake.log||[]).filter(x=>x.y===P.year-1); return L.length?`<div class="hint" style="color:#f3dfa0">去年の実績：${L.map(x=>`<div>${x.kind==='title'?'🏆':'✨'} ${x.name}${x.pts?`　+${x.pts}`:''}</div>`).join('')}</div>`:''; })()}
       ${c.learn?`<div class="hint" style="color:#f3dfa0">「${LP?POS_JP[c.learn.pos]:c.learn.t}」を${LP?(c.learn.mode==='add'?'守れるようにする':'新しい守備位置にする'):'覚える'}ので、${isPLearn(c)?`${learnCost(c.learn.t,!!c.learn.base)}ポイントを使います（残りは能力・Lvに使えます）`:`${posLearnCost(c.learn)}ポイントを使います（残りは能力に使えます）`}</div>`:''}
       ${abRows}</div>
