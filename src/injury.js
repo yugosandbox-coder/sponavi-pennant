@@ -143,7 +143,7 @@ function fatSay(key,text,head){ PEN.fatSaid=PEN.fatSaid||{}; if(PEN.fatSaid[key]
 function fatRestToday(){
   if(!PEN) return false; const F=myFat(), t=myFatThr(), A=PEN.fatAsk;
   if(A&&A.y===PEN.year&&A.day===PEN.day){ if(A.go) return false; PEN.fatRestDay=PEN.day; return true; }   // 今日はもう決めた（強行出場／休養）
-  if(fatResting()){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで休んでいい。しっかり体を休めておけ。`); } PEN.fatRestDay=PEN.day; return true; }
+  if(fatResting()){ PEN.restReq=false; PEN.fatRestDay=PEN.day; return true; }   // 自分から申し出た休養中：監督との会話なし（スキップで止まらない）
   const why=F>=t?'rest':(PEN.age||22)>=34&&F>=t-10&&rnd()<0.35?'platoon':null; if(!why) return false;
   PEN.fatAsk={y:PEN.year,day:PEN.day,why,F:Math.round(F),go:false}; PEN.fatRestDay=PEN.day;
   if(!PEN.prompt) PEN.prompt={kind:'fatRest'};
@@ -161,7 +161,7 @@ const fatSubToday=()=>myFat()>=myFatThr()-FAT_SUB_LO&&rnd()<0.35;   // 疲れて
 // 中継ぎ：今日はベンチに入れない（申し出・疲労・連投の上限）
 function fatRelBlock(){
   if(!PEN) return false;
-  if(fatResting()){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで、ブルペンに入らなくていい。`); } return true; }
+  if(fatResting()){ PEN.restReq=false; return true; }   // 休養中：会話なし
   if(myFat()>=myFatThr()) return true;
   if(PEN.lastPDay===PEN.day-1&&(PEN.pStreak||0)>=relCap(myMgr())) return true;
   return false;

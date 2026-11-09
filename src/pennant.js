@@ -412,7 +412,7 @@ function penNextKind(){
   if(isBat()){ if(PEN.role!=='代打') return typeof fatRestToday==='function'&&fatRestToday()?null:'bat'; if(typeof fatResting==='function'&&fatResting()){ PEN.restReq=false; return null; } /* 控え：休養中は出番なし */ const k=mySubMgr()?1.5:1;   // スタメン：疲れていたら休養日   // 代打多用型の監督は控えの出番が増える
     if(rnd()<Math.min(0.7,pinchProb()*k)) return 'pinch'; if(rnd()<Math.min(0.6,runnerProb()*k)) return 'runner'; return rnd()<Math.min(0.6,defsubProb()*k)?'defsub':null; }
   if(myStartToday()){ if(PEN.restReq) PEN.restReq=false; if(PEN.restTo!=null) PEN.restTo=null; return 'start'; }   // ローテーションの自分の番
-  if(!isBat()&&typeof fatSay==='function'){ const T=myT(); if(T&&T.meSkip===PEN.day){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで、先発は回避しよう。`); } else fatSay('skip',`疲れが抜けていないな（疲労${Math.round(myFat())}）。今日の先発は回避して、ずらすぞ。`); } }   // 疲労で先発回避
+  if(!isBat()&&typeof fatSay==='function'){ const T=myT(); if(T&&T.meSkip===PEN.day){ if(PEN.restReq||PEN.restTo!=null){ PEN.restReq=false; } else fatSay('skip',`疲れが抜けていないな（疲労${Math.round(myFat())}）。今日の先発は回避して、ずらすぞ。`); } }   // 疲労で先発回避
   const relOK=!((PEN.role==='中継ぎ'||PEN.role==='抑え'||PEN.role==='裏ローテ')&&typeof fatRelBlock==='function'&&fatRelBlock());   // 中継ぎ：疲労・連投の上限・休養の申し出でベンチに入らない日
   if(relOK&&PEN.role==='中継ぎ'&&PEN.penRank===2&&rnd()<0.34*saveShare(myT())) return 'closer';   // セットアッパー：クローザーと評価が近いとセーブ機会も
   if(relOK&&(PEN.role==='中継ぎ'||PEN.role==='裏ローテ')&&rnd()<relProb()) return 'relief';   // 中継ぎ・ロングリリーフの登板（二刀流でも投げる日が優先）
