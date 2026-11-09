@@ -219,7 +219,7 @@ function newPennant(startRole,abil,rep,plev,teamId,pos,babil,bhand){
     PEN.role='代打'; PEN.order=0; PEN.ss=batStat(); PEN.career=batStat(); PEN.rep=['ストレート']; PEN.plev={};
   }
   dedupeNames();   // 自分と同じ名前のCPU選手がいれば名前を変える
-  PEN.recov=r1(clamp(B?(babil&&babil.rec)??20:(abil&&abil.rec)??20,0,100)); PEN.recov0=PEN.recov; PEN.fat=0; PEN.recV=5; PEN.spSkew=1; if(PEN.abil) delete PEN.abil.rec;   // 回復力（入団時に振った分）・疲労
+  PEN.recov=r1(clamp(B?(babil&&babil.rec)??20:(abil&&abil.rec)??20,0,100)); PEN.recov0=PEN.recov; PEN.fat=0; PEN.recV=7; PEN.spSkew=1; if(PEN.abil) delete PEN.abil.rec;   // 回復力（入団時に振った分）・疲労
   PEN.btype='バランス'; assignTypesAll();
   rebuildAll(); if(typeof oddPlan==='function') oddPlan(); if(W) twCompete(true);
   if(!B){ initPcat(startRole); pitRerank(true); penNotice(`1年目のシーズン開幕！ ${TEAM[team].short}の${W?'二刀流・':''}${roleName(PEN.role)}としてスタート（年俸500万円・${PEN.abil.velo}km/h・制球${PEN.abil.control}・スタミナ${PEN.abil.stamina}）`); }
@@ -409,10 +409,10 @@ function pitRerank(quiet,was){
 /* ---- 日程を進める ---- */
 function penNextKind(){
   if(typeof oddKindToday==='function'){ const ok=oddKindToday(); if(ok) return ok; }   // 野手登板・代打投手の日
-  if(isBat()){ if(PEN.role!=='代打') return typeof fatRestToday==='function'&&fatRestToday()?null:'bat'; const k=mySubMgr()?1.5:1;   // スタメン：疲れていたら休養日   // 代打多用型の監督は控えの出番が増える
+  if(isBat()){ if(PEN.role!=='代打') return typeof fatRestToday==='function'&&fatRestToday()?null:'bat'; if(typeof fatResting==='function'&&fatResting()){ PEN.restReq=false; return null; } /* 控え：休養中は出番なし */ const k=mySubMgr()?1.5:1;   // スタメン：疲れていたら休養日   // 代打多用型の監督は控えの出番が増える
     if(rnd()<Math.min(0.7,pinchProb()*k)) return 'pinch'; if(rnd()<Math.min(0.6,runnerProb()*k)) return 'runner'; return rnd()<Math.min(0.6,defsubProb()*k)?'defsub':null; }
-  if(myStartToday()){ if(PEN.restReq) PEN.restReq=false; return 'start'; }   // ローテーションの自分の番
-  if(!isBat()&&typeof fatSay==='function'){ const T=myT(); if(T&&T.meSkip===PEN.day){ if(PEN.restReq){ PEN.restReq=false; fatSay('req','わかった。今日の先発は回避して、ずらそう。'); } else fatSay('skip',`疲れが抜けていないな（疲労${Math.round(myFat())}）。今日の先発は回避して、ずらすぞ。`); } }   // 疲労で先発回避
+  if(myStartToday()){ if(PEN.restReq) PEN.restReq=false; if(PEN.restTo!=null) PEN.restTo=null; return 'start'; }   // ローテーションの自分の番
+  if(!isBat()&&typeof fatSay==='function'){ const T=myT(); if(T&&T.meSkip===PEN.day){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで、先発は回避しよう。`); } else fatSay('skip',`疲れが抜けていないな（疲労${Math.round(myFat())}）。今日の先発は回避して、ずらすぞ。`); } }   // 疲労で先発回避
   const relOK=!((PEN.role==='中継ぎ'||PEN.role==='抑え'||PEN.role==='裏ローテ')&&typeof fatRelBlock==='function'&&fatRelBlock());   // 中継ぎ：疲労・連投の上限・休養の申し出でベンチに入らない日
   if(relOK&&PEN.role==='中継ぎ'&&PEN.penRank===2&&rnd()<0.34*saveShare(myT())) return 'closer';   // セットアッパー：クローザーと評価が近いとセーブ機会も
   if(relOK&&(PEN.role==='中継ぎ'||PEN.role==='裏ローテ')&&rnd()<relProb()) return 'relief';   // 中継ぎ・ロングリリーフの登板（二刀流でも投げる日が優先）
@@ -1941,7 +1941,7 @@ function renderPennant0(){
     ${P.contract&&P.contract.until>P.year?`<div class="hint">📝 ${P.contract.years}年契約（あと${P.contract.until-P.year}年・年俸固定）</div>`:''}
     <div class="pcardx"><div class="prow"><span class="plink" data-pk="${plinkKey({isMe:true})}"><b style="font-size:17px">${P.pname}</b></span>${P.genius?' <span class="genius">✨ 天才</span>':''} ${B?`<span class="hb ${P.bhand}">${bhandJP(P.bhand)}</span> <span class="rbadge">${roleName(P.role)}${P.order?`・${P.order}番`:''}</span>${btypeBadge(P.btype)}`:`<span class="hb ${P.hand}">${P.hand==='L'?'左投':'右投'}</span> <span class="rbadge">${ROLE_NAME[P.role]}</span>${isTW()?` <span class="rbadge" style="background:${P.dh?'#2e9e57':'#5c6670'}">${P.dh?`指名打者・${P.dhOrder}番`:'打撃：控え'}</span>`:''}`}</div>
       <div class="hint" style="margin:4px 0">${P.age||22}歳　年俸 ${yen(P.salary)}　評価 ${Math.round(R)}点${P.ss.mOK||P.ss.mNG?`　ミッション ${P.ss.mOK||0}勝${P.ss.mNG||0}敗`:''}${P.draft?`　ドラフト${P.draft.pick}位入団`:''}</div>
-      ${typeof fatBarHTML==='function'?`<div class="fatline">疲労 ${fatBarHTML(myFat())}<span class="hint" style="margin:0">回復力 ${r1(P.recov??40)}・監督が休ませる目安 ${myFatThr()}</span>${!P.pending&&!P.prompt&&P.day<SEASON_GAMES?`<button class="btn" id="restReq" ${P.restReq?'disabled':''} style="margin:4px 0 0;padding:5px 10px;width:auto;font-size:12px">${P.restReq?'🛌 休養を申し出た（次の出番）':'🛌 休養を申し出る（評価が少し下がる）'}</button>`:''}</div>`:''}
+      ${typeof fatBarHTML==='function'?`<div class="fatline">疲労 ${fatBarHTML(myFat())}<span class="hint" style="margin:0">回復力 ${r1(P.recov??40)}・監督が休ませる目安 ${myFatThr()}</span>${!P.pending&&!P.prompt&&P.day<SEASON_GAMES?`<button class="btn" id="restReq" ${P.restReq||P.restTo!=null?'disabled':''} style="margin:4px 0 0;padding:5px 10px;width:auto;font-size:12px">${P.restReq||P.restTo!=null?`🛌 休養中（疲労${Math.round(P.restTo??0)}まで）`:'🛌 休養を申し出る（疲労が半分になるまで・評価が少し下がる）'}</button>`:''}</div>`:''}
       ${typeof injuryHTML==='function'?injuryHTML():''}
       ${typeof cbCardHTML==='function'?cbCardHTML():''}
       ${isFavMgr()?`<div class="pcardx" style="border-color:#2a9d4f"><b>💚 ${mgrName(myMgr())}のお気に入り度：${myMgr().fav||0}／100</b>　<small style="color:var(--mute)">評価 ${favBonus()>=0?'+':''}${Math.round(favBonus())}点</small><div class="hint">贔屓起用の監督だけの仕組み。ミッション達成で+8、失敗で−2、打診を断ると下がる。60以上で能力にかかわらず起用されやすく、伸び悩みを待ってくれる年数もお気に入り度で${stagLimit()}年（30未満2年・50未満3年・70未満4年・70以上5年）</div></div>`:''}

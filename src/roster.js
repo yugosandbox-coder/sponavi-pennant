@@ -207,7 +207,7 @@ function rotStep(T,st,d){
   const ord=rotOrderByRank(T), I=rotIntervals(ord.length); if(!ord.length) return null;
   const C=ord.map((id,k)=>({id,w:1/I[k]})).concat(rotSpots(T,I[I.length-1])), ids=C.map(x=>x.id);
   for(const id in st.cred) if(!ids.includes(id)) delete st.cred[id];
-  C.forEach(x=>{ st.cred[x.id]=(st.cred[x.id]||0)+x.w; });
+  C.forEach(x=>{ st.cred[x.id]=Math.min(1.2,(st.cred[x.id]||0)+x.w); });   // 休んでいた投手が続けて先発しないように、たまる分は1.2回まで
   let best=null; C.forEach(x=>{ if(d-(st.last[x.id]??-99)<Math.max(2,Math.floor(0.6/x.w))) return; if(typeof fatSpSkip==='function'&&d===PEN.day&&fatSpSkip(T,x.id)) return; if(best==null||st.cred[x.id]>st.cred[best]) best=x.id; });   // 間隔が短すぎる投手は休ませる。疲れている投手は先発を回避（ずらす）
   if(best==null){ const sk=id=>typeof fatSpSkip==='function'&&d===PEN.day&&fatSpSkip(T,id), gap=id=>d-(st.last[id]??-99), now=d===PEN.day;
     let ok=C.map(x=>x.id).filter(id=>!sk(id)&&gap(id)>=4); if(!ok.length&&now) ok=outIds(T).filter(id=>!sk(id)&&gap(id)>=4);   // 中3日以上空いた疲れていない投手（いなければローテ外の投手から）

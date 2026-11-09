@@ -50,9 +50,9 @@ function injuryHTML(){
    疲労（0〜100）と回復力（0〜100）：プレイヤーもCPUも
    ・試合に出ると溜まる（野手：打席・守備位置。指名打者は×0.85／投手：球数・連投）。二刀流は先発の翌日は指名打者で出ず、指名打者の日は×0.5。年齢で溜まりやすくなる（24歳まで×0.95 → 30歳×1.0 → 35歳×1.12 → 40歳×1.32）
      衰えが始まるとさらに溜まりやすい（1年目×1.06・3年目×1.18・5年目×1.3）
-   ・毎日少しずつ回復：(1＋疲労の0.5%)×回復力の倍率（回復力50で×0.9・65で×1.6・80で×2.65・90で×3.5・100で×4.2）。出なかった日は1.5倍
+   ・毎日少しずつ回復：(1＋疲労の0.5%)×回復力の倍率（回復力30で×0.29・50で×0.69・70で×1.24・90で×2.15・100で×3.2）。出なかった日（休養日・投げなかった日）は2.5倍
    ・オールスター・ポストシーズン・WBC：出場した日は普通の試合と同じように溜まり、出ない日は休みの日と同じだけ回復（オールスターは4日・ポストシーズンは自分のリーグのCSと日本シリーズの試合の日・WBCは日本の試合の日）。ポストシーズンも疲れすぎていれば先発回避・中継ぎは休み
-   ・目安（外野のスタメン級）：回復力50で年70試合前後、80で1年はほぼフル出場（続けると少しずつ減る）、90〜100で毎年フル出場
+   ・目安：回復力の数字≒フル回転したシーズンに出られる試合の%（外野のスタメン級で30→31%・50→50%・70→71%・90→89%・100→99%。捕手は少し少なく、先発は50→53%・70→80%・90→93%）
    ・オフに抜ける量：55＋5×回復の速さ（回復力50で約60・80で約68・100で76。31〜35歳は1歳ごとに−6%・36〜40歳は−9%・41歳から−12%、最低10）。ふつうはほぼ全部抜け、ポストシーズン・WBCで出続けた年やベテランは残りやすい。残りは翌シーズンに持ち越し
    ・溜まるとスランプ・ケガが起きやすく（重く）なり、投手は試合の始めのスタミナが減る。85以上（限界）は能力も下がる
    ・監督は性格に応じて休ませる（休養日・併用・途中交代・先発回避・中継ぎの連投制限）。自分から休養を申し出ることもできる（評価が少し下がる）
@@ -60,23 +60,24 @@ function injuryHTML(){
 const FAT_STAGE=[[85,'限界','#e5534b'],[70,'疲労','#ff8c42'],[50,'疲れ気味','#f5c542'],[30,'普通','#9ad48a'],[0,'元気','#3fb96b']];
 const fatStage=F=>FAT_STAGE.find(x=>(F||0)>=x[0]);
 const FAT_AGE=a=>a<=24?0.95:a<=30?0.95+(a-24)*0.05/6:a<=35?1+(a-30)*0.024:1.12+(a-35)*0.04;   // 年齢で溜まりやすくなる（24歳まで×0.95 → 30歳×1.0 → 35歳×1.12 → 40歳×1.32）
-const REC_K=[[0,0.15],[25,0.45],[50,0.9],[65,1.6],[80,2.65],[90,3.5],[100,4.2]];   // 回復力 → 回復の速さの倍率（この間はなめらかにつなぐ）
+const REC_K=[[0,0.02],[10,0.06],[20,0.14],[30,0.29],[40,0.46],[50,0.69],[60,0.93],[70,1.24],[80,1.6],[90,2.15],[100,3.2]];   // 回復力 → 回復の速さの倍率。回復力の数字＝フル回転したシーズンに出られる試合の%になるように（外野のスタメン・27歳で測定）
 const recK=r=>{ r=clamp(r??40,0,100); let i=1; while(i<REC_K.length-1&&r>REC_K[i][0]) i++; const [x0,y0]=REC_K[i-1],[x1,y1]=REC_K[i]; return y0+(y1-y0)*(r-x0)/(x1-x0); };
 const fatDecl=(age,decl)=>decl?1+0.06*Math.max(1,(age||22)-decl+1):1;   // 衰えが始まると溜まりやすい（1年目×1.06 → 3年目×1.18 → 5年目×1.3）
 const FAT_FLD={C:1.6,SS:1.0,'2B':1.0,'3B':0.8,LF:0.7,CF:0.7,RF:0.7,OF:0.7,'1B':0.6,DH:0};   // 守備の負担
-const FAT_GB=1.3, FAT_GP=1.4;   // 溜まり方の強さ（野手・投手）
+const FAT_GB=1.3, FAT_GP=2.0;   // 溜まり方の強さ（野手・投手）
 const FAT_DH=0.85, FAT_DH_TW=0.5;   // 指名打者は守備がない分少し軽い（×0.85）。二刀流の指名打者はさらに軽く半分（×0.5）
 const fatBat=(pa,pos,part)=>(1.4+pa*0.3+(FAT_FLD[pos]??0.7)*(part??1))*FAT_GB*(pos==='DH'?FAT_DH:1);   // 野手のスタメン（打席・守備）
 const fatTwDH=pa=>fatBat(pa,'DH',1)*FAT_DH_TW/FAT_DH;   // 二刀流の指名打者の日
 const fatSub=(pa,fld)=>(0.4+pa*0.3+(fld||0)*0.3)*FAT_GB;                           // 途中出場・代打・代走
 const fatPit=(pitches,streak)=>(pitches*0.2+1+(streak>=2?6:streak===1?3:0))*FAT_GP;   // 投手（球数。連投：2日目+3・3日目から+6）
-const fatRecDay=F=>1+0.005*(F||0);   // 1日の回復（回復力の倍率をかける。出なかった日は1.5倍）
+const FAT_REST=2.5;   // 試合に出なかった日（休養日・投げなかった日）の回復の倍率
+const fatRecDay=F=>1+0.005*(F||0);   // 1日の回復（回復力の倍率をかける。出なかった日（休養日・投げなかった日）は2.5倍）
 const offAgeF=a=>{ a=a||22; return a<=30?1:a<=35?1-0.06*(a-30):a<=40?0.7-0.09*(a-35):Math.max(0,0.25-0.12*(a-40)); };   // オフの抜けやすさ：31〜35歳は1歳ごとに−6%、36〜40歳は−9%、41歳から−12%
 const fatOffCut=(age,rec)=>Math.max(10,(55+5*recK(rec))*offAgeF(age));   // オフに抜ける量（値）：ふつうはほぼ全部抜ける。ポストシーズン・WBCで投げ続けた年や、ベテランは残りやすい   // オフのあとに残る割合（抜ける割合：回復力50で4割強・80で6割・100で8割弱。31歳から1歳ごとに−8%）
 // 監督が休ませる目安（性格で変わる）：休養重視・総力戦は早め、少数精鋭・実力主義は遅め。若手優先はベテランを早めに、ベテラン優先は遅めに
 function fatThr(m,age){ let t=({six:72,seven:65,eight:58,ten:56})[m&&m.r]??65; if(m&&m.a==='merit') t+=3; if(m&&m.a==='young'&&age>=30) t-=5; if(m&&m.a==='vet'&&age>=30) t+=5; return t; }
 const relCap=m=>({six:4,seven:3,eight:2,ten:2})[m&&m.r]??3;   // 中継ぎの連投の上限
-const FAT_SUB=10, FAT_SUB_LO=5, FAT_SP=12;   // 目安−5から途中交代（半分くらい）・目安＋12で先発回避
+const FAT_SUB=10, FAT_SUB_LO=5, FAT_SP=5;   // 目安−5から途中交代（半分くらい）・目安＋5で先発回避
 // ---- 自分
 const myFat=()=>PEN?(PEN.fat||0):0;
 const myRecov=()=>PEN?(PEN.recov??40):40;
@@ -86,7 +87,7 @@ function fatMigrate(){
   if(!PEN) return;
   if(PEN.recov==null){ PEN.recov=r1(clamp(25+((PEN.age||18)-18)*2,25,50)); PEN.recov0=PEN.recov; }
   if(PEN.fat==null) PEN.fat=0;
-  const re=PEN.recV!==5; PEN.recV=5;   // v195：CPUの回復力の決め方を変えたので作り直す
+  const re=PEN.recV!==7; PEN.recV=7;   // v195：CPUの回復力の決め方を変えたので作り直す
   if(PEN.teams) for(const id in PEN.teams){ const T=PEN.teams[id]; (T.F||[]).forEach(f=>{ if(f.rec==null||re) f.rec=cpuRecGen(f.age); if(f.fat==null) f.fat=0; }); (T.P||[]).forEach(p=>{ if(p&&!p.isMe){ if(p.rec==null||re) p.rec=cpuRecGen(p.age,true); if(p.fat==null) p.fat=0; } }); }
 }
 // 試合のあと（recordMyGame から）：出場した分の疲労。成績の増えた分（球数・打席）から決める。出場したら true
@@ -106,10 +107,10 @@ function fatAfterGame(me){
   if(g>0) PEN.fat=r1(clamp((PEN.fat||0)+g*fatGainMul(),0,100));
   return played;
 }
-// 毎日（日付が進んだあと）：回復。出なかった日は1.5倍。温泉旅行中は1.2倍。オールスター休み（第75試合のあと）で−15
+// 毎日（日付が進んだあと）：回復。出なかった日（休養日・投げなかった日）は2.5倍。温泉旅行中は1.2倍。オールスター休み（第75試合のあと）で−15
 function fatDaily(played){
   if(!PEN) return; const F=PEN.fat||0;
-  let r=fatRecDay(F)*recK(myRecov())*(played?1:1.5)*(typeof cbOn==='function'&&cbOn('onsen')?1.2:1);
+  let r=fatRecDay(F)*recK(myRecov())*(played?1:FAT_REST)*(typeof cbOn==='function'&&cbOn('onsen')?1.2:1);
   PEN.fat=r1(Math.max(0,F-r));
 }
 // 大会（オールスター・ポストシーズン・WBC）の1日：出場したら普通の試合と同じように溜まり（出た日の回復）、出なければ休みの日と同じだけ回復
@@ -142,7 +143,7 @@ function fatSay(key,text,head){ PEN.fatSaid=PEN.fatSaid||{}; if(PEN.fatSaid[key]
 function fatRestToday(){
   if(!PEN) return false; const F=myFat(), t=myFatThr(), A=PEN.fatAsk;
   if(A&&A.y===PEN.year&&A.day===PEN.day){ if(A.go) return false; PEN.fatRestDay=PEN.day; return true; }   // 今日はもう決めた（強行出場／休養）
-  if(PEN.restReq){ PEN.restReq=false; fatSay('req','わかった。今日は休んでいい。しっかり体を休めておけ。'); PEN.fatRestDay=PEN.day; return true; }
+  if(fatResting()){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで休んでいい。しっかり体を休めておけ。`); } PEN.fatRestDay=PEN.day; return true; }
   const why=F>=t?'rest':(PEN.age||22)>=34&&F>=t-10&&rnd()<0.35?'platoon':null; if(!why) return false;
   PEN.fatAsk={y:PEN.year,day:PEN.day,why,F:Math.round(F),go:false}; PEN.fatRestDay=PEN.day;
   if(!PEN.prompt) PEN.prompt={kind:'fatRest'};
@@ -160,27 +161,32 @@ const fatSubToday=()=>myFat()>=myFatThr()-FAT_SUB_LO&&rnd()<0.35;   // 疲れて
 // 中継ぎ：今日はベンチに入れない（申し出・疲労・連投の上限）
 function fatRelBlock(){
   if(!PEN) return false;
-  if(PEN.restReq){ PEN.restReq=false; fatSay('req','わかった。今日はブルペンに入らなくていい。'); return true; }
+  if(fatResting()){ if(PEN.restReq){ PEN.restReq=false; fatSay('req',`わかった。疲れが半分（疲労${Math.round(PEN.restTo??0)}）に下がるまで、ブルペンに入らなくていい。`); } return true; }
   if(myFat()>=myFatThr()) return true;
   if(PEN.lastPDay===PEN.day-1&&(PEN.pStreak||0)>=relCap(myMgr())) return true;
   return false;
 }
 // ローテーション：先発を回避する投手（自分：申し出・疲労。CPU：疲労・限界で離脱中）
 function fatSpSkip(T,id){
-  if(id==='ME'){ const sk=!!PEN.restReq||myFat()>=myFatThr()+FAT_SP; if(sk) T.meSkip=PEN.day; return sk; }
+  if(id==='ME'){ const sk=fatResting()||myFat()>=myFatThr()+FAT_SP; if(sk) T.meSkip=PEN.day; return sk; }
   const p=(T.P||[]).find(x=>x.pid===id); if(!p) return false;
   return (p.out||0)>PEN.day||(p.fat||0)>=fatThr(T.mgr,p.age)+FAT_SP;
 }
-// 自分から休養を申し出る（評価が少し下がる）
+// 自分から休養を申し出る（評価が少し下がる）：疲労がその時点の半分になるまで休む（少なくとも1試合）
+function fatResting(){
+  if(!PEN) return false; if(PEN.restReq) return true;
+  if(PEN.restTo==null) return false; if(myFat()>PEN.restTo) return true;
+  penNotice(`🛌 休養を終えて復帰（疲労${Math.round(myFat())}）`); PEN.restTo=null; return false;
+}
 function fatRequest(){
-  if(!PEN||PEN.restReq) return; PEN.restReq=true; PEN.ss.tPen=r1((PEN.ss.tPen||0)+0.5);
-  penNotice(`🛌 監督に休養を申し出た（次の${isBat()?'試合はスタメンを外れる':isStarter(PEN.role)?'先発は回避':'試合はブルペンに入らない'}。評価が少し下がる）`);
+  if(!PEN||PEN.restReq||PEN.restTo!=null) return; PEN.restReq=true; PEN.restTo=r1(myFat()/2); PEN.ss.tPen=r1((PEN.ss.tPen||0)+0.5);
+  penNotice(`🛌 監督に休養を申し出た（疲労が${Math.round(PEN.restTo)}（今の半分）に下がるまで、${isBat()?'スタメンを外れる':isStarter(PEN.role)?'先発を回避する':'ブルペンに入らない'}。評価が少し下がる）`);
   if(typeof renderPennant==='function') renderPennant(); if(typeof save==='function') save();
 }
 // ---- CPU選手
 // CPUの回復力：プロのレギュラーが年120〜135試合（先発22〜25回）出られるくらい。18歳36 → 26歳68 → 30歳76（±12。投手は+8）、衰えると下がる
-const CPU_REC=a=>a<=26?36+(Math.max(18,a)-18)*4:a<=30?68+(a-26)*2:76-Math.max(0,a-32)*3;
-function cpuRecGen(age,isP){ return Math.round(clamp(CPU_REC(age)+(isP?8:0)+(rnd()-.5)*24,5,100)*10)/10; }   // 投手は+8
+const CPU_REC=a=>a<=26?46+(Math.max(18,a)-18)*4:a<=30?78+(a-26)*2:86-Math.max(0,a-32)*3;
+function cpuRecGen(age,isP){ return Math.round(clamp(CPU_REC(age)+(isP?9:0)+(rnd()-.5)*20,5,100)*10)/10; }   // 投手は+9（先発が規定投球回に届くくらい）
 function cpuRecAge(x){ const a=x.age; if(x.decl) x.rec=r1(Math.max(1,(x.rec??40)-(1.5+0.5*(a-x.decl))*(0.5+rnd()))); else if(a<=26) x.rec=r1(Math.min(100,(x.rec??40)+3+rnd()*2)); else if(a<=30) x.rec=r1(Math.min(100,(x.rec??40)+1+rnd()*2)); }
 // CPU：疲労で成績が少し落ちる（70から。打者はヒットの確率、投手は試合の始めのスタミナ）
 const cpuFatPen=F=>F>=FAT_LIM?0.04:0;   // 限界だけ少し打てなくなる（ふだんは休養で調整）
@@ -189,20 +195,20 @@ const cpuPTired=(p,T)=>!!p&&!p.isMe&&((p.out||0)>PEN.day||(p.fat||0)>=fatThr(T&&
 // 毎日（日付が進んだあと）：試合で増えた成績から疲労を足し、回復させ、明日の休養（スタメンの入れ替え）を決める
 function cpuFatDaily(){
   if(!PEN||!PEN.teams||!PEN.cs) return; const C=PEN.cs, d=PEN.day, Y=PEN.year, AS=d===(typeof AS_DAY!=='undefined'?AS_DAY:75);
-  const asRest=(F,rec)=>{ for(let i=0;i<4;i++) F=Math.max(0,F-fatRecDay(F)*recK(rec)*1.5); return F; };   // オールスター休み：4日（出ない日と同じ回復）
+  const asRest=(F,rec)=>{ for(let i=0;i<4;i++) F=Math.max(0,F-fatRecDay(F)*recK(rec)*FAT_REST); return F; };   // オールスター休み：4日（出ない日と同じ回復）
   for(const t of NPB){ const T=PEN.teams[t.id]; if(!T) continue;
     if(T.lineupBase){ T.lineup=T.lineupBase; delete T.lineupBase; }   // きのうの入れ替えを戻す
     const L=T.lineup||[], slot={}; L.forEach((b,i)=>{ if(b&&b.fid) slot[b.fid]=(T.lpos||[])[i]; });
     for(const f of T.F||[]){ const c=C[f.id]||{pa:0}, s=f.fs&&f.fs.y===Y?f.fs:(f.fs={y:Y,pa:c.pa||0});
       const dA=Math.max(0,(c.pa||0)-s.pa); s.pa=c.pa||0; let F=f.fat||0;
       if(dA>0) F+=(dA>=3?fatBat(dA,slot[f.id]||f.pos,1):fatSub(dA,0))*FAT_AGE(f.age)*fatDecl(f.age,f.decl);
-      F=Math.max(0,F-fatRecDay(F)*recK(f.rec)*(dA>0?1:1.5)); if(AS) F=asRest(F,f.rec); f.fat=r1(Math.min(100,F));
+      F=Math.max(0,F-fatRecDay(F)*recK(f.rec)*(dA>0?1:FAT_REST)); if(AS) F=asRest(F,f.rec); f.fat=r1(Math.min(100,F));
       if(f.fat>=FAT_LIM&&!((f.out||0)>d)&&rnd()<0.5) f.out=d+ri(3,7);   // 限界：数試合いなくなる
     }
     for(const p of T.P||[]){ if(!p||p.isMe||!p.pid) continue; const c=C[p.pid]||{g:0,outs:0}, s=p.fs&&p.fs.y===Y?p.fs:(p.fs={y:Y,g:c.g||0,outs:c.outs||0});
       const dG=Math.max(0,(c.g||0)-s.g), dO=Math.max(0,(c.outs||0)-s.outs); s.g=c.g||0; s.outs=c.outs||0; let F=p.fat||0;
       if(dG>0){ const st=p.lastPDay===d-2?(p.pStreak||1):0; p.pStreak=st+1; p.lastPDay=d-1; F+=fatPit(Math.round(dO*5.3+6),st)*FAT_AGE(p.age)*fatDecl(p.age,p.decl); }
-      F=Math.max(0,F-fatRecDay(F)*recK(p.rec)*(dG>0?1:1.5)); if(AS) F=asRest(F,p.rec); p.fat=r1(Math.min(100,F));
+      F=Math.max(0,F-fatRecDay(F)*recK(p.rec)*(dG>0?1:FAT_REST)); if(AS) F=asRest(F,p.rec); p.fat=r1(Math.min(100,F));
       if(p.fat>=FAT_LIM&&!((p.out||0)>d)&&rnd()<0.5) p.out=d+ri(3,7);
     }
     // 明日のスタメン：疲れた選手（目安以上・34歳からは目安−10で35%）・離脱中の選手を控えと入れ替える（自分は入れ替えない）
